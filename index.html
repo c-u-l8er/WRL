@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>WallRiderLang — a spatial actor language whose meaning is a graph</title>
-<meta name="description" content="WallRiderLang (WRL) is a spatial actor language. Programs are durable identities in motion along textured routes, separated by boundaries that gate, commit and seal. The surface reads like a route map; the meaning is a precise, canonicalizable graph with a content-addressed identity.">
+<title>WallRiderLang — an executable topology language whose meaning is a hash</title>
+<meta name="description" content="WallRiderLang (WRL) is an executable topology language: a notation for networks of durable identities, connected by textured routes and separated by boundaries that gate, commit and seal. The surface reads like a route map; the meaning is a canonical graph with a content-addressed identity, and every run produces a film that replays exactly.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
@@ -20,6 +20,7 @@
     <a href="guide.html">Guide</a>
     <a href="reference.html">Reference</a>
     <a href="spec.html">Spec</a>
+    <a href="direction.html">Direction</a>
     <a href="playground.html">Playground</a>
     <a href="https://github.com/c-u-l8er/WRL">GitHub</a>
   </nav>
@@ -30,13 +31,14 @@
 <!-- ============================================================== hero -->
 <section class="machine" style="padding-top:96px;padding-bottom:88px">
   <div class="inner">
-    <div class="slot">A SPATIAL ACTOR LANGUAGE</div>
-    <h1>The surface reads like a route map. The meaning is a graph.</h1>
-    <p class="lede">A WallRiderLang program is a graph of <b>durable identities</b>
-    connected by <b>textured routes</b> and separated by <b>boundaries</b>. The
-    name is literal: programs are made of <b>riders</b> — identities in motion
-    along routes — and <b>walls</b> — the boundaries that gate, commit, and seal
-    what they do.</p>
+    <div class="slot">AN EXECUTABLE TOPOLOGY LANGUAGE</div>
+    <h1>The surface reads like a route map. The meaning is a hash.</h1>
+    <p class="lede">A WallRiderLang program is a network of <b>durable
+    identities</b> connected by <b>textured routes</b> and separated by
+    <b>boundaries</b>. The name is literal: programs are made of <b>riders</b> —
+    identities in motion along routes — and <b>walls</b> — the boundaries that
+    gate, commit, and seal what they do. The whole network is one content
+    address, and every run of it is a film that replays exactly.</p>
 
     <div class="note" style="margin-top:26px"><b>Read this first.</b> WRL is a
     <b>frozen small core inside a large design draft</b>. What you can write
@@ -46,6 +48,15 @@
     notation on the rest of this site describes <b>settled meaning that has no
     writable surface yet</b>. Every page marks which is which, on three separate
     axes. <a href="reference.html#tiers">See how to read the badges →</a></div>
+
+    <div class="note warn" style="margin-top:16px"><b>And read this second.</b>
+    Judged as an <i>actor language</i> — spawnable processes, mailboxes,
+    behaviour loops, supervision trees — WRL is weak, and will not catch up to
+    Erlang/OTP by imitating it. What it is actually good at is describing a
+    network of identities so precisely that the description is a hash and the
+    run is a film. <a href="direction.html">Direction</a> states the destination
+    that follows from that, the honest scorecard of where it is today, and the
+    ordered list of everything still missing.</div>
 
     <div class="dual" style="margin-top:38px">
       <div>
@@ -83,6 +94,7 @@
       <a class="btn" href="learn.html">Learn WRL in 20 minutes</a>
       <a class="btn ghost" href="playground.html">Open the playground</a>
       <a class="btn ghost" href="spec.html">Read the frozen spec</a>
+      <a class="btn ghost" href="direction.html">Where this is going</a>
     </div>
   </div>
 </section>
@@ -358,7 +370,7 @@
 <section>
   <div class="inner">
     <div class="slot">START HERE</div>
-    <h2>Four doors, depending on how you like to learn.</h2>
+    <h2>Five doors, depending on how you like to learn.</h2>
     <div class="grid g2" style="margin-top:30px">
       <a class="card link" href="learn.html"><span class="n">TUTORIAL</span>
         <h3>WRL in 20 minutes</h3>
@@ -378,6 +390,11 @@
         <h3>Seal a world in your browser</h3>
         <p>The real identity spine, ported to JavaScript. Parse, desugar,
         validate, canonicalize and hash — no server, no account, real ids.</p></a>
+      <a class="card link" href="direction.html"><span class="n">DIRECTION</span>
+        <h3>What it is for, and what it still has to earn</h3>
+        <p>The reframing, the honest scorecard, the five design pillars, the
+        dependency-ordered ladder of what is missing — and the conditions under
+        which the whole thesis would be wrong.</p></a>
     </div>
 
     <div class="note warn" style="margin-top:40px"><b>What WRL is not, yet.</b>
@@ -389,7 +406,8 @@
     <span class="tier exp">experimental</span> or
     <span class="tier prop">proposed</span>. Read
     <a href="reference.html#tiers">the tier table</a> before you build on
-    anything.</div>
+    anything, and <a href="direction.html#today">the scorecard</a> before you
+    believe anything.</div>
   </div>
 </section>
 
@@ -402,7 +420,8 @@
       <a href="learn.html">Tutorial</a><br>
       <a href="guide.html">Language guide</a><br>
       <a href="reference.html">Reference</a><br>
-      <a href="spec.html">Core 0.1.2 spec</a>
+      <a href="spec.html">Core 0.1.2 spec</a><br>
+      <a href="direction.html">Direction</a>
     </div>
     <div>
       <strong>Tools</strong>
@@ -418,7 +437,7 @@
     <div style="max-width:32ch">
       <strong>Colophon</strong>
       WRL is the authoring language of TRVM Forge. Riders move, walls
-      authorize, films prove.
+      authorize, films record.
     </div>
   </div>
 </footer>

@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>WRL Core 0.1.2 — frozen family extract</title>
-<meta name="description" content="The normative WallRiderLang Core 0.1.2 specification: the frozen meaning families, the architectural rule, the period cycle, canonicalization, the document boundary, the surface-grounded vs IR-grounded distinction, and the Core 0.2 promotion order.">
+<title>WRL Core 0.1.2 — frozen family extract, and the design draft</title>
+<meta name="description" content="The WallRiderLang Core 0.1.2 specification in two parts. Part I is normative: the frozen meaning families, the period cycle, canonicalization, the document boundary, and the Core 0.2 promotion order. Part II is a non-normative design draft: multilayer topology over one identity, three connection kinds, route axes vs textures, walls as the model-of-computation boundary, and derives that seal the answer rather than the search.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
@@ -25,6 +25,24 @@
   .errata{background:var(--paper-2);border-radius:8px;padding:20px 24px;margin:26px 0}
   .errata h3{margin-top:0;font-size:15px}
   .errata ol{margin-bottom:0}
+  .draft{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;
+         text-transform:uppercase;color:var(--brass-soft);
+         border:1px dashed var(--brass-soft);
+         border-radius:3px;padding:2px 7px;margin-left:10px;
+         vertical-align:.22em;font-weight:600;white-space:nowrap}
+  .partrule{border:0;border-top:1px solid var(--paper-3);margin:64px 0 0}
+  .partmark{font-family:var(--mono);font-size:11px;letter-spacing:.16em;
+            text-transform:uppercase;color:var(--wire);font-weight:600;
+            margin:22px 0 0}
+  .toc .part-label{display:block;font-family:var(--mono);font-size:10px;
+            letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);
+            margin:16px 0 6px}
+  a.cite{font-family:var(--mono);font-size:.78em;color:var(--ink-faint);
+         text-decoration:none;vertical-align:.25em}
+  a.cite:hover{color:var(--wire)}
+  ol.cite{font-size:15px;color:var(--ink-soft);margin:18px 0 0 22px}
+  ol.cite li{margin-bottom:10px}
+  ol.cite li b{font-family:var(--mono);font-size:.86em;color:var(--ink)}
 </style>
 </head>
 <body>
@@ -37,6 +55,7 @@
     <a href="guide.html">Guide</a>
     <a href="reference.html">Reference</a>
     <a href="spec.html" aria-current="page">Spec</a>
+    <a href="direction.html">Direction</a>
     <a href="playground.html">Playground</a>
     <a href="https://github.com/c-u-l8er/WRL">GitHub</a>
   </nav>
@@ -47,6 +66,7 @@
 <aside class="toc">
   <strong>Core 0.1.2</strong>
   <a href="#status">Status &amp; errata</a>
+  <span class="part-label">Part I · Normative</span>
   <a href="#s0">0 · Architectural rule</a>
   <a href="#s1">1 · Ten construct kinds</a>
   <a href="#s2">2 · Four reading laws</a>
@@ -67,17 +87,38 @@
   <a href="#s15">15 · The document boundary</a>
   <a href="#s16">16 · Core 0.2 promotion order</a>
   <a href="#s17">17 · Surface sugar tier</a>
+  <span class="part-label">Part II · Design draft</span>
+  <a href="#part2">Status of Part II</a>
+  <a href="#d1">D1 · Multilayer topology</a>
+  <a href="#d2">D2 · Three connection kinds</a>
+  <a href="#d3">D3 · Route axes vs textures</a>
+  <a href="#d4">D4 · Walls and computation</a>
+  <a href="#d5">D5 · Derives and search</a>
+  <a href="#d6">D6 · Profiles, not new kinds</a>
+  <a href="#d7">D7 · Falsification conditions</a>
 </aside>
 
 <div class="docbody">
 
-<div class="slot">NORMATIVE SPECIFICATION</div>
+<div class="slot">PART I NORMATIVE · PART II DESIGN DRAFT</div>
 <h1 style="font-size:clamp(28px,4vw,42px);max-width:24ch">WRL Core 0.1.2 — Frozen Family Extract</h1>
 
 <p class="lede">This document commits the <b>meaning families</b> of
 WallRiderLang that the TRVM runtime and the Forge semantic graph have grounded.
 It freezes <i>which kinds of things exist and what each kind means</i> — not the
 detailed surface rules, which remain a design draft and may still change.</p>
+
+<div class="note"><b>This file has two parts, and only one of them is
+normative.</b> <b>Part I</b> (§0–§17) is the frozen family extract: everything in
+it is settled, implemented, and covered by a battery. <b>Part II</b>
+(<a href="#part2">§D1–§D7</a>), new in 0.1.2, is a <b>design draft</b> — the
+architectural direction the frozen core is being aimed at. Nothing in Part II is
+frozen, nothing in it is implemented, and every construct it sketches is
+<b>rejected by today's toolchain</b> with
+<code class="inline">WRL_UNSUPPORTED_FEATURE</code>. Part II exists so that the
+direction is stated in the spec's own language and can be argued with, rather
+than living only in somebody's head. Where the two parts appear to disagree,
+<b>Part I wins</b>.</div>
 
 <h2 id="status">Status and errata</h2>
 
@@ -135,6 +176,9 @@ migration bridge.</li>
 conditions each construct must meet before it may be promoted.</li>
 </ol>
 </div>
+
+<hr class="partrule">
+<p class="partmark">Part I · Normative — the frozen family extract</p>
 
 <h2 id="s0"><span class="secnum">§0</span>Architectural rule<span class="frozen">frozen</span></h2>
 
@@ -471,6 +515,12 @@ surface-partial (§14b). It is still not promoted.</blockquote>
 <b>surface-grounded</b> (§14b) in a running Forge/TRVM implementation, at which
 point this file is revised. The steered order for 0.2 is recorded in §16.</p>
 
+<p>Everything in <a href="#part2">Part II</a> is, by definition, in neither list:
+it is not Experimental (nothing has been tried) and not Proposed (nothing has
+been designed to the point of a construct). Part II records the <b>direction</b>
+these deferrals are being resolved toward, so that a promotion can be judged
+against something other than convenience.</p>
+
 <h2 id="s14"><span class="secnum">§14</span>TRVM grounding<span class="frozen">corrected 0.1.1</span></h2>
 
 <p>Grounding is stated honestly: <b>grounded</b> = an isomorphic TRVM lowering
@@ -704,15 +754,360 @@ operations all refer to what the author wrote rather than to generated text.</li
 generated name and an explicit one is a normal
 <code class="inline">WRL_DUPLICATE_ID</code>, not a special sugar rule.</p>
 
+<p style="color:var(--ink-faint);font-style:italic">End of Part I. The next gated
+deliverable is §16 step 2 — the <code class="inline">~~</code> async route —
+which requires a canonical logical route declaration distinct from the structural
+edge declaration.</p>
+
+<hr class="partrule">
+<p class="partmark">Part II · Design draft — non-normative</p>
+
+<h2 id="part2"><span class="secnum">§D0</span>Status of Part II<span class="draft">non-normative · new in 0.1.2</span></h2>
+
+<p>Part I answers <i>what is settled</i>. Part II answers a different question:
+<b>what is this language for, such that the settled part is worth having?</b> A
+frozen core with no stated destination gets extended by whoever asks loudest;
+writing the destination down turns that into an argument that can be lost.</p>
+
+<div class="note stop"><b>Nothing in Part II is normative, implemented, or
+promised.</b> Every construct sketched below is currently
+<b>rejected</b> by the toolchain with
+<code class="inline">WRL_UNSUPPORTED_FEATURE</code>, and the site's conformance
+suite asserts that rejection on every run. When one of these constructs ships,
+the corresponding assertion goes red and this section must be rewritten. That is
+the intended failure mode: the draft cannot quietly drift out of date, because
+the build stops.</div>
+
+<h3>D0.1 · The reframe that produced Part II</h3>
+
+<p>WRL has been evaluated as an <b>actor language</b> — process, mailbox,
+behaviour loop, supervision tree — and by that measure it is weak: it has no
+runtime-spawnable process, no user-written behaviour, no supervision floor, and
+no surface mailbox (§14, §14b). Part I does not hide this.</p>
+
+<p>That measure is not, however, the one this language was built for. What the
+implemented core actually delivers is unusual and hard: a <b>content-addressed,
+replayable, statically-checked description of a network of identities</b>, in
+which the description is a hash and the run is a film. Part II states the
+destination that follows from taking <i>that</i> seriously:</p>
+
+<blockquote><b>WallRiderLang is an executable topology language:</b> a notation in
+which physical, computational, communication, authority, fault, and economic
+networks can be described <b>over the same durable identities</b>, checked before
+they run, and replayed exactly after they do.<br><br>
+The prose case for this framing, with the honest scorecard and the ordered list
+of what is missing, is on the <a href="direction.html">Direction</a> page. What
+follows here is only the part that has spec consequences.</blockquote>
+
+<h2 id="d1"><span class="secnum">§D1</span>Multilayer topology over one identity<span class="draft">draft</span></h2>
+
+<p>A <b>layer</b> is a set of connections among the world's identities that
+answers one question about them: <i>who is next to whom in space</i>, <i>who can
+message whom</i>, <i>who commands whom</i>, <i>who powers whom</i>, <i>who is
+blamed when whom fails</i>.</p>
+
+<p>The multilayer-network literature <a class="cite" href="#r-kivela">[K14]</a>
+distinguishes two arrangements, and the distinction is the whole of this
+section:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Arrangement</th><th>An entity in <i>n</i> layers is</th><th>Consequence</th></tr></thead>
+<tbody>
+<tr><td><b>Replica-based</b> (general case)</td><td><i>n</i> node-layer tuples, tied together by explicit <b>inter-layer coupling edges</b></td><td>identity is a property of the coupling; the couplings can be wrong, missing, or asymmetric</td></tr>
+<tr><td><b>Node-aligned</b> <span class="draft">proposed for WRL</span></td><td><b>one</b> node, present in every layer by construction</td><td>identity is structural; there is nothing to keep in sync</td></tr>
+</tbody></table></div>
+
+<p><b>Draft rule D1.</b> A WRL world is <b>node-aligned</b>. Layers are aspects of
+one identity, not replicas of it. There is therefore no inter-layer coupling
+construct, because there is no pair to couple: <code class="inline">d7</code> in
+the road layer and <code class="inline">d7</code> in the comms layer are the same
+<code class="inline">d7</code>.</p>
+
+<div class="note">This is not a new idea in the language; it is a consequence of
+§4. Identity is already a first-class construct kind whose whole purpose is that
+the same name means the same thing everywhere in the document. D1 says only:
+<b>do not weaken that when layers arrive.</b> The temptation will be to model a
+drone's radio as a separate node so it can have its own connections. Resist it —
+a radio that is not the drone is a different identity, and then the question
+"where is the radio" has two answers.</div>
+
+<p><b>What node-alignment costs.</b> It rules out the honest modelling of an
+entity that genuinely <i>is</i> several things in different layers — a
+consortium that is one legal person in the authority layer and three
+independently-failing datacentres in the fault layer. The draft's answer is that
+such a thing is <b>three identities and a wall</b> (§10), not one identity in
+three replicas. If that answer turns out to be unworkable in practice, D1 is
+wrong; see §D7.</p>
+
+<h2 id="d2"><span class="secnum">§D2</span>Three connection kinds<span class="draft">draft</span></h2>
+
+<p>Part I recognises exactly one way for two identities to be connected: a
+<b>route</b> from a writer to a reader, in which the writer's output is delivered
+to the reader's input and no cell has two writers (§0, §5). That rule is
+load-bearing and correct <i>for signals</i>. It is not correct for everything a
+layer might mean.</p>
+
+<p>Two established precedents show what the frozen rule is a special case of:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Precedent</th><th>Rule</th><th>Why it exists</th></tr></thead>
+<tbody>
+<tr><td><b>VHDL</b> <a class="cite" href="#r-vhdl">[V]</a></td><td><code class="inline">std_ulogic</code> is <i>unresolved</i>: two drivers is a compile error. <code class="inline">std_logic</code> is <i>resolved</i>: a resolution function reduces many drivers to one value.</td><td>a three-state bus has many drivers and is not a bug</td></tr>
+<tr><td><b>Modelica</b> <a class="cite" href="#r-modelica">[M]</a></td><td>at a connection point, <i>potential</i> variables are set equal and <i>flow</i> variables sum to zero. Connections are <b>acausal</b> — no direction is chosen.</td><td>a wire has no writer; Kirchhoff's laws do not name a source</td></tr>
+</tbody></table></div>
+
+<p><b>Draft rule D2.</b> Single-writer-per-cell is not repealed. It is
+<b>reclassified as a property of a port</b>, and two further port kinds are
+proposed alongside it:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Port kind</th><th>Admits</th><th>Meaning of a connection</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td><b>Owned</b></td><td>at most one writer</td><td>the writer's value <i>becomes</i> the reader's</td><td><b>frozen</b> — this is today's rule, unchanged (§0)</td></tr>
+<tr><td><b>Resolved</b></td><td>many drivers plus a named <b>resolution function</b></td><td>all drivers contribute; the function determines the value</td><td>draft</td></tr>
+<tr><td><b>Acausal</b></td><td>many participants, no drivers</td><td>potentials equal, flows sum to zero across the connection</td><td>draft</td></tr>
+</tbody></table></div>
+
+<div class="note stop"><b>The resolution function must be part of the sealed
+artifact.</b> A resolved port whose resolution function is supplied by the
+runtime, or chosen by the host, breaks §11: two worlds with identical canonical
+bytes would then be able to disagree about a value. If a resolution function
+cannot be named in the document and hashed with it, resolved ports do not
+ship.</div>
+
+<p><b>What this buys.</b> Power buses, shared physical media, contention on a
+road segment, and summed loads all stop needing to be faked as chains of relays.
+<b>What it costs.</b> The within-period REACT fixpoint (§8) is currently a
+single-pass settle over owned cells. Resolved ports still settle in one pass
+provided the resolution function is associative, commutative and idempotent —
+the same three laws §9 already demands of fact-merge, which is not a
+coincidence. <b>Acausal connections do not settle by passing values at all</b>:
+they require solving a system. That is a different execution model, which is what
+§D4 is for.</p>
+
+<h2 id="d3"><span class="secnum">§D3</span>Route axes are not route textures<span class="draft">draft</span></h2>
+
+<p>The four frozen textures (§5) are <b>guarantee classes</b>:
+<code class="inline">--</code> settles this period,
+<code class="inline">~~</code> does not,
+<code class="inline">==</code> requires evidence,
+<code class="inline">!!</code> carries failure. That is a small closed set, which
+is why glyphs work for it.</p>
+
+<p>A recurring proposal is to add textures for domains — a road texture, a radio
+texture, a money texture. <b>Draft rule D3 refuses this</b>, on the following
+grounds.</p>
+
+<p>ROS 2 <a class="cite" href="#r-ros">[R]</a> settles a similar question for
+message transport by exposing seven <i>independent</i> policies — reliability,
+durability, history, depth, deadline, lifespan, liveliness — any combination of
+which is meaningful. The general shape of a connection has at least these
+orthogonal axes:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Axis</th><th>Range</th></tr></thead>
+<tbody>
+<tr><td>Domain</td><td>spatial, informational, authority, energy, economic, evidential …</td></tr>
+<tr><td>Directionality</td><td>directed · bidirectional · acausal</td></tr>
+<tr><td>Cardinality</td><td>1:1 · 1:n · n:1 · n:m</td></tr>
+<tr><td>Timing</td><td>settles this period · settles later · continuous</td></tr>
+<tr><td>Capacity &amp; cost</td><td>unbounded · metered · priced</td></tr>
+<tr><td>Reliability</td><td>guaranteed · lossy · adversarial</td></tr>
+<tr><td>Geometry</td><td>abstract · metric · embedded in a coordinate frame</td></tr>
+<tr><td>Schema</td><td>untyped · typed payload · verified payload</td></tr>
+</tbody></table></div>
+
+<p>Eight axes of two to six values each is thousands of combinations. No glyph
+vocabulary survives that, and the attempt would either explode the textures or —
+worse — quietly overload them, so that <code class="inline">--</code> means
+"synchronous" on one page and "physical" on another.</p>
+
+<p><b>Draft rule D3.</b> Textures stay four and stay <b>timing-and-evidence
+only</b>. Everything else about a connection is carried by <b>attributes on the
+relation</b>, validated against the world's profile (§D6). A connection is
+therefore a named relation with attributes, of which the texture selects only the
+settlement discipline.</p>
+
+<div class="note">The corollary is that <b>attributed relations must ship before
+any domain profile does</b>. A mobility profile without them would have to encode
+capacity and cost in identifiers, which is exactly the class of mistake §15
+exists to prevent.</div>
+
+<h2 id="d4"><span class="secnum">§D4</span>Walls are where the model of computation changes<span class="draft">draft</span></h2>
+
+<p>§D2 ended with a problem: acausal connections need a solver, not a settle
+pass, and §8's period cycle is a settle pass. Introducing a solver into the
+period cycle would change the execution model of every world, including the ones
+that do not want it.</p>
+
+<p>Ptolemy II <a class="cite" href="#r-ptolemy">[P]</a> answers exactly this
+question. In Ptolemy a <b>director</b> implements a model of computation, and an
+opaque composite actor carries its own local director which <i>need not match</i>
+the director of the model containing it. Hierarchy is therefore the mechanism by
+which one model can contain a differently-scheduled model — discrete event
+outside, continuous time inside — without either one contaminating the other.</p>
+
+<p><b>Draft rule D4.</b> WRL already has that construct, and it is the
+<b>wall</b> (§10). A wall may enclose a sub-world evaluated under a different
+profile, and <b>the wall is the only place where the model of computation may
+change</b>. Within a wall, one discipline; across a wall, a declared boundary
+with declared effects.</p>
+
+<div class="note stop">This is the reason Part II proposes <b>no new construct
+kind</b>. The ten kinds of §1 already include identity, relation, boundary, and
+history. Multilayer topology is relations with attributes; heterogeneous
+execution is boundaries with profiles. A language that needed an eleventh kind
+for every domain it modelled would not be a topology language — it would be a
+collection of DSLs sharing a parser.</div>
+
+<p><b>Consequence for §10.</b> The boundary-safety law ("undeclared effects
+cannot cross walls", §12) becomes strictly more load-bearing: it is what stops a
+solver inside a wall from writing cells outside it. If walls are to carry
+profiles, boundary safety has to be enforced <i>per profile pair</i>, not
+globally — an open problem, not a solved one.</p>
+
+<h2 id="d5"><span class="secnum">§D5</span>Derives seal the answer, not the search<span class="draft">draft</span></h2>
+
+<p>A topology language that describes a road network will be asked to route
+vehicles on it, and routing is an optimisation problem. WRL should not contain an
+optimiser. §13 already lists derives as Proposed; §D5 constrains what a derive is
+allowed to promise when it wraps one.</p>
+
+<p>The two obvious external engines behave differently, and the difference is the
+rule:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Engine</th><th>Determinism</th></tr></thead>
+<tbody>
+<tr><td><b>SUMO</b> <a class="cite" href="#r-sumo">[S]</a></td><td>deterministic by default; the RNG is seeded (default 23423) and the seed is an input. Same inputs → same run.</td></tr>
+<tr><td><b>OR-Tools routing</b> <a class="cite" href="#r-ortools">[O]</a></td><td>not reliably reproducible: solution quality varies run to run, and the order in which variables and constraints are created can change the result.</td></tr>
+</tbody></table></div>
+
+<p><b>Draft rule D5.</b> A derive over an external engine seals <b>its inputs, its
+solver profile, and its result</b>. It does <b>not</b> seal the search. The
+sealed result must be accompanied by a <b>deterministic checker</b> that
+re-validates it against the world it came from. The solver is an <b>untrusted
+oracle</b>; the checker is the trusted part, and only the checker's verdict enters
+the artifact.</p>
+
+<div class="note stop"><b>A sealed plan may record <i>feasible</i>. It may record
+an <i>objective value</i>. It may never record <i>optimal</i>.</b> Optimality is a
+claim about the search, and by construction the search is not sealed. A film that
+asserted optimality would be asserting something no replay could check — which is
+precisely the class of claim §12's replay-exactness law exists to exclude.</div>
+
+<p>This is why the rule is stated here rather than left to the derive design: it
+determines what a derive <i>is</i>. A derive whose output cannot be checked more
+cheaply than it was produced is not admissible under D5, and several
+optimisation problems have no such checker. Those problems stay outside the
+language.</p>
+
+<h2 id="d6"><span class="secnum">§D6</span>Profiles carry domains, not construct kinds<span class="draft">draft</span></h2>
+
+<p>Every world already opens with a profile line (§4), and today exactly one
+profile exists. The draft's answer to "how does WRL model drones, or circuits, or
+supply chains" is: <b>a profile</b>, and nothing else.</p>
+
+<p>A profile fixes the vocabulary that the frozen kinds are instantiated with:
+which roles exist, which relation names are legal, which attributes each relation
+carries and what they mean, which resolution functions are available, and which
+model of computation applies inside a wall that declares it.</p>
+
+<p>The sketch below is what a mobility profile might look like. It is
+<b>not valid WRL</b>, and the conformance suite asserts that it is rejected:</p>
+
+<pre class="code" data-future="D6 sketch: unknown profile, unknown roles, unpromoted textures, attributed relations"><code><span class="kw">profile</span> wrl.mobility.v1
+
+<span class="cm">; one identity, present in five layers by construction (D1)</span>
+[<span class="kw">drone</span>:<span class="id">d7</span>](<span class="lit">battery=82, payload=4</span>){<span class="rt">pose, telemetry, command</span>}
+[<span class="kw">segment</span>:<span class="id">a12</span>](<span class="lit">capacity=3</span>){<span class="rt">occupancy</span>}
+[<span class="kw">station</span>:<span class="id">west</span>](<span class="lit">range=900</span>){<span class="rt">uplink</span>}
+[<span class="kw">cell</span>:<span class="id">c3</span>](<span class="lit">watts=400</span>){<span class="rt">supply</span>}
+[<span class="kw">policy</span>:<span class="id">safety</span>](<span class="lit">mode=halt</span>){<span class="rt">fault_in</span>}
+
+<span class="cm">; road layer  — attributed relation, not a new texture (D3)</span>
+[<span class="id">d7</span>] <span class="rt">--occupies(cost=1)--&gt;</span> [<span class="id">a12</span>]
+<span class="cm">; comms layer — asynchronous, does not settle this period</span>
+[<span class="id">d7</span>] <span class="rt">~~telemetry~~&gt;</span> [<span class="id">west</span>]
+<span class="cm">; energy layer — acausal: no writer, flows sum to zero (D2)</span>
+[<span class="id">c3</span>] <span class="rt">--power--&gt;</span> [<span class="id">d7</span>]
+<span class="cm">; fault layer  — requires a supervision floor first (§16 step 6)</span>
+[<span class="id">d7</span>] <span class="rt">!!fault!!&gt;</span> [<span class="id">safety</span>]</code></pre>
+
+<p>Every line of that sketch is currently a diagnostic. The profile name is
+unknown, the five roles are unknown, <code class="inline">~~</code> and
+<code class="inline">!!</code> are unpromoted, and relation attributes have no
+grammar. Reading it as a promise would be a mistake; reading it as a
+<b>specification of what §16 has to deliver, in order</b>, is the intent.</p>
+
+<div class="note warn"><b>The ordering hazard.</b> A domain profile is the last
+thing to build, not the first. It depends on typed ports (§D2),
+<code class="inline">~~</code> (§16 step 2), attributed relations (§D3),
+<code class="inline">==</code> (§16 step 3), and a supervision floor (§16 step 6).
+Building the profile first would force each of those decisions to be made
+implicitly, in a hurry, to satisfy a demo — which is the same failure §16.2
+already refuses for <code class="inline">[worker:w1]</code>.</div>
+
+<h2 id="d7"><span class="secnum">§D7</span>Falsification conditions<span class="draft">draft</span></h2>
+
+<p>A design draft that cannot be wrong is not a design draft. Part II is
+abandoned or substantially rewritten if any of the following turns out to be
+true:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>#</th><th>Condition</th><th>What it would falsify</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Real domains require <b>per-layer identity</b> — the same entity genuinely needing distinct, independently-connected existence in two layers — often enough that "three identities and a wall" is unworkable</td><td><b>§D1.</b> Node-alignment would have to be relaxed to replica-based layers, and identity would stop being structural</td></tr>
+<tr><td>2</td><td>The results worth deriving have <b>no checker cheaper than the search</b></td><td><b>§D5.</b> Derives would either seal unverifiable claims or become useless, and optimisation stays permanently outside the language</td></tr>
+<tr><td>3</td><td>Profiles need a <b>central registry</b> to interoperate — that is, two independently-written profiles cannot be composed without an authority arbitrating names</td><td><b>§D6.</b> The "profiles, not construct kinds" answer would collapse into a governance problem, which a language cannot solve</td></tr>
+<tr><td>4</td><td>Resolved-port resolution functions cannot be expressed in the document and hashed with it</td><td><b>§D2.</b> Resolved ports would break §11 content identity and must not ship</td></tr>
+<tr><td>5</td><td>Per-profile boundary safety across walls proves undecidable in practice</td><td><b>§D4.</b> Heterogeneous execution would have to be dropped, leaving acausal connections nowhere to live</td></tr>
+</tbody></table></div>
+
+<p>Conditions 1 and 2 are the load-bearing ones. Both are answerable by building
+the mobility profile for real, which is why the first genuine test of Part II is
+a single fleet described across road, communications, dispatch, energy and fault
+layers, run on TRVM, with routing supplied by an external solver and checked on
+the way back in.</p>
+
+<h3 id="d-refs">References</h3>
+
+<ol class="cite">
+<li id="r-kivela"><b>[K14]</b> M. Kivelä, A. Arenas, M. Barthelemy, J. P.
+Gleeson, Y. Moreno, M. A. Porter. <i>Multilayer networks.</i> Journal of Complex
+Networks 2(3), 203–271, 2014. — node-layer tuples, aspects, intra- vs
+inter-layer edges, and the node-aligned special case.</li>
+<li id="r-modelica"><b>[M]</b> Modelica Language Specification, ch. 9,
+<i>Connectors and Connections</i>. — potential variables equated, flow variables
+summed to zero, acausal connection semantics.</li>
+<li id="r-vhdl"><b>[V]</b> IEEE 1164 <code class="inline">std_logic_1164</code>:
+<code class="inline">std_ulogic</code> (unresolved) vs
+<code class="inline">std_logic</code> (resolved, with a resolution
+function).</li>
+<li id="r-ptolemy"><b>[P]</b> Ptolemy II / <i>System Design, Modeling, and
+Simulation using Ptolemy II</i>, ch. on directors and hierarchical
+heterogeneity. — a director implements a model of computation; an opaque
+composite's local director need not match its executive director.</li>
+<li id="r-ros"><b>[R]</b> ROS 2 documentation, <i>About Quality of Service
+settings</i>. — reliability, durability, history, depth, deadline, lifespan,
+liveliness as independent policies.</li>
+<li id="r-sumo"><b>[S]</b> Eclipse SUMO documentation, <i>Randomness</i>. —
+deterministic by default; <code class="inline">--seed</code> /
+<code class="inline">--random</code>.</li>
+<li id="r-ortools"><b>[O]</b> Google OR-Tools routing issue reports on
+reproducibility. — solution quality varies run to run; construction order
+affects results.</li>
+</ol>
+
 <hr style="border:0;border-top:1px solid var(--paper-2);margin:56px 0 30px">
 
-<p style="color:var(--ink-faint);font-style:italic">End of WRL Core 0.1.2. The
-next gated deliverable is §16 step 2 — the <code class="inline">~~</code> async
-route — which requires a canonical logical route declaration distinct from the
-structural edge declaration.</p>
+<p style="color:var(--ink-faint);font-style:italic">End of WRL Core 0.1.2, Parts
+I and II. Part I is frozen. Part II is an argument, and is meant to be argued
+with — see <a href="direction.html">Direction</a> for the case in prose.</p>
 
 <div class="btnrow" style="margin-top:40px">
-  <a class="btn" href="guide.html">Read the guide →</a>
+  <a class="btn" href="direction.html">The case in prose →</a>
+  <a class="btn ghost" href="guide.html">Language guide</a>
   <a class="btn ghost" href="reference.html">Reference tables</a>
   <a class="btn ghost" href="playground.html">Playground</a>
 </div>
@@ -727,7 +1122,8 @@ structural edge declaration.</p>
       <a href="learn.html">Tutorial</a><br>
       <a href="guide.html">Language guide</a><br>
       <a href="reference.html">Reference</a><br>
-      <a href="spec.html">Core 0.1.2 spec</a>
+      <a href="spec.html">Core 0.1.2 spec</a><br>
+      <a href="direction.html">Direction</a>
     </div>
     <div>
       <strong>Tools</strong>
@@ -743,7 +1139,7 @@ structural edge declaration.</p>
     <div style="max-width:32ch">
       <strong>Colophon</strong>
       WRL is the authoring language of TRVM Forge. Riders move, walls
-      authorize, films prove.
+      authorize, films record.
     </div>
   </div>
 </footer>

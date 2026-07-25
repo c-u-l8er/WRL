@@ -1,15 +1,16 @@
 # WallRiderLang
 
-**A spatial actor language whose meaning is a graph.**
+**An executable topology language whose meaning is a hash.**
 
 This repository is the WallRiderLang (WRL) documentation site: the language
-guide, the tutorial, the reference tables, the frozen Core 0.1.2 spec, and a
-browser playground that computes real `SemanticArtifactID`s.
+guide, the tutorial, the reference tables, the Core 0.1.2 spec, the direction
+document, and a browser playground that computes real `SemanticArtifactID`s.
 
-A WRL program is a graph of **durable identities** connected by **textured
+A WRL program is a network of **durable identities** connected by **textured
 routes** and separated by **boundaries**. The name is literal — programs are made
 of *riders*, identities in motion along routes, and *walls*, the boundaries that
-gate, commit and seal what they do.
+gate, commit and seal what they do. The whole network is one content address, and
+every run of it is a film that replays exactly.
 
 ```
 profile forge.world.core.v1
@@ -46,8 +47,38 @@ are checked on every change by [`test/conformance.mjs`](test/conformance.mjs).
 | `learn.html` | **WRL in 20 minutes** — build one world from an empty file, then watch its identity move |
 | `guide.html` | The complete language guide, in the order the language was designed |
 | `reference.html` | Every table: grammar, roles, ports, edges, clocks, rotors, sugar bounds, diagnostic codes, pinned policy ids, stability tiers |
-| `spec.html` | The normative **WRL Core 0.1.2** frozen family extract |
+| `spec.html` | **WRL Core 0.1.2** — Part I the normative frozen family extract, Part II a non-normative design draft |
+| `direction.html` | What the language is *for*, the honest scorecard, and the dependency-ordered list of what is missing |
 | `playground.html` | A live browser playground that seals worlds and shows the real id |
+
+## What this is, and what it is not
+
+Judged as an **actor language** — spawnable processes, mailboxes, behaviour
+loops, supervision trees — WRL is weak, and it will not catch up to Erlang/OTP by
+imitating Erlang/OTP. It has no runtime-spawnable process, no user-written
+behaviour, no supervision floor, and no writable mailbox. The spec says so
+(§14, §14b); the site says so on every page.
+
+What it is actually good at is describing a **network of identities** precisely
+enough that the description is a hash and the run is a film. The direction that
+follows from taking *that* seriously:
+
+> WallRiderLang is an **executable topology language**: a notation in which
+> physical, computational, communication, authority, fault and economic networks
+> can be described **over the same durable identities**, checked before they run,
+> and replayed exactly after they do.
+
+That is an argument, not an achievement. [`direction.html`](direction.html)
+makes the case, scores where the language actually is today, orders the ten
+things that have to be built, and lists the conditions under which the whole
+thesis would be wrong. [`spec.html` Part II](spec.html#part2) states the same
+thing in the spec's own language, non-normatively.
+
+Every aspirational code block on those pages is marked `data-future` and is
+**asserted by the test suite to be rejected** by today's toolchain with
+`WRL_UNSUPPORTED_FEATURE`. When one of those constructs ships, the test goes red
+and the document has to be corrected — the docs cannot quietly claim less than
+the implementation any more than they can claim more.
 
 ## The playground is not a mock
 
@@ -103,6 +134,12 @@ The next gated deliverable is the `~~` async route, which requires a canonical
 logical route declaration *distinct from* the structural edge declaration — an
 async message does not settle within the period, so it cannot be an ordinary
 edge.
+
+After that, in dependency order and not in order of appeal: typed ports →
+attributed relations → behaviours → `==` verified routes → dynamic topology →
+a supervision floor and `!!` → effect adapters → derives with checkers → domain
+profiles. The full ladder, with the gate each step must pass, is in
+[`direction.html#ladder`](direction.html#ladder).
 
 ## Related
 

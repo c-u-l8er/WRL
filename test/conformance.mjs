@@ -398,10 +398,23 @@ for (const file of htmlFiles) {
     const source = decode(body);
     const seal = ATTR(attrs, "data-seal");
     const reject = ATTR(attrs, "data-reject");
+    const future = ATTR(attrs, "data-future");
     const label = `doc/${file}#${i}`;
     blocks++;
 
-    if (seal) {
+    if (future) {
+      /* A block marked as design draft is making the negative claim: you cannot
+       * write this today. That claim is checkable, so check it. The reviewer's
+       * complaint was documentation asserting MORE than the implementation
+       * does; this is the same failure in the other direction, and it is the
+       * one that rots silently. When `~~` finally ships, this test goes red on
+       * the pages that still call it unwritable, and the docs get corrected
+       * because the build stops -- not because somebody remembered. */
+      annotated++;
+      await expectReject(`${label} (draft: ${future})`,
+        source.endsWith("\n") ? source : source + "\n",
+        "WRL_UNSUPPORTED_FEATURE");
+    } else if (seal) {
       annotated++;
       if (await expectSeal(label, source.endsWith("\n") ? source : source + "\n", seal)) {
         verified.set(seal, `${file} block ${i}`);
