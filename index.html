@@ -9,6 +9,116 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="wrl.css">
+<style>
+  /* ---- the live workbench in the hero ---- */
+  .wb{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin-top:34px}
+  .wb-pane{display:flex;flex-direction:column;min-width:0}
+  #wb-src{font-family:var(--mono);font-size:13px;line-height:1.72;
+    border:1px solid var(--machine-edge);border-radius:9px;resize:vertical;
+    padding:15px 17px;min-height:262px;width:100%;background:var(--machine-2);
+    color:#CFE3DA;outline:0;tab-size:2}
+  #wb-src:focus{border-color:var(--phosphor-dim)}
+  .wb-canvas{border:1px solid var(--machine-edge);border-radius:9px;
+    background:var(--machine-2);padding:8px;min-height:262px;display:flex;
+    align-items:center;justify-content:center;overflow:hidden}
+  .wb-canvas svg{width:100%;height:auto;max-height:244px;display:block}
+  .wb-fail{font-family:var(--mono);font-size:12.5px;color:#E08A72;line-height:1.7;
+    white-space:pre-wrap;padding:16px;align-self:center}
+  .wb-fail b{color:#E08A72;display:block;letter-spacing:.06em;margin-bottom:6px}
+  .wb-id{display:flex;gap:13px;align-items:baseline;flex-wrap:wrap;margin-top:16px;
+    font-family:var(--mono);font-size:13px;border:1px solid var(--machine-edge);
+    background:var(--machine-2);border-radius:9px;padding:13px 16px}
+  .wb-id .tag{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--phosphor-dim);font-weight:600}
+  .wb-id .val{color:var(--phosphor);font-weight:600;word-break:break-all}
+  .wb-id.err .val{color:#E08A72}
+  .wb-lab{margin-top:22px}
+  .wb-lab .cap{font-family:var(--mono);font-size:11px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--phosphor-dim)}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px}
+  .chip{font-family:var(--mono);font-size:11.5px;cursor:pointer;
+    background:var(--machine-edge);border:1px solid transparent;border-radius:99px;
+    padding:6px 14px;color:#9FB8AE;font-weight:500;transition:border-color .12s,color .12s}
+  .chip:hover:not([disabled]){border-color:var(--phosphor-dim);color:var(--phosphor)}
+  .chip[disabled]{opacity:.3;cursor:not-allowed}
+  .verdict{font-family:var(--mono);font-size:12.5px;line-height:1.75;margin-top:13px;
+    color:#7C948B;max-width:80ch;min-height:2.6em}
+  .verdict.same{color:var(--phosphor)}
+  .verdict.moved{color:var(--brass)}
+  .verdict .was{color:#7C948B;text-decoration:line-through}
+  .verdict code{font-family:var(--mono);color:inherit}
+  .machine .verdict b{color:inherit}
+
+  /* ---- glyphs shared by every diagram on the page ---- */
+  .topo .gl{fill:none;stroke:var(--phosphor-dim);stroke-width:1.5}
+  .topo .mk{fill:none;stroke:var(--phosphor);stroke-width:1.4;stroke-linecap:round}
+  .topo .dot{fill:var(--phosphor);stroke:none}
+  .topo .nm{font-family:var(--mono);font-size:10.5px;fill:#CFE3DA}
+  .topo .cf{font-family:var(--mono);font-size:8.5px;fill:#6E857C}
+  .topo .e-sig{fill:none;stroke:var(--phosphor-dim);stroke-width:1.4}
+  .topo .e-socket{fill:none;stroke:var(--brass-soft);stroke-width:1.4;stroke-dasharray:5 3}
+  .topo .empty{font-family:var(--mono);font-size:11px;fill:#6E857C}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;
+    color:#7C948B;margin-top:12px}
+  .legend b{color:var(--phosphor-dim);font-weight:500}
+
+  /* ---- the worked-worlds gallery ---- */
+  .gal{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:18px;margin-top:32px}
+  .world{background:#fff;border:1px solid var(--paper-2);border-radius:9px;
+    padding:20px 20px 18px;display:flex;flex-direction:column}
+  .world h3{margin:0 0 6px;font-size:19px}
+  .world .why{font-size:16px;color:var(--ink-soft);max-width:none;margin:0 0 14px}
+  .world .dia{background:var(--machine);border-radius:7px;padding:8px 4px;margin-bottom:12px}
+  .world .dia svg{width:100%;height:auto;max-height:168px;display:block}
+  .world pre{background:var(--machine);border:1px solid var(--machine-edge);border-radius:7px;
+    padding:14px 15px;font-family:var(--mono);font-size:11.7px;line-height:1.7;
+    color:#9FB8AE;overflow-x:auto;margin:0}
+  .world .sem{font-family:var(--mono);font-size:11px;color:var(--wire);word-break:break-all;
+    margin-top:12px;line-height:1.6}
+  .world .sem span{color:var(--ink-faint);letter-spacing:.1em;text-transform:uppercase;
+    font-size:10px;display:block;margin-bottom:3px}
+  .world .sem em{font-style:normal}
+  .world .load{margin-top:14px;align-self:flex-start;font-family:var(--mono);font-size:11.5px;
+    cursor:pointer;background:var(--paper-2);border:0;border-radius:6px;padding:7px 14px;
+    color:var(--ink-soft);font-weight:600}
+  .world .load:hover{background:var(--wire);color:#EAF6F1}
+
+  /* ---- the period ring ---- */
+  .ring{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:34px;
+    align-items:center;margin-top:30px}
+  .ring svg{width:100%;height:auto}
+  .ring .arc{fill:none;stroke:var(--machine-edge);stroke-width:1.5}
+  .ring .ph{cursor:pointer}
+  .ring .ph circle{fill:var(--machine-2);stroke:var(--machine-edge);stroke-width:1.5;
+    transition:stroke .15s,fill .15s}
+  .ring .ph text.lbl{font-family:var(--mono);font-size:10px;fill:#9FB8AE;
+    text-anchor:middle;letter-spacing:.06em}
+  .ring .ph text.num{font-family:var(--mono);font-size:8px;fill:#6E857C;text-anchor:middle}
+  .ring .ph:hover circle,.ring .ph.on circle{stroke:var(--phosphor);fill:#16241E}
+  .ring .ph:hover text.lbl,.ring .ph.on text.lbl{fill:var(--phosphor)}
+  .ring .hub{font-family:var(--mono);font-size:9px;fill:#54695F;text-anchor:middle;
+    letter-spacing:.14em}
+  .ring .hub2{font-family:var(--mono);font-size:8px;fill:#3E5049;text-anchor:middle}
+  tr.on td{color:#E4F0EA}
+  tr.on td:first-child b{color:var(--phosphor)}
+
+  /* ---- the ladder prober ---- */
+  .ladder tr td:first-child b{transition:color .15s}
+  .ladder tr.lit td{color:#3A4A45}
+  .ladder tr.lit td:first-child b{color:var(--rust)}
+  .ladder tr.dim td{opacity:.4}
+  .probe{display:flex;gap:8px;flex-wrap:wrap;margin:22px 0 6px}
+  .probe .chip{background:var(--paper-2);color:var(--ink-soft)}
+  .probe .chip:hover:not([disabled]),.probe .chip.on{border-color:var(--wire);color:var(--wire)}
+  .probe .chip.on{background:#fff}
+  .probe-out{font-family:var(--mono);font-size:12.5px;color:var(--ink-faint);
+    min-height:2.4em;max-width:76ch;line-height:1.7}
+
+  @media (max-width:880px){
+    .wb{grid-template-columns:minmax(0,1fr)}
+    .ring{grid-template-columns:minmax(0,1fr);gap:20px}
+  }
+</style>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -61,36 +171,48 @@
     that follows from that, the honest scorecard of where it is today, and the
     ordered list of everything still missing.</div>
 
-    <div class="dual" style="margin-top:38px">
-      <div>
-        <div class="pane-cap">You write this — the starter world</div>
-<pre class="code" data-seal="sem-67e954cfe3115166b49388366df3f062a46572ba2baf53380f1520f4050b60ae"><code><span class="cm">; a signal, a rotation, a pose</span>
-<span class="kw">profile</span> forge.world.core.v1
-
-[<span class="kw">pulser</span>:<span class="id">p0</span>](<span class="lit">every 2</span>){<span class="rt">sig_out</span>}
-[<span class="kw">relay</span>:<span class="id">r0</span>]{<span class="rt">sig_in, sig_out</span>}
-[<span class="kw">spinner</span>:<span class="id">sp</span>](<span class="lit">w=16, n=8, rotor=quarter_turn_z, configurable</span>){<span class="rt">sig_in, socket</span>}
-[<span class="kw">orb</span>:<span class="id">ob</span>]{<span class="rt">pose</span>}
-
-[<span class="id">p0</span>] <span class="rt">--sig--&gt;</span> [<span class="id">r0</span>]
-[<span class="id">r0</span>] <span class="rt">--sig--&gt;</span> [<span class="id">sp</span>]
-[<span class="id">sp</span>] <span class="rt">--socket--&gt;</span> [<span class="id">ob</span>]</code></pre>
+    <div class="wb">
+      <div class="wb-pane">
+        <div class="pane-cap">You write this — edit it, it is live</div>
+        <textarea id="wb-src" spellcheck="false" aria-label="WRL world source"></textarea>
       </div>
-      <div>
-        <div class="pane-cap">It means exactly this</div>
-<pre class="code" style="line-height:1.7"><code>SemanticArtifactID
-  <span class="kw">sem-67e954cfe311…4050b60ae</span>
-
-<span class="cm">; a content hash of the canonical graph.
-; whitespace, comment, declaration order
-; and sugar spelling are all inert.
-; change the rotor and it moves.
-; recompile on any machine — same id.</span></code></pre>
-        <p style="font-size:16px;margin-top:14px;color:#9FB8AE">Every WRL world
-        has one. That id is the same on your laptop, in CI, and in the archive
-        five years from now.
-        <a href="playground.html">Compute it yourself →</a></p>
+      <div class="wb-pane">
+        <div class="pane-cap">It means this graph — drawn from the seal</div>
+        <div class="wb-canvas" id="wb-canvas">
+          <svg class="topo" id="wb-svg" role="img" aria-label="topology diagram"></svg>
+        </div>
       </div>
+    </div>
+
+    <div class="legend">
+      <span><b>◯ pulser</b> a clock</span>
+      <span><b>◇ relay</b> forwards one hop</span>
+      <span><b>⬡ spinner</b> holds a rotation</span>
+      <span><b>● orb</b> holds a pose</span>
+      <span><b>▢ door</b> a sink you can observe</span>
+      <span><b>——</b> signal wire</span>
+      <span><b>– –</b> socket control</span>
+    </div>
+
+    <div class="wb-id" id="wb-id">
+      <span class="tag">SemanticArtifactID</span>
+      <span class="val" id="wb-sem">sealing…</span>
+    </div>
+
+    <div class="wb-lab">
+      <div class="cap">Try an edit. Did the meaning move?</div>
+      <div class="chips" id="wb-chips">
+        <button class="chip" data-edit="comment">Add a comment</button>
+        <button class="chip" data-edit="shuffle">Shuffle the declarations</button>
+        <button class="chip" data-edit="desugar">Spell the sugar out</button>
+        <button class="chip" data-edit="canon">Reformat canonically</button>
+        <button class="chip" data-edit="rotor">Change the rotor</button>
+        <button class="chip" data-edit="geom">Halve the spinner's n</button>
+        <button class="chip" data-edit="period">Retime the clock</button>
+        <button class="chip" data-edit="reset">Reset</button>
+      </div>
+      <p class="verdict" id="wb-verdict">Nothing is sent anywhere — this is the
+      real identity spine, ported to JavaScript, running in your tab.</p>
     </div>
 
     <div class="btnrow">
@@ -198,8 +320,30 @@
   </div>
 </section>
 
-<!-- ====================================================== the architectural rule -->
+<!-- ====================================================== worked worlds -->
 <section>
+  <div class="inner">
+    <div class="slot">SIX WORLDS YOU CAN WRITE TODAY</div>
+    <h2>Small, but not toys — these all seal, right now.</h2>
+    <p class="lede">Every id below was computed in your browser when this page
+    loaded, by the same spine TRVM Forge runs. Nothing here is illustrative
+    pseudocode: paste any of it into the playground and you get the same id
+    back. Load one into the workbench above and start editing it.</p>
+
+    <div class="note"><b>What is honestly in scope.</b> The frozen core gives
+    you five roles and two edge kinds. That is enough to describe <i>timed,
+    reconfigurable signal topologies</i> — clocks, routes, sinks, and state that
+    a run can reconfigure — and to get a replayable film and a stable id out of
+    them. It is not yet enough to write a web service. Anything you see below is
+    <span class="tier core">core</span>; everything the wider draft adds is
+    <a href="reference.html#tiers">marked separately</a>.</div>
+
+    <div class="gal" id="gal"></div>
+  </div>
+</section>
+
+<!-- ====================================================== the architectural rule -->
+<section style="border-top:1px solid var(--paper-2)">
   <div class="inner">
     <div class="slot">THE ARCHITECTURAL RULE</div>
     <h2>WRL never lowers straight to the runtime.</h2>
@@ -269,20 +413,61 @@
     <b>ordered stages of a single period</b> — not six things that happen to
     six different periods.</p>
 
-    <div class="pipe" style="margin-top:30px">
-      <span><b>OBSERVE</b></span><span><b>ACCEPT</b></span><span><b>MAP</b></span>
-      <span><b>COMMIT</b></span><span><b>REACT</b></span><span><b>FILM</b></span>
+    <div class="ring" id="ring">
+      <svg viewBox="0 0 420 350" role="img"
+           aria-label="the six phases of one period, in a cycle">
+        <path class="arc" marker-end="url(#ar)" d="M239.0 58.6 A120 120 0 0 1 296.3 91.6"/>
+        <path class="arc" marker-end="url(#ar)" d="M325.4 141.9 A120 120 0 0 1 325.4 208.1"/>
+        <path class="arc" marker-end="url(#ar)" d="M296.3 258.4 A120 120 0 0 1 239.0 291.4"/>
+        <path class="arc" marker-end="url(#ar)" d="M181.0 291.4 A120 120 0 0 1 123.7 258.4"/>
+        <path class="arc" marker-end="url(#ar)" d="M94.6 208.1 A120 120 0 0 1 94.6 141.9"/>
+        <path class="arc" marker-end="url(#ar)" d="M123.7 91.6 A120 120 0 0 1 181.0 58.6"/>
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6"
+                  markerHeight="6" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="#1E2C27"/>
+          </marker>
+        </defs>
+        <g class="ph" data-ph="OBSERVE"><circle cx="210" cy="55" r="36"/>
+          <text class="num" x="210" y="47">1</text>
+          <text class="lbl" x="210" y="60">OBSERVE</text></g>
+        <g class="ph" data-ph="ACCEPT"><circle cx="313.9" cy="115" r="36"/>
+          <text class="num" x="313.9" y="107">2</text>
+          <text class="lbl" x="313.9" y="120">ACCEPT</text></g>
+        <g class="ph" data-ph="MAP"><circle cx="313.9" cy="235" r="36"/>
+          <text class="num" x="313.9" y="227">3</text>
+          <text class="lbl" x="313.9" y="240">MAP</text></g>
+        <g class="ph" data-ph="COMMIT"><circle cx="210" cy="295" r="36"/>
+          <text class="num" x="210" y="287">4</text>
+          <text class="lbl" x="210" y="300">COMMIT</text></g>
+        <g class="ph" data-ph="REACT"><circle cx="106.1" cy="235" r="36"/>
+          <text class="num" x="106.1" y="227">5</text>
+          <text class="lbl" x="106.1" y="240">REACT</text></g>
+        <g class="ph" data-ph="FILM"><circle cx="106.1" cy="115" r="36"/>
+          <text class="num" x="106.1" y="107">6</text>
+          <text class="lbl" x="106.1" y="120">FILM</text></g>
+        <text class="hub" x="210" y="170">ONE PERIOD</text>
+        <text class="hub2" x="210" y="186">the unit of time</text>
+      </svg>
+      <div>
+        <p style="max-width:52ch">A period is not a tick of a wall clock and not
+        a scheduler slot. It is one full turn of this ring, and the ring never
+        turns backwards or skips a station.</p>
+        <p style="max-width:52ch">Hover or tap a phase to see what it is
+        responsible for. The important pair is <b>4 before 5</b>: everything writes, and only
+        then does anything react to what was written.</p>
+      </div>
     </div>
 
     <div class="tbl">
-      <table>
+      <table id="cyc">
         <tr><th>Phase</th><th>What happens <span class="dim">(§8, normative)</span></th><th>Why it is separate</th></tr>
-        <tr><td><b>OBSERVE</b></td><td>Canonicalize and insert distinct claims.</td><td>The only point where the outside gets in — so the input sequence is a nameable, canonical thing.</td></tr>
-        <tr><td><b>ACCEPT</b></td><td>Create missing receipts under the pinned acceptance policy.</td><td>Admission is a policy decision, not an accident of arrival order. Receipts are minted <em>here</em>, and are immutable once minted.</td></tr>
-        <tr><td><b>MAP</b></td><td>Turn newly-accepted successful operations into controls.</td><td>Separating "this was accepted" from "this therefore writes" is what makes a retransmission not re-run an effect.</td></tr>
-        <tr><td><b>COMMIT</b></td><td>Apply control writes and fault resets to owned cells.</td><td>Every write to owned state happens in one phase, before anything reacts to it.</td></tr>
-        <tr><td><b>REACT</b></td><td>Deterministic <b>within-period</b> token cascade to fixpoint; latch current overflow.</td><td>The period settles before it ends. Reaction reads committed cells, so a configuration committed this period is visible to this period's reaction.</td></tr>
-        <tr><td><b>FILM</b></td><td>Record the entries needed to replay the epoch.</td><td>The proof is produced by the cycle, not bolted on afterwards.</td></tr>
+        <tr data-ph="OBSERVE"><td><b>OBSERVE</b></td><td>Canonicalize and insert distinct claims.</td><td>The only point where the outside gets in — so the input sequence is a nameable, canonical thing.</td></tr>
+        <tr data-ph="ACCEPT"><td><b>ACCEPT</b></td><td>Create missing receipts under the pinned acceptance policy.</td><td>Admission is a policy decision, not an accident of arrival order. Receipts are minted <em>here</em>, and are immutable once minted.</td></tr>
+        <tr data-ph="MAP"><td><b>MAP</b></td><td>Turn newly-accepted successful operations into controls.</td><td>Separating "this was accepted" from "this therefore writes" is what makes a retransmission not re-run an effect.</td></tr>
+        <tr data-ph="COMMIT"><td><b>COMMIT</b></td><td>Apply control writes and fault resets to owned cells.</td><td>Every write to owned state happens in one phase, before anything reacts to it.</td></tr>
+        <tr data-ph="REACT"><td><b>REACT</b></td><td>Deterministic <b>within-period</b> token cascade to fixpoint; latch current overflow.</td><td>The period settles before it ends. Reaction reads committed cells, so a configuration committed this period is visible to this period's reaction.</td></tr>
+        <tr data-ph="FILM"><td><b>FILM</b></td><td>Record the entries needed to replay the epoch.</td><td>The proof is produced by the cycle, not bolted on afterwards.</td></tr>
       </table>
     </div>
 
@@ -306,15 +491,25 @@
     identity by what changed, so that when an id moves you already know which
     kind of thing moved.</p>
 
+    <div class="probe" id="probe">
+      <button class="chip" data-rungs="sem,bknd,replay,bundle">I changed a rotor, a wire or a role</button>
+      <button class="chip" data-rungs="bknd">I switched the counter encoding</button>
+      <button class="chip" data-rungs="scen,replay,bundle">I ran it for more periods</button>
+      <button class="chip" data-rungs="env">I changed an evaluation split</button>
+      <button class="chip" data-rungs="">I reindented and added a comment</button>
+    </div>
+    <p class="probe-out" id="probe-out">Pick an edit. The rungs that move light
+    up — and the ones that stay put are the interesting half.</p>
+
     <div class="tbl">
-      <table>
+      <table class="ladder" id="ladder">
         <tr><th>Prefix</th><th>Names</th><th>Moves when</th></tr>
-        <tr><td><b>sem-</b></td><td>SemanticArtifactID — the world's meaning</td><td>the graph changes: a role, a wire, a rotor, a clock</td></tr>
-        <tr><td><b>bknd-</b></td><td>BackendArtifactID — meaning + lowering profile</td><td>the backend encoding or compiler changes</td></tr>
-        <tr><td><b>scen-</b></td><td>ScenarioDigest — the run inputs</td><td>periods or claim batches change (never the world)</td></tr>
-        <tr><td><b>replay-</b></td><td>ReplayBundleID — world bound to scenario</td><td>either side of the binding moves</td></tr>
-        <tr><td><b>bundle-</b></td><td>ForgeBundleID — a self-contained export</td><td>anything in the exported closure changes</td></tr>
-        <tr><td><b>env-</b></td><td>Environment id — an evaluation environment</td><td>splits or environment definition change</td></tr>
+        <tr data-rung="sem"><td><b>sem-</b></td><td>SemanticArtifactID — the world's meaning</td><td>the graph changes: a role, a wire, a rotor, a clock</td></tr>
+        <tr data-rung="bknd"><td><b>bknd-</b></td><td>BackendArtifactID — meaning + lowering profile</td><td>the backend encoding or compiler changes</td></tr>
+        <tr data-rung="scen"><td><b>scen-</b></td><td>ScenarioDigest — the run inputs</td><td>periods or claim batches change (never the world)</td></tr>
+        <tr data-rung="replay"><td><b>replay-</b></td><td>ReplayBundleID — world bound to scenario</td><td>either side of the binding moves</td></tr>
+        <tr data-rung="bundle"><td><b>bundle-</b></td><td>ForgeBundleID — a self-contained export</td><td>anything in the exported closure changes</td></tr>
+        <tr data-rung="env"><td><b>env-</b></td><td>Environment id — an evaluation environment</td><td>splits or environment definition change</td></tr>
       </table>
     </div>
 
@@ -450,6 +645,471 @@
     </div>
   </div>
 </footer>
+
+<!-- one shared arrowhead set for every diagram on the page -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <marker id="tp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5"
+          markerHeight="5" orient="auto-start-reverse">
+    <path d="M0 0 L10 5 L0 10 z" fill="#5FA48E"/></marker>
+  <marker id="tb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5"
+          markerHeight="5" orient="auto-start-reverse">
+    <path d="M0 0 L10 5 L0 10 z" fill="#8A6D28"/></marker>
+</defs></svg>
+
+<script type="module">
+import * as W from "./wrl.js";
+
+const $ = (id) => document.getElementById(id);
+
+/* ===================================================== the topology drawer */
+/* The picture is drawn from the SEALED graph, never from the text. That is the
+   architectural rule made visible: presentation reads the canonical graph, so
+   there is nothing a drawing can know that the identity does not. */
+
+const GLYPH = {
+  Pulser:  '<circle class="gl" r="14"/><path class="mk" d="M0 -7 V0 H5"/>',
+  Relay:   '<path class="gl" d="M0 -14 L14 0 L0 14 L-14 0 Z"/><path class="mk" d="M-6 0 H6"/>',
+  Door:    '<rect class="gl" x="-12" y="-12" width="24" height="24" rx="3"/><path class="mk" d="M5 -12 V12"/>',
+  Spinner: '<path class="gl" d="M14 0 L7 12 L-7 12 L-14 0 L-7 -12 L7 -12 Z"/><path class="mk" d="M-5 3 A6 6 0 1 1 5 3"/>',
+  Orb:     '<circle class="gl" r="13"/><circle class="dot" r="5"/>',
+};
+
+function cfgLabel(role, cfg) {
+  if (role === "Pulser") {
+    const c = cfg.clock || [];
+    if (c[0] === "periodic") return c[2] ? `every ${c[1]}, +${c[2]}` : `every ${c[1]}`;
+    if (c[0] === "once") return `once @ ${c[1]}`;
+    return "";
+  }
+  if (role === "Spinner") return `w${cfg.w} n${cfg.n}`;
+  return "";
+}
+
+const esc = (s) => String(s).replace(/[&<>]/g,
+  (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+
+function renderTopo(svg, g, cw = 122, rh = 78) {
+  const nodes = g.nodes.map((n) => ({ role: n[0], id: n[1], cfg: n[2] }));
+  if (!nodes.length) {
+    svg.setAttribute("viewBox", "0 0 340 80");
+    svg.innerHTML = '<text class="empty" x="170" y="44" text-anchor="middle">' +
+      "no objects — still a world, still an id</text>";
+    return;
+  }
+
+  /* longest-path layering, relaxed at most |V| times so a cycle terminates */
+  const depth = new Map(nodes.map((n) => [n.id, 0]));
+  for (let i = 0; i < nodes.length; i++) {
+    let moved = false;
+    for (const [, s, d] of g.edges) {
+      if (depth.has(s) && depth.has(d) && depth.get(d) < depth.get(s) + 1) {
+        depth.set(d, depth.get(s) + 1); moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+
+  const cols = new Map();
+  for (const n of nodes) {
+    const k = depth.get(n.id);
+    if (!cols.has(k)) cols.set(k, []);
+    cols.get(k).push(n);
+  }
+  const keys = [...cols.keys()].sort((a, b) => a - b);
+  const rows = Math.max(...keys.map((k) => cols.get(k).length));
+  const PX = 44, PY = 40;
+  const w = PX * 2 + (keys.length - 1) * cw;
+  const h = PY * 2 + (rows - 1) * rh;
+
+  const pos = new Map();
+  keys.forEach((k, ci) => {
+    const list = cols.get(k);
+    const off = (rows - list.length) / 2;
+    list.forEach((n, ri) => pos.set(n.id,
+      { x: PX + ci * cw, y: PY + (ri + off) * rh, role: n.role, cfg: n.cfg }));
+  });
+
+  const out = [];
+  for (const [kind, s, d] of g.edges) {
+    const a = pos.get(s), b = pos.get(d);
+    if (!a || !b) continue;
+    const socket = kind === "SocketControl";
+    const x1 = a.x + 17, x2 = b.x - 19;
+    const bow = Math.max(22, (x2 - x1) / 2);
+    out.push(`<path class="${socket ? "e-socket" : "e-sig"}" ` +
+      `marker-end="url(#${socket ? "tb" : "tp"})" ` +
+      `d="M${x1} ${a.y} C${x1 + bow} ${a.y} ${x2 - bow} ${b.y} ${x2} ${b.y}"/>`);
+  }
+  for (const [id, p] of pos) {
+    const sub = cfgLabel(p.role, p.cfg);
+    out.push(`<g transform="translate(${p.x},${p.y})">${GLYPH[p.role] || ""}` +
+      `<text class="nm" y="30" text-anchor="middle">${esc(id)}</text>` +
+      (sub ? `<text class="cf" y="41" text-anchor="middle">${esc(sub)}</text>` : "") +
+      "</g>");
+  }
+  svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+  svg.innerHTML = out.join("");
+}
+
+/* ========================================================== the workbench */
+
+const short = (id) => `${id.slice(0, 12)}…${id.slice(-7)}`;
+
+const rotateLanes = (t) => t.replace(/rotor=(\d+)\.(\d+)\.(\d+)\.(\d+)/,
+  (m, a, b, c, d) => `rotor=${b}.${c}.${d}.${a}`);
+
+const EDITS = {
+  comment: {
+    what: "A comment",
+    can: () => true,
+    apply: (t) => t.replace(/^(profile[^\n]*\n)/,
+      "$1\n; a note to whoever reads this next\n"),
+  },
+  shuffle: {
+    what: "Declaration order",
+    can: () => true,
+    apply: (t) => {
+      const head = [], body = [];
+      let seen = false;
+      for (const l of t.split("\n")) {
+        if (!seen && /^\s*profile\b/.test(l)) { head.push(l); seen = true; continue; }
+        if (l.trim() === "") continue;
+        body.push(l);
+      }
+      return head.concat("", body.reverse()).join("\n") + "\n";
+    },
+  },
+  desugar: {
+    what: "Sugar spelling",
+    can: () => true,
+    apply: (t) => W.desugarCore(t),
+  },
+  canon: {
+    what: "Canonical reformatting",
+    can: () => true,
+    apply: (t, r) => (r && r.ok ? W.formatCore(r.graph) : t),
+  },
+  rotor: {
+    what: "The rotor",
+    /* named rotors cycle through the vocabulary; a canonically-formatted world
+       has numeric lanes instead, so those rotate one position. A rotation is
+       only offered when it actually differs, so this chip can never claim a
+       no-op was an edit. */
+    can: (t) => /rotor=(quarter_turn_z|identity|reverse_z)/.test(t) ||
+                rotateLanes(t) !== t,
+    apply: (t) =>
+      t.includes("rotor=quarter_turn_z") ? t.replaceAll("rotor=quarter_turn_z", "rotor=identity")
+      : t.includes("rotor=identity") ? t.replaceAll("rotor=identity", "rotor=reverse_z")
+      : t.includes("rotor=reverse_z") ? t.replaceAll("rotor=reverse_z", "rotor=quarter_turn_z")
+      : rotateLanes(t),
+  },
+  geom: {
+    what: "The spinner's fractional width",
+    can: (t) => /\bn=\d+/.test(t),
+    apply: (t) => t.replace(/\bn=(\d+)/g,
+      (m, d) => `n=${+d >= 2 ? Math.floor(+d / 2) : +d * 4}`),
+  },
+  period: {
+    what: "The clock",
+    can: (t) => /every\s+\d+/.test(t) || /period=\d+/.test(t),
+    apply: (t) => (/every\s+\d+/.test(t)
+      ? t.replace(/every\s+(\d+)/, (m, d) => `every ${+d + 1}`)
+      : t.replace(/period=(\d+)/, (m, d) => `period=${+d + 1}`)),
+  },
+  reset: {
+    what: null,
+    can: () => true,
+    apply: () => W.STARTER_WORLD,
+  },
+};
+
+const srcEl = $("wb-src");
+let last = null;
+
+async function seal(note) {
+  const before = last;
+  const r = await W.sealWorld(srcEl.value);
+  last = r;
+
+  if (r.ok) {
+    $("wb-id").classList.remove("err");
+    $("wb-sem").textContent = r.semanticId;
+    renderTopo($("wb-svg"), r.graph);
+  } else {
+    $("wb-id").classList.add("err");
+    $("wb-sem").textContent = `${r.code} — ${r.message}`;
+    $("wb-svg").setAttribute("viewBox", "0 0 340 80");
+    $("wb-svg").innerHTML = `<text class="empty" x="170" y="44" ` +
+      `text-anchor="middle">${esc(r.code)}${r.line ? ` · line ${r.line}` : ""}</text>`;
+  }
+
+  for (const b of document.querySelectorAll("#wb-chips .chip")) {
+    b.disabled = !EDITS[b.dataset.edit].can(srcEl.value);
+  }
+  if (note) sayVerdict(before, r, note);
+}
+
+function resting() {
+  const el = $("wb-verdict");
+  el.className = "verdict";
+  el.textContent = "Nothing is sent anywhere — this is the real identity " +
+    "spine, ported to JavaScript, running in your tab.";
+}
+
+function sayVerdict(before, after, what) {
+  const el = $("wb-verdict");
+  if (!after.ok) {
+    el.className = "verdict moved";
+    el.innerHTML = `<b>That does not seal.</b> <code>${esc(after.code)}</code> — ` +
+      "a source the reader refuses has no identity at all, which is the point: " +
+      "there is no id for a world nobody can agree on.";
+    return;
+  }
+  if (!what) { el.className = "verdict"; el.textContent = ""; return; }
+  if (!before || !before.ok || before.semanticId === after.semanticId) {
+    el.className = "verdict same";
+    el.innerHTML = `<b>Identical.</b> ${esc(what)} is presentation — it is gone ` +
+      "before a graph exists, so the canonical bytes never moved. Still " +
+      `<code>${short(after.semanticId)}</code>.`;
+    return;
+  }
+  el.className = "verdict moved";
+  el.innerHTML = `<b>Moved.</b> ${esc(what)} is meaning. ` +
+    `<span class="was">${short(before.semanticId)}</span> → ` +
+    `<code>${short(after.semanticId)}</code>.`;
+}
+
+let timer = null;
+srcEl.addEventListener("input", () => {
+  clearTimeout(timer);
+  timer = setTimeout(() => seal(null), 160);
+});
+
+for (const b of document.querySelectorAll("#wb-chips .chip")) {
+  b.addEventListener("click", () => {
+    const e = EDITS[b.dataset.edit];
+    try { srcEl.value = e.apply(srcEl.value, last); }
+    catch { /* an unexpandable source is left exactly as the author wrote it */ }
+    if (b.dataset.edit === "reset") { last = null; seal(null); resting(); }
+    else seal(e.what);
+  });
+}
+
+/* ============================================================ the gallery */
+
+const WORLDS = [
+  {
+    title: "A heartbeat and a place to see it",
+    why: "The smallest world that does anything: a clock, and a sink whose " +
+         "arrivals land in the film. This is the shape you reach for when you " +
+         "want a schedule you can prove ran.",
+    src: `profile forge.world.core.v1
+
+; a door is a terminal sink. every signal that
+; reaches it is an entry in the film.
+
+[pulser:tick](every 1){sig_out}
+[door:log]{sig_in}
+
+[tick] --sig--> [log]
+`,
+  },
+  {
+    title: "Two schedules that never collide",
+    why: "Same base period, different phase. Phase is checked to lie in " +
+         "[0, period), so an interleaving that cannot exist is a rejection at " +
+         "the seal rather than a race you find in production.",
+    src: `profile forge.world.core.v1
+
+; both fire every 4 periods — offset by 2, so
+; they alternate and never share an epoch.
+
+[pulser:even](every 4, phase 0){sig_out}
+[pulser:odd](every 4, phase 2){sig_out}
+[door:a]{sig_in}
+[door:b]{sig_in}
+
+[even] --sig--> [a]
+[odd] --sig--> [b]
+`,
+  },
+  {
+    title: "One clock driving a bank of four",
+    why: "Replication mints a group by position; the brace group on the edge " +
+         "line fans one source out to every member. Both are pure " +
+         "source-to-source expansions, so the bank has no identity of its own.",
+    src: `profile forge.world.core.v1
+
+; \`*\` mints sink0..sink3. \`{...}\` fans out to each.
+; write the four lines by hand instead and you get
+; the same id — the sugar is gone before the graph is.
+
+[pulser:clk](every 2){sig_out}
+[door:sink*4]{sig_in}
+
+[clk] --sig--> {[sink0], [sink1], [sink2], [sink3]}
+`,
+  },
+  {
+    title: "A staged route into an actuator",
+    why: "Relays forward a signal one hop each, so a chain stages it across " +
+         "the topology — and every hop is a separate, replayable entry. This " +
+         "is the canonical clock → route → state → pose pipeline.",
+    src: `profile forge.world.core.v1
+
+; a signal wire carries the tick; a socket control
+; carries the resulting rotation to the pose.
+
+[pulser:p0](every 3){sig_out}
+[relay:a]{sig_in, sig_out}
+[relay:b]{sig_in, sig_out}
+[spinner:arm](w=16, n=8, rotor=quarter_turn_z, configurable){sig_in, socket}
+[orb:tip]{pose}
+
+[p0] --sig--> [a]
+[a] --sig--> [b]
+[b] --sig--> [arm]
+[arm] --socket--> [tip]
+`,
+  },
+  {
+    title: "Something a run is allowed to reconfigure",
+    why: "`configurable` says a scenario may re-set this spinner's rotor at " +
+         "run time. The claim that does it lives in a ScenarioV1 document and " +
+         "never enters this id — same world, many runs.",
+    src: `profile forge.world.core.v1
+
+; the rotor starts at identity. a scenario claim
+; \`[epoch:3] SetRotor arm 181.0.0.181\` can move it
+; mid-run — and this id does not budge when it does.
+
+[pulser:go](once at 1){sig_out}
+[relay:gate]{sig_in, sig_out}
+[spinner:arm](w=16, n=8, rotor=identity, configurable){sig_in, socket}
+[orb:tip]{pose}
+
+[go] --sig--> [gate]
+[gate] --sig--> [arm]
+[arm] --socket--> [tip]
+`,
+  },
+  {
+    title: "The same rotor name, two geometries",
+    why: "quarter_turn_z is irrational, so its exact integer projection " +
+         "depends on the fractional width it lands in. These two arms are " +
+         "spelled identically and are not the same rotation.",
+    src: `profile forge.world.core.v1
+
+; n=4 projects to 11.0.0.11; n=12 to 2896.0.0.2896.
+; the projection is a pinned policy in exact integer
+; arithmetic — there is no float anywhere in the seal.
+
+[pulser:p0](every 2){sig_out}
+[relay:fan]{sig_in, sig_out}
+[spinner:coarse](w=16, n=4, rotor=quarter_turn_z, configurable){sig_in, socket}
+[spinner:fine](w=16, n=12, rotor=quarter_turn_z, configurable){sig_in, socket}
+[orb:t1]{pose}
+[orb:t2]{pose}
+
+[p0] --sig--> [fan]
+[fan] --sig--> [coarse]
+[fan] --sig--> [fine]
+[coarse] --socket--> [t1]
+[fine] --socket--> [t2]
+`,
+  },
+];
+
+(async () => {
+  const gal = $("gal");
+  for (const wd of WORLDS) {
+    const card = document.createElement("div");
+    card.className = "world";
+    card.innerHTML =
+      `<h3>${esc(wd.title)}</h3><p class="why">${wd.why}</p>` +
+      '<div class="dia"><svg class="topo" role="img" aria-label="topology"></svg></div>' +
+      "<pre></pre>" +
+      '<div class="sem"><span>SemanticArtifactID</span><em class="v">sealing…</em></div>' +
+      '<button class="load">Load into the workbench ↑</button>';
+    card.querySelector("pre").textContent = wd.src.trimEnd();
+    gal.appendChild(card);
+
+    const r = await W.sealWorld(wd.src);
+    if (r.ok) {
+      renderTopo(card.querySelector("svg"), r.graph, 104, 66);
+      card.querySelector(".v").textContent = r.semanticId;
+    } else {
+      card.querySelector(".v").textContent = `${r.code} — ${r.message}`;
+    }
+    card.querySelector(".load").addEventListener("click", () => {
+      srcEl.value = wd.src;
+      last = null;
+      seal(null);
+      $("wb-src").scrollIntoView({ block: "center", behavior: "smooth" });
+      srcEl.focus();
+    });
+  }
+})();
+
+/* ========================================================== the period ring */
+
+for (const g of document.querySelectorAll("#ring .ph")) {
+  const row = document.querySelector(`#cyc tr[data-ph="${g.dataset.ph}"]`);
+  g.setAttribute("tabindex", "0");
+  const set = (v) => { g.classList.toggle("on", v); row.classList.toggle("on", v); };
+  g.addEventListener("mouseenter", () => set(true));
+  g.addEventListener("mouseleave", () => set(false));
+  g.addEventListener("focus", () => set(true));
+  g.addEventListener("blur", () => set(false));
+  /* a tap has no hover to offer, so route it through the same focus path */
+  g.addEventListener("click", () => g.focus());
+  row.addEventListener("mouseenter", () => set(true));
+  row.addEventListener("mouseleave", () => set(false));
+}
+
+/* ======================================================= the ladder prober */
+
+const LADDER_NOTES = {
+  "sem,bknd,replay,bundle":
+    "The meaning moved, so everything that quotes meaning moved with it. " +
+    "scen- did not: the same run inputs still name the same digest, which is " +
+    "how you re-run the old scenario against the new world and compare.",
+  "bknd":
+    "The world means exactly what it meant before. Only the lowering profile " +
+    "moved — which is how a backend swap gets proved inert instead of asserted " +
+    "to be inert.",
+  "scen,replay,bundle":
+    "The world is untouched. sem- and bknd- are frozen where they were; only " +
+    "the run inputs and the things that quote them moved.",
+  "env":
+    "Nothing about the world or the run moved. An evaluation environment is a " +
+    "different document again — the ladder stops at env-, and mints no " +
+    "artifact id above it.",
+  "":
+    "Nothing moved, on any rung. Whitespace, comments, declaration order and " +
+    "sugar spelling are all gone before a graph exists, so there is nothing " +
+    "for a hash to see.",
+};
+
+for (const b of document.querySelectorAll("#probe .chip")) {
+  b.addEventListener("click", () => {
+    for (const o of document.querySelectorAll("#probe .chip")) {
+      o.classList.toggle("on", o === b);
+    }
+    const lit = new Set(b.dataset.rungs.split(",").filter(Boolean));
+    for (const row of document.querySelectorAll("#ladder tr[data-rung]")) {
+      const on = lit.has(row.dataset.rung);
+      row.classList.toggle("lit", on);
+      row.classList.toggle("dim", !on);
+    }
+    $("probe-out").textContent = LADDER_NOTES[b.dataset.rungs];
+  });
+}
+
+/* ============================================================ start it up */
+srcEl.value = W.STARTER_WORLD;
+seal(null);
+</script>
 
 </body>
 </html>
