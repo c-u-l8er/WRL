@@ -97,6 +97,8 @@
   <a href="#d5">D5 · Derives and search</a>
   <a href="#d6">D6 · Profiles, not new kinds</a>
   <a href="#d7">D7 · Falsification conditions</a>
+  <a href="#d8">D8 · Relation, not Edge</a>
+  <a href="#d9">D9 · Dynamic topology</a>
 </aside>
 
 <div class="docbody">
@@ -127,9 +129,11 @@ expression notation, boundaries, effects, supervision, metaprogramming and the
 seven worked examples — is a separate and much larger document, published in
 full at <a href="draft.html">Design draft</a>. That is the primary forward map
 and the one whose section numbers the tier table cites. Part II below is a
-<i>later, narrower extrapolation</i>: seven sections on one specific question
-the authored draft does not settle — how many topologies one identity set may
-carry at once. Read <a href="draft.html">the draft</a> first.</div>
+<i>later, narrower extrapolation</i>: nine sections on the questions the authored
+draft does not settle — how many topologies one identity set may carry at once
+(§D1–§D7), what a connection is when it is not a directed pair (§D8), and what
+happens when the topology itself changes (§D9). Read
+<a href="draft.html">the draft</a> first.</div>
 
 <h2 id="status">Status and errata</h2>
 
@@ -781,24 +785,26 @@ frozen core with no stated destination gets extended by whoever asks loudest;
 writing the destination down turns that into an argument that can be lost.</p>
 
 <div class="note stop"><b>Nothing in Part II is normative, implemented, or
-promised.</b> Every construct sketched below is currently
-<b>rejected</b> by the toolchain with
-<code class="inline">WRL_UNSUPPORTED_FEATURE</code>, and the site's conformance
-suite asserts that rejection on every run. When one of these constructs ships,
-the corresponding assertion goes red and this section must be rewritten. That is
-the intended failure mode: the draft cannot quietly drift out of date, because
-the build stops.</div>
+promised.</b> Every world sketched below is currently <b>rejected</b> by the
+toolchain, and the site's conformance suite asserts that rejection on every run
+— each sketch also names the
+<a href="reference.html#capabilities">promotion capabilities</a> it is waiting
+on. When one of those capabilities ships, the sketch starts sealing, the
+assertion goes red, and this section must be rewritten. That is the intended
+failure mode: the draft cannot quietly drift out of date, because the build
+stops.</div>
 
 <div class="note warn"><b>And this is not the whole forward map.</b> The authored
 Complete Design Draft already specifies most of what WRL intends to become —
 §10–§17 the expression notation, §18–§27 the process semantics, §28–§34
 metaprogramming, §35–§38 programs at scale, §39–§46 the reference. All of it is
 on the <a href="draft.html">Design draft</a> page, marked with the author's own
-Core / Experimental / Proposed tiers. Part II here adds <b>one</b> thing that
-document leaves open: whether a world's identities may carry several distinct
-topologies at once, and what that would do to the identity ladder. If you want
-the language's designed feature set, read the draft; if you want this one
-architectural argument, read on.</div>
+Core / Experimental / Proposed tiers. Part II here takes up <b>three</b> things
+that document leaves open: whether a world's identities may carry several
+distinct topologies at once (§D1–§D7), what a connection is once it stops being
+a directed pair (§D8), and what it means for the topology itself to change while
+the world runs (§D9). If you want the language's designed feature set, read the
+draft; if you want these architectural arguments, read on.</div>
 
 <h3>D0.1 · The reframe that produced Part II</h3>
 
@@ -1038,7 +1044,7 @@ model of computation applies inside a wall that declares it.</p>
 <p>The sketch below is what a mobility profile might look like. It is
 <b>not valid WRL</b>, and the conformance suite asserts that it is rejected:</p>
 
-<pre class="code" data-future="D6 sketch: unknown profile, unknown roles, unpromoted textures, attributed relations"><code><span class="kw">profile</span> wrl.mobility.v1
+<pre class="code" data-not-current data-requires="domain-profiles,typed-ports,attributed-relations,async-route,supervision"><code><span class="kw">profile</span> wrl.mobility.v1
 
 <span class="cm">; one identity, present in five layers by construction (D1)</span>
 [<span class="kw">drone</span>:<span class="id">d7</span>](<span class="lit">battery=82, payload=4</span>){<span class="rt">pose, telemetry, command</span>}
@@ -1084,13 +1090,262 @@ true:</p>
 <tr><td>3</td><td>Profiles need a <b>central registry</b> to interoperate — that is, two independently-written profiles cannot be composed without an authority arbitrating names</td><td><b>§D6.</b> The "profiles, not construct kinds" answer would collapse into a governance problem, which a language cannot solve</td></tr>
 <tr><td>4</td><td>Resolved-port resolution functions cannot be expressed in the document and hashed with it</td><td><b>§D2.</b> Resolved ports would break §11 content identity and must not ship</td></tr>
 <tr><td>5</td><td>Per-profile boundary safety across walls proves undecidable in practice</td><td><b>§D4.</b> Heterogeneous execution would have to be dropped, leaving acausal connections nowhere to live</td></tr>
+<tr><td>6</td><td>A broadened relation <b>cannot serialise a plain directed route to today's exact bytes</b>, so generalising the entity moves every published <code class="inline">sem-</code> id</td><td><b>§D8.</b> Relation would become a 0.2 breaking change rather than an 0.1.<i>x</i> extension, and the ordering of the entire ladder would change</td></tr>
+<tr><td>7</td><td>Useful worlds routinely admit participants <b>not anticipated by the sealed artifact</b> — another operator's vehicle joining the fleet mid-run</td><td><b>§D9.</b> Sealed identity and open topology would be in genuine conflict, and either the identity or the openness would have to be given up</td></tr>
 </tbody></table></div>
+
+<div class="note">Conditions 6 and 7 were added with §D8 and §D9, which are drafted
+below and which each state their own remaining obligations in place. Every entry
+in this table is a way for the argument to be wrong that its author can
+recognise; the list is not claimed to be complete.</div>
 
 <p>Conditions 1 and 2 are the load-bearing ones. Both are answerable by building
 the mobility profile for real, which is why the first genuine test of Part II is
 a single fleet described across road, communications, dispatch, energy and fault
 layers, run on TRVM, with routing supplied by an external solver and checked on
 the way back in.</p>
+
+<h2 id="d8"><span class="secnum">§D8</span>Relation, not Edge<span class="draft">draft</span></h2>
+
+<p>Sections §D2 and §D3 have been quietly accumulating a debt, and this section
+pays it. The authored design draft
+(<a href="draft.html#entities">draft §19</a>) closes the runtime ontology at
+<b>exactly six entity types</b> — Actor, Value, Edge, Boundary, Fragment,
+Stencil — and gives the third of them this shape:</p>
+
+<pre class="code"><code>Edge { source, destination, label, texture, payload, policy, provenance }</code></pre>
+
+<p>That is a <b>binary directed pair</b>. Every proposal in Part II so far needs
+something it cannot hold:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Needed by</th><th>What it requires</th><th>Why <code class="inline">Edge</code> cannot carry it</th></tr></thead>
+<tbody>
+<tr><td>§D3 attributes</td><td>capacity, cost, units, geometry on the connection itself</td><td><code class="inline">Edge</code> has <code class="inline">payload</code> (what crossed) and <code class="inline">policy</code> (how it crosses), but no field for what the connection <i>is</i></td></tr>
+<tr><td>§D2 resolved ports</td><td>many drivers meeting at one terminal and settling by a named function</td><td><i>n</i> separate edges into one destination is exactly the multiple-writer error §0 forbids; the terminal, not the edge, is the object with the resolution rule</td></tr>
+<tr><td>§D2 acausal connections</td><td>three or more participants, no source and no destination, potentials equal and flows summing to zero</td><td>a <code class="inline">source</code>/<code class="inline">destination</code> pair asserts a direction that physically does not exist</td></tr>
+<tr><td>§D1 multilayer</td><td>an occupancy relation between one drone and one segment that means something different from a message</td><td><code class="inline">label</code> is a name, not a typed domain</td></tr>
+</tbody></table></div>
+
+<h3 id="d8-options">The three ways out, and the one taken</h3>
+
+<div class="tbl"><table>
+<thead><tr><th></th><th>Option</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td><b>A</b></td><td><b>Broaden the entity.</b> Rename <code class="inline">Edge</code> to <code class="inline">Relation</code> and generalise its shape. A directed binary route becomes the simplest specialisation of it.</td><td><b>taken</b></td></tr>
+<tr><td><b>B</b></td><td>Add a seventh entity type alongside <code class="inline">Edge</code>.</td><td><b>rejected.</b> §19's claim is "not five, not seven". An ontology that grows a member per unmet need is not an ontology, it is a changelog. Worse, two entities for one idea forces every later rule — canonicalisation, film schema, wall crossing — to be written twice</td></tr>
+<tr><td><b>C</b></td><td>Encode nets as actors: a bus becomes an actor with <i>n</i> ports and a behaviour that resolves.</td><td><b>rejected.</b> It works, and that is the problem — it works by making the connection into a participant, so a description of a circuit stops looking like a circuit. It also puts a solver inside an actor, where §D4 has no way to see it</td></tr>
+</tbody></table></div>
+
+<p><b>Draft rule D8.</b> The runtime ontology keeps six entity types. The third
+is renamed and broadened:</p>
+
+<pre class="code"><code>Relation { participants, directionality, cardinality, domain,
+           texture, attributes, policy, provenance }</code></pre>
+
+<div class="tbl"><table>
+<thead><tr><th>Field</th><th>Range</th><th>Replaces</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">participants</code></td><td>an ordered sequence of terminals, length ≥ 2</td><td><code class="inline">source</code>, <code class="inline">destination</code></td></tr>
+<tr><td><code class="inline">directionality</code></td><td><code class="inline">directed</code> · <code class="inline">bidirectional</code> · <code class="inline">acausal</code></td><td>— (was implicit)</td></tr>
+<tr><td><code class="inline">cardinality</code></td><td>1:1 · 1:n · n:1 · n:m</td><td>— (was always 1:1)</td></tr>
+<tr><td><code class="inline">domain</code></td><td>a profile-declared domain name (§D6)</td><td><code class="inline">label</code>, promoted from a name to a typed kind</td></tr>
+<tr><td><code class="inline">texture</code></td><td>the four frozen textures, unchanged (§5)</td><td><code class="inline">texture</code></td></tr>
+<tr><td><code class="inline">attributes</code></td><td>typed, unit-bearing values validated by the profile</td><td>— (new; this is §D3's requirement)</td></tr>
+<tr><td><code class="inline">policy</code></td><td>unchanged</td><td><code class="inline">policy</code></td></tr>
+<tr><td><code class="inline">provenance</code></td><td>unchanged</td><td><code class="inline">provenance</code></td></tr>
+</tbody></table></div>
+
+<p><code class="inline">payload</code> leaves the relation deliberately. What
+crossed a connection during a period is an <i>event</i>, and events already live
+in the event ledger and the film (§10). A relation is the standing fact that a
+crossing is possible; the payload is the record that one happened. Merging the
+two is what made <code class="inline">Edge</code> simultaneously a topology
+object and a message envelope.</p>
+
+<h3 id="d8-recovery">Today's route is a specialisation, exactly</h3>
+
+<p>The frozen directed route of §0 and §5 is recovered by fixing five of the
+eight fields:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Field</th><th>Value for a frozen route</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">participants</code></td><td><code class="inline">[writer, reader]</code> — length exactly 2</td></tr>
+<tr><td><code class="inline">directionality</code></td><td><code class="inline">directed</code></td></tr>
+<tr><td><code class="inline">cardinality</code></td><td><code class="inline">1:1</code></td></tr>
+<tr><td><code class="inline">domain</code></td><td><code class="inline">signal</code></td></tr>
+<tr><td><code class="inline">attributes</code></td><td>empty</td></tr>
+</tbody></table></div>
+
+<div class="note stop"><b>The canonical-form obligation, which is the whole
+cost.</b> §11 says a world's meaning is the hash of its canonical bytes. If
+broadening the entity changes how a plain <code class="inline">--sig--&gt;</code>
+route serialises, <b>every published <code class="inline">sem-</code> id
+moves</b>, including
+<code class="inline">sem-8ae91fe9…fe4a</code> and every id printed on this site.
+So the broadening ships only with a canonicalisation rule that <b>elides every
+defaulted field</b>: a relation in the specialisation above must serialise to
+byte-identical output with today's edge encoding. Empty
+<code class="inline">attributes</code> must be omitted, not emitted as
+<code class="inline">{}</code> — the same discipline §11 already applies to empty
+port groups. If that cannot be arranged, D8 is a 0.2 breaking change and not an
+0.1.<i>x</i> extension.</div>
+
+<h3 id="d8-prior">Why this shape and not another</h3>
+
+<div class="tbl"><table>
+<thead><tr><th>Precedent</th><th>What it establishes</th></tr></thead>
+<tbody>
+<tr><td><b>Bigraphs</b> <a class="cite" href="#r-bigraph">[B]</a></td><td>A bigraph is a <i>place graph</i> (nesting) and a <i>link graph</i> (connectivity) over <b>the same node set</b> — which is §D1's node-alignment, arrived at independently — and the link graph is a <b>hypergraph</b>: a link may join any number of ports. Multi-participant connection is the general case in the best-studied formalism for exactly this problem, not an exotic addition to it</td></tr>
+<tr><td><b>GQL</b> (ISO/IEC 39075:2024) <a class="cite" href="#r-gql">[G]</a></td><td>The first new ISO database language since SQL standardises the property graph as a directed, labelled, <b>attributed</b> multigraph in which <i>edges carry properties too</i>. Attributes on the connection are settled practice with a standard behind them</td></tr>
+<tr><td><b>Modelica</b> <a class="cite" href="#r-modelica">[M]</a></td><td>A connection of <code class="inline">c1, c2, c3</code> generates <code class="inline">c1.p = c2.p = c3.p</code> and <code class="inline">0 = c1.f + c2.f + c3.f</code>. Three participants, no direction — expressible with <code class="inline">participants</code> and <code class="inline">directionality=acausal</code>, and not expressible as a pair</td></tr>
+<tr><td><b>VHDL</b> <a class="cite" href="#r-vhdl">[V]</a></td><td>A resolution function takes a one-dimensional unconstrained array of <i>all</i> driver values and returns one value. Its argument is the set of participants at a terminal — so the terminal is the object that owns the rule, which is why <code class="inline">participants</code> is a sequence and not two fields</td></tr>
+</tbody></table></div>
+
+<h3 id="d8-sketch">What it would look like</h3>
+
+<p>Not valid WRL. The conformance suite asserts the toolchain does not accept
+it, and records which capabilities it waits on:</p>
+
+<pre class="code" data-not-current data-requires="attributed-relations,resolved-terminals,acausal-relations,domain-profiles,typed-ports"><code><span class="kw">profile</span> wrl.electrical.v1
+
+<span class="cm">; a resolved terminal: many drivers, one named resolution function</span>
+[<span class="kw">bus</span>:<span class="id">b0</span>](<span class="lit">resolve=std_logic, width=8</span>){<span class="rt">drive</span>}
+[<span class="kw">driver</span>:<span class="id">u1</span>](<span class="lit">enable=true</span>){<span class="rt">out</span>}
+[<span class="kw">driver</span>:<span class="id">u2</span>](<span class="lit">enable=false</span>){<span class="rt">out</span>}
+
+<span class="cm">; two directed relations into ONE resolved terminal.</span>
+<span class="cm">; under §0 this is a multiple-writer error; under D8 it is</span>
+<span class="cm">; legal precisely because b0.drive declares a resolution.</span>
+[<span class="id">u1</span>] <span class="rt">--drive(domain=digital)--&gt;</span> [<span class="id">b0</span>]
+[<span class="id">u2</span>] <span class="rt">--drive(domain=digital)--&gt;</span> [<span class="id">b0</span>]
+
+<span class="cm">; an acausal relation: three participants, no direction,</span>
+<span class="cm">; potentials equal and flows summing to zero (D2)</span>
+[<span class="kw">node</span>:<span class="id">n1</span>]{<span class="rt">pin</span>}
+[<span class="kw">source</span>:<span class="id">vcc</span>](<span class="lit">volts=3.3</span>){<span class="rt">pin</span>}
+[<span class="kw">load</span>:<span class="id">r1</span>](<span class="lit">ohms=470</span>){<span class="rt">pin</span>}
+<span class="kw">relation</span> electrical <span class="lit">acausal</span> {<span class="id">n1</span>.pin, <span class="id">vcc</span>.pin, <span class="id">r1</span>.pin}</code></pre>
+
+<h3 id="d8-owes">What D8 owes before it can ship</h3>
+
+<ol>
+<li><b>A canonical form</b> that leaves every existing <code class="inline">sem-</code> id where it is (the note above).</li>
+<li><b>An attribute type system.</b> <code class="inline">capacity=3</code> is meaningless without a unit and a range. This is the same requirement as typed ports (§D2), and neither should ship without the other.</li>
+<li><b>Terminal-level validation.</b> Single-writer becomes a property of a terminal rather than a global law, so validation must move with it: an owned terminal with two directed relations is still an error, and must still be caught before the seal.</li>
+<li><b>A settlement rule per directionality.</b> <code class="inline">directed</code> settles by the existing REACT pass; <code class="inline">resolved</code> settles in one pass provided the resolution function is associative, commutative and idempotent; <code class="inline">acausal</code> does not settle by passing values at all and requires a solver wall (§D4).</li>
+<li><b>A film schema.</b> A relation's attributes are state, and §10 requires every state variable that determines future behaviour to be serialised.</li>
+</ol>
+
+<h2 id="d9"><span class="secnum">§D9</span>Dynamic topology<span class="draft">draft</span></h2>
+
+<p>Every world on this site has a <b>fixed</b> topology: the objects and routes
+are what the document says, for all time. That is what makes
+<code class="inline">sem-</code> a meaning. It is also the single largest gap
+between Part II's thesis and any real fleet — drones are commissioned and
+retired, a vehicle joins a road segment and leaves it, a lease expires, a
+delivery is handed from one operator to another. A topology language that cannot
+describe the topology changing describes a photograph.</p>
+
+<div class="note stop"><b>The identity question comes first, because everything
+else depends on the answer.</b> If a world's topology can change at runtime, what
+does its <code class="inline">sem-</code> id mean? Three answers are possible:
+the id covers the initial topology only (and says nothing about later states);
+the id is recomputed on every change (and stops being a stable name for
+anything); or <b>the id covers the initial topology together with the rules
+governing change</b>, and each change is an event in the ledger. Draft rule D9
+takes the third. It is the only one under which two hosts replaying the same film
+must reach the same topology, which is the property §10 exists to
+guarantee.</div>
+
+<p><b>Draft rule D9.</b> The sealed artifact is the <i>initial</i> configuration
+plus the <i>authorised operations</i>. A topology change is an operation applied
+during a period, recorded in the event ledger, and replayed exactly. The world
+identity does not move; the <b>configuration</b> at period <i>n</i> is a
+deterministic function of the sealed artifact and the ledger prefix. This is
+precisely the structure §10's <code class="inline">ReplayBundle</code> already
+has, extended from claim state to structure.</p>
+
+<h3 id="d9-ops">The eight operations</h3>
+
+<p>Reaction rules in a bigraphical reactive system
+<a class="cite" href="#r-bigraph">[B]</a> reconfigure a bigraph locally and may
+create or destroy nodes. That is the general form; the list below is its
+closed, checkable specialisation. It is closed on purpose — an open set of
+topology operations is an open set of ways for two hosts to disagree.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>#</th><th>Operation</th><th>Changes</th><th>Takes effect</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><b>create identity</b></td><td>adds an object with a role, config and ports</td><td>next period — it cannot participate in the period that creates it, or REACT would have to re-run</td></tr>
+<tr><td>2</td><td><b>retire identity</b></td><td>marks an object non-participating; its history stays addressable</td><td>end of the current period, after FILM</td></tr>
+<tr><td>3</td><td><b>attach relation</b></td><td>adds a relation over existing participants (§D8)</td><td>next period</td></tr>
+<tr><td>4</td><td><b>detach relation</b></td><td>removes a relation</td><td>end of the current period</td></tr>
+<tr><td>5</td><td><b>replace relation attributes</b></td><td>changes capacity, cost, latency … without changing participants</td><td>next period</td></tr>
+<tr><td>6</td><td><b>transfer ownership</b></td><td>moves an owned terminal's single writer from one identity to another</td><td>next period, atomically — there is no period with zero writers or two</td></tr>
+<tr><td>7</td><td><b>open / close boundary</b></td><td>admits or refuses crossings at a wall</td><td>immediately, before OBSERVE of the next period</td></tr>
+<tr><td>8</td><td><b>expire lease</b></td><td>the timed form of 2, 4 or 7, scheduled at attach time</td><td>the period whose clock reaches the deadline</td></tr>
+</tbody></table></div>
+
+<div class="note"><b>Why nothing takes effect mid-period.</b> §8's REACT phase
+settles a cascade to a fixpoint by deterministic microsteps over a fixed
+configuration. If the configuration could change during REACT, the fixpoint would
+depend on microstep order, and determinism would be lost at exactly the point
+§10 promises it. So every operation is <i>proposed</i> during a period, ordered
+canonically at COMMIT, and <i>observed</i> in the next one. Retirement and
+detachment are the two that take effect at the end of the current period rather
+than the start of the next, because removing a participant cannot invalidate a
+fixpoint that has already been reached.</div>
+
+<h3 id="d9-obligations">What every operation must answer</h3>
+
+<p>An operation is not specified until all eight of these are answered for it.
+None of them is optional, and each one is a way for two hosts to diverge:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Obligation</th><th>The general rule</th></tr></thead>
+<tbody>
+<tr><td><b>Authorisation</b></td><td>which capability permits it, and which wall grants that capability. An unauthorised operation is a diagnostic, not a silent no-op — a world where a change failed and nothing said so is a world whose film lies</td></tr>
+<tr><td><b>Canonical event identity</b></td><td>a content address over (operation, arguments, period, proposer). Two hosts proposing the same change must produce the same event id, or the ledgers differ and replay fails</td></tr>
+<tr><td><b>Timing semantics</b></td><td>the "takes effect" column above, stated normatively rather than by convention</td></tr>
+<tr><td><b>Conflict rules</b></td><td>what happens when two operations in one period touch the same object. Ordering by canonical event id makes the outcome deterministic; it does not make it <i>right</i>, so incompatible pairs (two transfers of one terminal, attach-and-retire of one identity) must be a diagnostic and not a race that the smaller hash wins</td></tr>
+<tr><td><b>Historical representation</b></td><td>a retired identity is not a deleted one. §10 requires that a film from period 40 still resolve every identity it names, so retirement is a state transition and never an erasure</td></tr>
+<tr><td><b>Film consequences</b></td><td>the operation appears in the ledger with enough detail to reconstruct the configuration, and the film records the configuration digest at each period so a diverged replay is detected at the period it diverged, not at the end</td></tr>
+<tr><td><b>Replication behaviour</b></td><td>whether the operation is a merge-safe fact (§9's associative, commutative, idempotent join) or requires consensus. Attaching a relation is merge-safe; transferring ownership is not, because two partitions may transfer the same terminal to different owners</td></tr>
+<tr><td><b>Archival behaviour</b></td><td>when a retired identity's state may be dropped without changing any future observation. Nothing may be collected while a reachable film still requires it — which makes garbage collection a property of the evidence, not of the runtime's convenience</td></tr>
+</tbody></table></div>
+
+<h3 id="d9-sketch">What it would look like</h3>
+
+<pre class="code" data-not-current data-requires="dynamic-topology,attributed-relations,domain-profiles,supervision"><code><span class="kw">profile</span> wrl.mobility.v1
+
+[<span class="kw">depot</span>:<span class="id">west</span>](<span class="lit">bays=4</span>){<span class="rt">dispatch</span>}
+[<span class="kw">segment</span>:<span class="id">a12</span>](<span class="lit">capacity=3</span>){<span class="rt">occupancy</span>}
+
+<span class="cm">; the operations a world authorises are part of what it seals.</span>
+<span class="cm">; a change not named here cannot happen, however privileged</span>
+<span class="cm">; the proposer — this is what keeps the id a meaning.</span>
+<span class="kw">topology</span> {
+  <span class="kw">allow</span> create <span class="kw">of</span> drone <span class="kw">by</span> [<span class="id">west</span>].dispatch
+  <span class="kw">allow</span> attach occupies <span class="kw">by</span> [<span class="id">west</span>].dispatch <span class="kw">when</span> capacity_free
+  <span class="kw">allow</span> transfer occupancy <span class="kw">by</span> quorum
+  <span class="kw">allow</span> retire <span class="kw">of</span> drone <span class="kw">by</span> [<span class="id">west</span>].dispatch
+}
+
+<span class="cm">; a lease schedules its own expiry at attach time, so the</span>
+<span class="cm">; release is in the ledger before the period that applies it</span>
+[<span class="id">d7</span>] <span class="rt">--occupies(cost=1, lease=6)--&gt;</span> [<span class="id">a12</span>]</code></pre>
+
+<h3 id="d9-owes">What D9 owes before it can ship</h3>
+
+<ol>
+<li><b>Configuration digests in the film.</b> Without a per-period structural digest there is no way to detect that two replays diverged, and the whole rule is unenforced.</li>
+<li><b>A capability model.</b> "Authorised by" presupposes capabilities, which are drafted (<a href="draft.html#effects">draft §23</a>) and not built.</li>
+<li><b>Attributed relations (§D8).</b> Operation 5 changes attributes that do not yet exist.</li>
+<li><b>A conflict diagnostic set.</b> Every incompatible pair needs a code, in the same family as <code class="inline">WRL_CONTROLLER_CONFLICT</code>, which is today's static analogue of exactly this problem.</li>
+<li><b>An answer for open worlds.</b> Everything above assumes the set of <i>possible</i> identities is bounded by the sealed artifact. A world that admits genuinely unforeseen participants — a vehicle from another operator's fleet — is not covered, and may be the point at which sealed identity and open topology genuinely conflict.</li>
+</ol>
 
 <h3 id="d-refs">References</h3>
 
@@ -1099,6 +1354,14 @@ the way back in.</p>
 Gleeson, Y. Moreno, M. A. Porter. <i>Multilayer networks.</i> Journal of Complex
 Networks 2(3), 203–271, 2014. — node-layer tuples, aspects, intra- vs
 inter-layer edges, and the node-aligned special case.</li>
+<li id="r-bigraph"><b>[B]</b> R. Milner. <i>The Space and Motion of Communicating
+Agents.</i> Cambridge University Press, 2009. — a bigraph is a place graph
+(nesting) and a link graph (connectivity) over one node set; links are
+hyperedges; bigraphical reactive systems reconfigure structure by rules that may
+create or destroy nodes.</li>
+<li id="r-gql"><b>[G]</b> ISO/IEC 39075:2024, <i>Information technology —
+Database languages — GQL.</i> — the property graph as a directed, labelled,
+attributed multigraph in which nodes <i>and edges</i> carry properties.</li>
 <li id="r-modelica"><b>[M]</b> Modelica Language Specification, ch. 9,
 <i>Connectors and Connections</i>. — potential variables equated, flow variables
 summed to zero, acausal connection semantics.</li>

@@ -375,6 +375,37 @@ function decode(html) {
 const htmlFiles = readdirSync(ROOT).filter((f) => f.endsWith(".html"));
 let blocks = 0, annotated = 0;
 
+/* ---------------------------------------------- the capability registry
+ *
+ * reference.html#capability-registry is the ONE place a promotion capability
+ * may be declared. Everything else on the site may only cite it. Parsing the
+ * published table rather than a parallel JS constant is deliberate: a registry
+ * that can drift from the page it documents is not a registry. */
+const REGISTRY = (() => {
+  const html = readFileSync(join(ROOT, "reference.html"), "utf8");
+  const table = /<table id="capability-registry">([\s\S]*?)<\/table>/.exec(html);
+  const out = new Map();
+  if (!table) return out;
+  for (const row of table[1].matchAll(/data-capability="([^"]+)"\s+data-tier="([^"]*)"/g)) {
+    out.set(row[1], row[2]);
+  }
+  return out;
+})();
+
+ok("caps/registry-found", REGISTRY.size > 0,
+   "reference.html#capability-registry did not parse -- no capability can be checked");
+
+/* A capability with no meaning tier is unclassified, which is the exact defect
+   the tier table exists to prevent. */
+for (const [cap, tier] of REGISTRY) {
+  ok(`caps/${cap}-classified`, ["settled", "drafted", "sketched"].includes(tier),
+     `capability "${cap}" has tier "${tier}"; expected settled|drafted|sketched`);
+}
+
+/* every capability cited anywhere, so we can check both directions */
+const cited = new Map();      /* capability -> [labels]  */
+const futurePairs = new Map(); /* equivalence id -> [labels] */
+
 /* ids that some block on the site DEMONSTRABLY seals to, collected as the
  * sweep verifies them. The tutorial legitimately prints the ids of the
  * half-built worlds it passes through; those are earned, not asserted. */
@@ -399,10 +430,45 @@ for (const file of htmlFiles) {
     const seal = ATTR(attrs, "data-seal");
     const reject = ATTR(attrs, "data-reject");
     const future = ATTR(attrs, "data-future");
+    /* presence test, not ATTR: the annotation is a bare boolean attribute and
+       ATTR's `|| null` would swallow an empty value */
+    const notCurrent = /\bdata-not-current\b/.test(attrs);
+    const requires = (ATTR(attrs, "data-requires") || "")
+      .split(",").map((s) => s.trim()).filter(Boolean);
+    const equiv = ATTR(attrs, "data-equivalent-future");
     const label = `doc/${file}#${i}`;
     blocks++;
 
-    if (future) {
+    /* Every named requirement must be a registered capability. A typo here
+       would otherwise produce a snippet that silently waits on nothing. */
+    for (const cap of requires) {
+      ok(`${label}/requires-${cap}`, REGISTRY.has(cap),
+         `names capability "${cap}", which is not in reference.html#capability-registry`);
+      if (!cited.has(cap)) cited.set(cap, []);
+      cited.get(cap).push(label);
+    }
+
+    if (equiv) {
+      if (!futurePairs.has(equiv)) futurePairs.set(equiv, []);
+      futurePairs.get(equiv).push(label);
+    }
+
+    if (notCurrent) {
+      /* The honest negative claim for a DRAFT snippet. `data-future` asserts a
+       * specific diagnostic, which is a lie for draft-notation blocks: the
+       * parser's first complaint is almost always the missing profile line, not
+       * the construct the block is actually demonstrating. So assert only what
+       * is true and load-bearing -- the toolchain does not accept this -- and
+       * let `data-requires` carry the reason. When the capability ships, the
+       * block starts sealing and this goes red. */
+      annotated++;
+      const r = await W.sealWorld(source.endsWith("\n") ? source : source + "\n");
+      ok(`${label} (not-current: ${requires.join(" ") || "?"})`, !r.ok,
+         `this block is marked data-not-current but SEALED to ${r.semanticId}. ` +
+         `If the capability shipped, drop the annotation and document it.`);
+      ok(`${label}/states-a-requirement`, requires.length > 0,
+         "a data-not-current block must say which capabilities it waits on");
+    } else if (future) {
       /* A block marked as design draft is making the negative claim: you cannot
        * write this today. That claim is checkable, so check it. The reviewer's
        * complaint was documentation asserting MORE than the implementation
@@ -434,6 +500,23 @@ for (const file of htmlFiles) {
 
 ok("doc/sweep-found-blocks", blocks > 0, "no code blocks were extracted at all");
 ok("doc/annotations-present", annotated > 0, "no block asserts an outcome");
+
+/* A registry entry nothing cites is a capability the site invented and then
+   forgot. Either something depends on it or it does not belong in the ladder. */
+for (const cap of REGISTRY.keys()) {
+  ok(`caps/${cap}-cited`, cited.has(cap),
+     `capability "${cap}" is registered but no snippet requires it. ` +
+     `Either annotate the block that needs it, or remove the row.`);
+}
+
+/* Paired snippets: two spellings that must eventually canonicalize to the same
+   bytes. Today neither parses, so the only checkable claim is that the pair is
+   well-formed. When `behaviours` ships, this becomes a real equality test. */
+for (const [id, labels] of futurePairs) {
+  ok(`equiv/${id}-is-a-pair`, labels.length === 2,
+     `data-equivalent-future="${id}" appears on ${labels.length} block(s): ` +
+     `${labels.join(", ")}. An equivalence claim needs exactly two spellings.`);
+}
 
 /* The playground's ten examples are the only sources on this site that a reader
  * actually EXECUTES, and each one is a claim: the button says "An illegal
@@ -549,7 +632,8 @@ ok("doc/annotations-present", annotated > 0, "no block asserts an outcome");
 /* ==================================================================== report */
 
 console.log(`\n  ${pass} passed, ${fail} failed ` +
-            `(${annotated} annotated doc blocks of ${blocks} swept)\n`);
+            `(${annotated} annotated doc blocks of ${blocks} swept, ` +
+            `${cited.size}/${REGISTRY.size} capabilities cited)\n`);
 if (fail) {
   for (const f of failures) console.log(`  FAIL  ${f}`);
   console.log("");

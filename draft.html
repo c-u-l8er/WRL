@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>The WallRiderLang design draft — the whole language, tier by tier</title>
+<title>The authored WallRiderLang design draft — Parts II–VI, tier by tier</title>
 <meta name="description" content="The complete WallRiderLang design draft: the expression notation, effects and capabilities, supervision and the error ladder, mailboxes and backpressure, behavior blocks, fragments, stencils, derives, sealed tools, modules, build films, testing, FFI — each marked Core, Experimental or Proposed.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -98,14 +98,26 @@
 <div class="docbody">
 
 <div class="slot">THE COMPLETE DESIGN DRAFT</div>
-<h1 style="font-size:clamp(30px,4.4vw,46px);max-width:24ch">Everything the language is designed to be, and what is actually built.</h1>
+<h1 style="font-size:clamp(30px,4.4vw,46px);max-width:24ch">The authored full-language draft.</h1>
 
-<p class="lede">The <a href="spec.html">spec</a> is the small frozen part. This page
-is the <b>whole authored design draft</b> — the expression notation,
+<p class="lede">Parts II–VI of the original design — the expression notation,
 capabilities, supervision, mailboxes, behavior blocks, fragments, stencils,
 derives, sealed tools, modules, build films, tests, FFI — with every section
-carrying the tier its author assigned it, so you can read the entire language
-and see exactly where the implementation stops.</p>
+carrying the tier its author assigned it, so you can read the language whole and
+see exactly where the implementation stops. The <b>later topology work</b> is
+not on this page; it is documented separately in
+<a href="direction.html">Direction</a> and
+<a href="spec.html#part2">Core Part II</a>.</p>
+
+<div class="note"><b>Why the scope line matters.</b> This page is a record, not a
+roadmap that has been kept up to date. It says what the language's author
+designed, in that author's own words and tier marks. Work done afterwards —
+node-aligned multilayer identity, relation attributes, resolved terminals,
+acausal connectors, profile-scoped models of computation, solver walls, domain
+profiles — is <b>not</b> in the authored draft and has deliberately not been
+merged into it. Folding later thinking back into an authored document would
+destroy the one thing that makes it worth publishing: you would no longer be
+able to tell which decisions the design actually made.</div>
 
 <h2 id="about">What this page is</h2>
 
@@ -252,7 +264,7 @@ records what it was audited against.</p>
 <p>Algebraic data types: records, variants, tuples, recursive data. <b>There is
 no <code class="inline">null</code>.</b></p>
 
-<pre class="code"><code><span class="kw">type</span> Rider = {
+<pre class="code" data-not-current data-requires="expression-notation"><code><span class="kw">type</span> Rider = {
   name: Name,
   watts: Watts,
   energy: Energy,
@@ -277,7 +289,7 @@ and is the subject of <a href="#supervision">§24.3</a>.</p>
 
 <p>Values are immutable; updating produces a new value:</p>
 
-<pre class="code"><code><span class="kw">let</span> next = rider <span class="kw">with</span> { energy = rider.energy - cost }</code></pre>
+<pre class="code" data-not-current data-requires="expression-notation"><code><span class="kw">let</span> next = rider <span class="kw">with</span> { energy = rider.energy - cost }</code></pre>
 
 <h2 id="functions">12 · Bindings, functions, effect rows <span class="tier exp">Experimental</span></h2>
 
@@ -287,7 +299,7 @@ and is the subject of <a href="#supervision">§24.3</a>.</p>
 immutable SSA form, so <b>shared mutable variables are impossible by
 construction</b>, not by convention.</p>
 
-<pre class="code"><code><span class="kw">let</span> cost = grade_cost(course.grade)
+<pre class="code" data-not-current data-requires="expression-notation,effect-walls"><code><span class="kw">let</span> cost = grade_cost(course.grade)
 <span class="kw">var</span> total = <span class="lit">0</span>        <span class="cm">; local only; lowers to SSA</span></code></pre>
 
 <h3>12.2 · Actors do not replace functions</h3>
@@ -295,7 +307,7 @@ construction</b>, not by convention.</p>
 functions are for local calculation. A function declares its effect row with
 <code class="inline">uses</code>; an empty row means pure.</p>
 
-<pre class="code"><code><span class="kw">fn</span> drain(rider: Rider, cost: Energy) -&gt; Result&lt;Rider, Exhausted&gt;
+<pre class="code" data-not-current data-requires="expression-notation,effect-walls"><code><span class="kw">fn</span> drain(rider: Rider, cost: Energy) -&gt; Result&lt;Rider, Exhausted&gt;
   <span class="kw">uses</span> {} {
   <span class="kw">let</span> remaining = rider.energy - cost
   <span class="kw">match</span> remaining {
@@ -310,7 +322,7 @@ answer to "everything is an actor" bloat: most computation is not concurrency.</
 
 <h3>12.3 · Effect rows are the type face of capability walls</h3>
 
-<pre class="code"><code><span class="kw">fn</span> download_world(id: WorldId) -&gt; Result&lt;Bytes, NetError&gt;
+<pre class="code" data-not-current data-requires="expression-notation,effect-walls"><code><span class="kw">fn</span> download_world(id: WorldId) -&gt; Result&lt;Bytes, NetError&gt;
   <span class="kw">uses</span> { net.send, storage.write }</code></pre>
 
 <p>A call whose row is non-empty can only execute where an actor's ports grant
@@ -336,7 +348,7 @@ inherits no ambient authority" becomes a <b>theorem rather than a rule</b>.</p>
 
 <h2 id="matching">13 · Pattern matching <span class="tier exp">Experimental</span></h2>
 
-<pre class="code"><code><span class="kw">match</span> message {
+<pre class="code" data-not-current data-requires="expression-notation"><code><span class="kw">match</span> message {
   Command.attack(at=<span class="id">?p</span>)                  =&gt; …
   Command.recover(amount=<span class="id">?n</span>) <span class="kw">when</span> <span class="id">?n</span> &gt; <span class="lit">0</span> =&gt; …
   _                                      =&gt; …
@@ -345,7 +357,7 @@ inherits no ambient authority" becomes a <b>theorem rather than a rule</b>.</p>
 <p>Graph patterns use the same binding system, so one mental model covers data
 and topology:</p>
 
-<pre class="code"><code>[<span class="kw">rider</span>:<span class="id">?id</span>](energy=<span class="id">?e</span>, status=riding(<span class="id">?lap</span>))
+<pre class="code" data-not-current data-requires="expression-notation"><code>[<span class="kw">rider</span>:<span class="id">?id</span>](energy=<span class="id">?e</span>, status=riding(<span class="id">?lap</span>))
   <span class="rt">--when(?e &lt; 20)--&gt;</span>
 <span class="rt">/feed-zone</span></code></pre>
 
@@ -365,7 +377,7 @@ which are offline, stratified and budgeted, or in explicitly
 <h3>14.1 · Generics are parametric</h3>
 <p>Never token templates. Const parameters where needed.</p>
 
-<pre class="code"><code><span class="kw">type</span> Mailbox&lt;T&gt;        <span class="kw">type</span> Port&lt;T&gt;        <span class="kw">type</span> Graph&lt;T&gt;
+<pre class="code" data-not-current data-requires="generics-traits,expression-notation"><code><span class="kw">type</span> Mailbox&lt;T&gt;        <span class="kw">type</span> Port&lt;T&gt;        <span class="kw">type</span> Graph&lt;T&gt;
 <span class="kw">type</span> Fragment&lt;T&gt;       <span class="kw">type</span> Result&lt;T, E&gt;   <span class="kw">type</span> Vector&lt;T, N: Int32&gt;
 <span class="kw">fn</span> map&lt;T, U&gt;(items: List&lt;T&gt;, f: <span class="kw">fn</span>(T) -&gt; U) -&gt; List&lt;U&gt;</code></pre>
 
@@ -374,7 +386,7 @@ take both — <code class="inline">::: cache&lt;K, V&gt;(name, capacity: Int32) 
 
 <h3>14.2 · Traits, and no class inheritance</h3>
 
-<pre class="code"><code><span class="kw">trait</span> Hashable {
+<pre class="code" data-not-current data-requires="generics-traits,expression-notation"><code><span class="kw">trait</span> Hashable {
   <span class="kw">fn</span> hash(self) -&gt; Hash
 }
 
@@ -411,7 +423,7 @@ vary by context, import order, or build.</div>
 
 <h2 id="numerics">15 · Numerics and determinism classes <span class="tier exp">Experimental</span></h2>
 
-<pre class="code"><code>Int8  Int16  Int32  Int64      UInt8 … UInt64
+<pre class="code" data-not-current data-requires="numerics"><code>Int8  Int16  Int32  Int64      UInt8 … UInt64
 Float32  Float64                Decimal
 Fixed&lt;Q&gt;                        Duration   Period</code></pre>
 
@@ -444,7 +456,7 @@ effect-side; <code class="inline">Period</code> is logical time and replayable.<
 
 <h2 id="collections">16 · Collections, strings, symbols <span class="tier exp">Experimental</span></h2>
 
-<pre class="code"><code>List&lt;T&gt;   Vector&lt;T, N&gt;   Map&lt;K, V&gt;   Set&lt;T&gt;   Bytes   String
+<pre class="code" data-not-current data-requires="collections,expression-notation"><code>List&lt;T&gt;   Vector&lt;T, N&gt;   Map&lt;K, V&gt;   Set&lt;T&gt;   Bytes   String
 Queue&lt;T&gt;  Mailbox&lt;T&gt;     FactSet&lt;T&gt;  Stream&lt;T&gt;</code></pre>
 
 <p>Every collection defines deterministic iteration order, canonical
@@ -462,13 +474,13 @@ silently CRDT-mergeable; <b>replication is opt-in by type</b>.</div>
 <p>Data iteration is textual and never uses periods. The dot family means
 logical time and nothing else:</p>
 
-<pre class="code"><code><span class="kw">for</span> rider <span class="kw">in</span> riders { … }
+<pre class="code" data-not-current data-requires="collections,expression-notation"><code><span class="kw">for</span> rider <span class="kw">in</span> riders { … }
 map(riders, score)
 fold(results, initial, combine)</code></pre>
 
 <p>Four things other languages conflate are four different things here:</p>
 
-<pre class="code"><code><span class="lit">"rider a"</span>      String — data
+<pre class="code" data-not-current data-requires="collections,expression-notation"><code><span class="lit">"rider a"</span>      String — data
 rider_a        identifier — a name in source
 <span class="id">#rider-a</span>       tag / content identity
 <span class="id">@rider-a</span>       address / stamp</code></pre>
@@ -483,7 +495,7 @@ is singly owned; messages are immutable; large binaries use shared
 <i>immutable</i> storage; external resources are <b>affine handles</b>; and
 capabilities cannot be duplicated unless their type permits it.</p>
 
-<pre class="code"><code><span class="kw">resource</span> FileHandle
+<pre class="code" data-not-current data-requires="resources"><code><span class="kw">resource</span> FileHandle
 <span class="kw">resource</span> GpuBuffer
 <span class="kw">resource</span> Socket
 
@@ -525,6 +537,21 @@ seven — this is the closed list.</p>
 <tr><td><b>Stencil</b></td><td>a deterministic, hygienic, resource-bounded, canonicalizable map from parameters to a fragment; typed <code>Stencil&lt;Args, Fragment&lt;T&gt;&gt;</code></td></tr>
 </tbody></table></div>
 
+<div class="note warn"><b>A known collision with the later topology work.</b>
+<code class="inline">Edge</code> above is a <i>binary directed pair</i>. The
+topology extrapolation needs connections that are attributed, that admit several
+drivers meeting at one resolved terminal, and that have three or more
+participants and no direction at all — none of which a
+<code class="inline">source</code>/<code class="inline">destination</code> pair
+can hold. The resolution is <b>not</b> a seventh entity type: the closed list of
+six stands, and the third member is broadened from
+<code class="inline">Edge</code> to <code class="inline">Relation</code>, with
+today's directed route as its simplest specialisation. That argument, its cost
+to the identity ladder, and what it must deliver before shipping are in
+<a href="spec.html#d8">Core Part II §D8</a>. It is recorded there rather than
+edited into this table, so that the authored ontology stays legible as the
+authored ontology.</div>
+
 <h2 id="boundaries">20.6 · Boundaries are reduction operators <span class="tier core">Core</span></h2>
 
 <p>A wall is not decoration around a diagram. Each boundary <b>is a reduction
@@ -550,14 +577,14 @@ reduction, which is why it can feed a podium directly.</p>
 crossed a boundary this run and reduces it to a provenance-carrying object with
 N named places.</p>
 
-<pre class="code"><code>Podium {
+<pre class="code" data-not-current data-requires="podium"><code>Podium {
   places: [r; N],        <span class="cm">; missing places are explicit _</span>
   ranking_policy,
   evidence,
   source_boundary
 }</code></pre>
 
-<pre class="code"><code><span class="rt">//finish</span> <span class="rt">==rank(by=time, tie=#id)==&gt;</span> o3.
+<pre class="code" data-not-current data-requires="podium"><code><span class="rt">//finish</span> <span class="rt">==rank(by=time, tie=#id)==&gt;</span> o3.
 [winner, second, third] &lt;- o3.</code></pre>
 
 <div class="note"><b>Ranking must name a stable tie-breaker.</b> Arrival order
@@ -574,7 +601,7 @@ one. Omitting the tie-breaker is a <a href="#checks">static error</a>.</div>
 <h3>Messages are immutable facts</h3>
 <p>A <code class="inline">~~msg~~&gt;</code> in period <i>t</i> appends:</p>
 
-<pre class="code"><code>{ msg_id, sender, receiver, payload_hash,
+<pre class="code" data-not-current data-requires="async-route"><code>{ msg_id, sender, receiver, payload_hash,
   send_tag=(t,m), delivery_policy, provenance }</code></pre>
 
 <p>Delivery is a <b>separate event</b>. Under the default policy a message sent
@@ -596,13 +623,31 @@ replay uses the recorded count and never a live clock.</p>
 of external observations — the signed facts crossing effect walls — the
 committed film is byte-identical across any hardware scheduling.</b></div>
 
-<p>The argument is short. Collect and Order depend only on configuration
-content. The independent set commits order-independently because disjoint
-footprints commute, and the dependent cascade is serialized by microstep as a
-pure function of content. There is no destructive state conflict, only
-commutative appends and joins. Commit and Record are deterministic functions of
-Reduce. <b>The only entry point for nondeterminism is effect-wall observations,
-and those are captured in the film</b> — so replay is exact.</p>
+<div class="note warn"><b>Editorial correction.</b> The authored draft's proof
+sketch for this property is written in the superseded five-phase vocabulary
+flagged at the <a href="#entities">head of Part III</a> — it argues that "Collect
+and Order depend only on configuration content" and that "Commit and Record are
+deterministic functions of Reduce". Those phases no longer exist. The claim is
+unchanged and still holds; the argument below is the same argument restated over
+the six frozen phases. This is the one place on this page where the author's
+words have been replaced rather than merely annotated, because leaving them would
+have made the page assert a cycle the language does not have.</div>
+
+<p>The argument is short, and it is one clause per phase. <b>OBSERVE</b>
+canonicalizes external claims. <b>ACCEPT</b> creates missing receipts under
+pinned policies. <b>MAP</b> deterministically derives controls from newly
+accepted operations. <b>COMMIT</b> applies a canonically ordered compatible
+write set. <b>REACT</b> settles the same-period cascade by deterministic
+microsteps to fixpoint. <b>FILM</b> serializes every state variable and
+observation required to determine future behavior.</p>
+
+<p>Nothing in that chain consults arrival order, wall-clock time, address
+identity, or iteration order over an unordered container. The write set is
+compatible because there is no destructive state conflict — only commutative
+appends and lattice joins — and it is canonically ordered because the ordering
+key is content, not schedule. <b>The only entry point for nondeterminism is
+effect-wall observations, and those are captured in the film</b> — so replay is
+exact.</p>
 
 <p>Consequently "the same sealed film runs identically on desktop and console"
 is a testable property rather than a hope, <i>provided</i> the numeric rules of
@@ -622,7 +667,7 @@ termination is declared.</p>
 <p>All non-deterministic or external action crosses a named wall.
 <b>No effect happens invisibly.</b></p>
 
-<pre class="code"><code>[request] <span class="rt">--&gt;</span> <span class="rt">/net</span>
+<pre class="code" data-not-current data-requires="effect-walls"><code>[request] <span class="rt">--&gt;</span> <span class="rt">/net</span>
 [frame]   <span class="rt">--&gt;</span> <span class="rt">/gpu</span>
 [sound]   <span class="rt">--&gt;</span> <span class="rt">/audio</span>
 [file]    <span class="rt">--&gt;</span> <span class="rt">/storage</span></code></pre>
@@ -630,13 +675,13 @@ termination is declared.</p>
 <p>An adapter returns a <b>signed observation</b>, and that is what enters the
 film — so a replay reproduces the run without repeating the call:</p>
 
-<pre class="code"><code><span class="rt">/net</span> <span class="rt">==observed(response=#hash)==&gt;</span> [requester]</code></pre>
+<pre class="code" data-not-current data-requires="effect-walls"><code><span class="rt">/net</span> <span class="rt">==observed(response=#hash)==&gt;</span> [requester]</code></pre>
 
 <p>Capabilities live at boundaries and ports and are typed as the effect rows of
 <a href="#functions">§12.3</a>. A copied fragment inherits no ambient authority;
 captured capabilities must be named:</p>
 
-<pre class="code"><code>[actor]{net.send}
+<pre class="code" data-not-current data-requires="effect-walls"><code>[actor]{net.send}
 [request] <span class="rt">--&gt;</span> <span class="rt">/net</span> <span class="kw">requires</span> net.send</code></pre>
 
 <div class="note"><b>Randomness is an effect.</b> All of it — simulation noise,
@@ -655,7 +700,7 @@ Everything else is a pure function of configuration content.</p>
 commutative, associative and idempotent; convergence follows from those laws
 alone.</p>
 
-<pre class="code"><code>[node:<span class="id">a</span>] <span class="rt">&lt;~merge(facts)~&gt;</span> [node:<span class="id">b</span>]
+<pre class="code" data-not-current data-requires="merge-routes"><code>[node:<span class="id">a</span>] <span class="rt">&lt;~merge(facts)~&gt;</span> [node:<span class="id">b</span>]
 [node:<span class="id">a</span>]{facts} + [node:<span class="id">b</span>]{facts} <span class="rt">--&gt;</span> [facts:joined]</code></pre>
 
 <p><code class="inline">&lt;~merge~&gt;</code> canonicalizes both fact sets,
@@ -682,14 +727,14 @@ explicit checker identity — a <code class="inline">Verify</code> instance from
 <a href="#traits">§14.2</a> — a policy version, inputs, a result and an evidence
 hash.</p>
 
-<pre class="code"><code>[candidate]
+<pre class="code" data-not-current data-requires="verified-route"><code>[candidate]
   <span class="rt">==verified(by=proof, policy=forge.v1)==&gt;</span>
 [film:<span class="id">#hash</span>]</code></pre>
 
 <p>A failed verification travels on an explicit rejection route to a quarantine
 boundary — it does not silently vanish:</p>
 
-<pre class="code"><code>[candidate] <span class="rt">!!reject(reason=?r)!!&gt;</span> <span class="rt">/quarantine</span></code></pre>
+<pre class="code" data-not-current data-requires="verified-route"><code>[candidate] <span class="rt">!!reject(reason=?r)!!&gt;</span> <span class="rt">/quarantine</span></code></pre>
 
 <p>Sealing (<code class="inline">///</code>) content-addresses the result, making
 it a reusable immutable artifact.</p>
@@ -703,12 +748,12 @@ identity, the policy version, the evidence hash, and the rejection route.</p>
 <h3>24.1 · Supervision</h3>
 <p>The caret denotes upward supervision or promotion:</p>
 
-<pre class="code"><code>[worker:<span class="id">a</span>] ^ [supervisor:<span class="id">pool</span>]</code></pre>
+<pre class="code" data-not-current data-requires="supervision"><code>[worker:<span class="id">a</span>] ^ [supervisor:<span class="id">pool</span>]</code></pre>
 
 <p>A supervisor <b>deterministically</b> chooses a policy in response to a
 fault — the response is a rule, not a callback:</p>
 
-<pre class="code"><code>[supervisor:<span class="id">pool</span>](policy=restart_one)
+<pre class="code" data-not-current data-requires="supervision"><code>[supervisor:<span class="id">pool</span>](policy=restart_one)
   <span class="rt">--on(crash(worker=?w))--&gt;</span>
 <span class="id">@worker</span>(id=<span class="id">?w</span>, restored_from=last_checkpoint)</code></pre>
 
@@ -717,7 +762,7 @@ fault — the response is a rule, not a callback:</p>
 therefore usable to define termination, snapshot safety and scheduler
 economics:</p>
 
-<pre class="code"><code>[worker:<span class="id">a</span>] <span class="rt">--&gt;</span> _
+<pre class="code" data-not-current data-requires="supervision"><code>[worker:<span class="id">a</span>] <span class="rt">--&gt;</span> _
 [queue] <span class="rt">~~job(?j)~~&gt;</span> [worker:<span class="id">a</span>] <span class="rt">_--&gt;</span> active(job=<span class="id">?j</span>)</code></pre>
 
 <h3>24.3 · The error ladder</h3>
@@ -745,7 +790,7 @@ promotion — in both directions.</p>
 <p><b>Mailboxes are bounded by default.</b> An unbounded mailbox is rejected
 unless an explicit policy says otherwise.</p>
 
-<pre class="code"><code>Mailbox&lt;Job, capacity=<span class="lit">1024</span>, overflow=reject&gt;</code></pre>
+<pre class="code" data-not-current data-requires="async-route"><code>Mailbox&lt;Job, capacity=<span class="lit">1024</span>, overflow=reject&gt;</code></pre>
 
 <div class="tbl"><table>
 <thead><tr><th>Overflow policy</th><th>Behaviour</th></tr></thead>
@@ -759,7 +804,7 @@ unless an explicit policy says otherwise.</p>
 <p><b>Backpressure is explicit demand signalling.</b> Producers send only what
 consumers have demanded — there is no implicit flow control to reason about:</p>
 
-<pre class="code"><code>[consumer] <span class="rt">~~demand(32)~~&gt;</span> [producer]
+<pre class="code" data-not-current data-requires="async-route"><code>[consumer] <span class="rt">~~demand(32)~~&gt;</span> [producer]
 [producer] <span class="rt">~~items(batch)~~&gt;</span> [consumer]</code></pre>
 
 <p>The stream vocabulary is <code class="inline">Stream&lt;T&gt;</code>,
@@ -774,7 +819,7 @@ producer winds down through ordinary routes, not through faults.</p>
 textual home. A behavior block declares an actor's state shape, ports and
 handlers in one place.</p>
 
-<pre class="code"><code><span class="kw">actor</span> rider(name: Name, watts: Watts) {
+<pre class="code" data-not-current data-requires="behaviours,typed-ports,async-route,supervision" data-equivalent-future="rider-behavior-01"><code><span class="kw">actor</span> rider(name: Name, watts: Watts) {
   <span class="kw">state</span> (name=name, watts=watts, energy=<span class="lit">100</span>, status=staged)
 
   <span class="kw">ports</span> {
@@ -795,12 +840,35 @@ handlers in one place.</p>
   }
 }</code></pre>
 
+<p>The same actor, drawn. Every handler above is a route here, and the claim is
+that the two spellings are not merely similar but <b>byte-identical after
+canonicalization</b>:</p>
+
+<pre class="code" data-not-current data-requires="behaviours,typed-ports,async-route,supervision" data-equivalent-future="rider-behavior-01"><code><span class="kw">profile</span> forge.world.core.v1
+
+[<span class="kw">rider</span>:<span class="id">self</span>](<span class="lit">name=name, watts=watts, energy=100, status=staged</span>)
+  {<span class="rt">radio: Mailbox&lt;Command, capacity=64, overflow=reject&gt;, road: Port&lt;RideEvent&gt;</span>}
+
+[<span class="id">self</span>] <span class="rt">~~Command.attack(at=?t)~~&gt;</span> [<span class="id">self</span>].set(status=attacking(<span class="id">?t</span>))
+[<span class="id">self</span>] <span class="rt">--tick--&gt;</span> [<span class="id">self</span>].drain(<span class="lit">8</span>) <span class="kw">when</span> status = riding(<span class="id">?lap</span>)
+[<span class="id">self</span>] <span class="rt">!!crash(?reason)!!&gt;</span> [<span class="id">supervisor</span>]</code></pre>
+
 <div class="note"><b>A behavior block is a projection, not a second
 semantics.</b> It canonicalizes to exactly the same behavior table — and
 therefore <b>the same content hash</b> — as the equivalent drawn routes. This is
 a <a href="#conformance">conformance requirement</a>: for every construct with
 both a drawn and a textual form, the two forms produce identical canonical
 bytes. The language has two surfaces and one meaning, permanently.</div>
+
+<div class="note"><b>This pair is a pending conformance obligation, not a
+comment.</b> The two blocks above are tagged with the same equivalence id in the
+page source. Today the suite can only check that the pair is well-formed and
+that neither spelling is accepted. When the <code class="inline">behaviours</code>
+capability is <a href="reference.html#capabilities">promoted</a>, both blocks
+start sealing and the check becomes what it is meant to be: an assertion that the
+two produce the same <code class="inline">sem-</code> id. If they do not, the
+build breaks — which is the only way "two surfaces, one meaning" can be a
+property rather than an aspiration.</div>
 
 <h2 id="evolution">27 · Evolution: migration and compatibility <span class="tier exp">Experimental</span></h2>
 
@@ -811,7 +879,7 @@ hash and names re-point. But a persistent actor in the
 and <b>re-pointing a name transforms nothing</b>. Live state evolves through an
 explicit verified migration:</p>
 
-<pre class="code"><code>(state: Rider<span class="id">@#a91</span>) <span class="rt">==migrate(policy=rider.upgrade.v1v2, by=#m7)==&gt;</span> (state: Rider<span class="id">@#b12</span>)</code></pre>
+<pre class="code" data-not-current data-requires="migration"><code>(state: Rider<span class="id">@#a91</span>) <span class="rt">==migrate(policy=rider.upgrade.v1v2, by=#m7)==&gt;</span> (state: Rider<span class="id">@#b12</span>)</code></pre>
 
 <p>A migration is a verified route: evidence-carrying, recorded in the film,
 orchestrated by supervisors (drain to <code class="inline">_</code>, migrate,
@@ -824,7 +892,7 @@ the message hashes its port type declares; <b>an unrecognized hash is a normal
 outcome, never a fault</b> — which is what leaves room for explicit adapter
 routes between versions:</p>
 
-<pre class="code"><code><span class="kw">on</span> <span class="rt">~~unknown(#msg)~~&gt;</span> {
+<pre class="code" data-not-current data-requires="migration"><code><span class="kw">on</span> <span class="rt">~~unknown(#msg)~~&gt;</span> {
   [self] <span class="rt">--forward(#msg)--&gt;</span> <span class="rt">/adapter.v1v2</span>
 }</code></pre>
 
@@ -872,7 +940,7 @@ produce new graphs, and therefore new hashes.</p>
 <tr><td>6</td><td><b>Expansion is hermetic and host-blind.</b> Expansion-time code has no I/O facilities at all and cannot observe the build machine — no host paths, clocks, endianness or environment</td><td>reproducible and cacheable everywhere</td></tr>
 </tbody></table></div>
 
-<pre class="code"><code><span class="cm">; law 4, spelled</span>
+<pre class="code" data-not-current data-requires="metaprogramming"><code><span class="cm">; law 4, spelled</span>
 <span class="id">#[meta_fuel=10_000, max_nodes=50_000]</span></code></pre>
 
 <p>Laws 3, 4 and 6 are not ergonomics. They are the premises of the
@@ -889,7 +957,7 @@ explicitly executed</b>. It supports typed holes, explicit captures, hygienic
 local identities, copying, transport as a message, signing, storage, inspection
 and canonical hashing.</p>
 
-<pre class="code"><code>:: breakaway(leader=<span class="id">?l</span>, mate=<span class="id">?m</span>)
+<pre class="code" data-not-current data-requires="metaprogramming"><code>:: breakaway(leader=<span class="id">?l</span>, mate=<span class="id">?m</span>)
   [rider:<span class="id">?l</span>] <span class="rt">~~signal~~&gt;</span> [rider:<span class="id">?m</span>]
   [rider:<span class="id">?l</span>] <span class="rt">--accelerate--&gt;</span> [road]
 //</code></pre>
@@ -897,7 +965,7 @@ and canonical hashing.</p>
 <p>Free variables are illegal unless declared as holes; captured identities must
 be named:</p>
 
-<pre class="code"><code>:: with_clock(<span class="kw">capture</span> [shared:clock], <span class="kw">hole</span> <span class="id">?target</span>)
+<pre class="code" data-not-current data-requires="metaprogramming"><code>:: with_clock(<span class="kw">capture</span> [shared:clock], <span class="kw">hole</span> <span class="id">?target</span>)
   [shared:clock] <span class="rt">~~tick~~&gt;</span> <span class="id">?target</span>
 //</code></pre>
 
@@ -905,7 +973,7 @@ be named:</p>
 explicitly marked shared. Because a fragment is a value, it travels as a message
 payload — <b>code as a message</b>:</p>
 
-<pre class="code"><code>[coach] <span class="rt">--plan(::breakaway//)--&gt;</span> [team]</code></pre>
+<pre class="code" data-not-current data-requires="metaprogramming"><code>[coach] <span class="rt">--plan(::breakaway//)--&gt;</span> [team]</code></pre>
 
 <p><b>A fragment does not run merely because it exists.</b> It must be stamped,
 executed, or crossed through an appropriate boundary. That is what makes
@@ -919,7 +987,7 @@ executed, or crossed through an appropriate boundary. That is what makes
 component definitions, declarative macros, annotations, or infrastructure
 templates elsewhere are stencils here.</b></p>
 
-<pre class="code"><code>::: rider(name: Name, watts: Watts)
+<pre class="code" data-not-current data-requires="metaprogramming"><code>::: rider(name: Name, watts: Watts)
   : [<span class="kw">rider</span>:<span class="id">#name</span>](
       watts=watts,
       energy=<span class="lit">100</span>,
@@ -941,7 +1009,7 @@ stencils scale from one actor to whole architectures —
 diffs demand the <i>same</i> identities on every rebuild. Both hold via one
 normative formula:</p>
 
-<pre class="code"><code><span class="id">#child</span> = H( stencil<span class="id">#</span>, canonical(args), path-within-expansion )</code></pre>
+<pre class="code" data-not-current data-requires="metaprogramming"><code><span class="id">#child</span> = H( stencil<span class="id">#</span>, canonical(args), path-within-expansion )</code></pre>
 
 <p>Same stencil, same arguments, same position ⇒ the same identity on every
 rebuild. Different site or arguments ⇒ a different identity. <b>Colliding
@@ -958,7 +1026,7 @@ validate capabilities and budget → canonicalize → attach provenance.</p>
 "every faultable actor gets a supervisor". Those are <b>derives</b>:
 expression-notation functions over typed graphs, evaluated at expansion time.</p>
 
-<pre class="code"><code><span class="kw">derive</span> supervise_faulting(g: Graph&lt;Actor&gt;) -&gt; Graph&lt;Supervision&gt; {
+<pre class="code" data-not-current data-requires="derives"><code><span class="kw">derive</span> supervise_faulting(g: Graph&lt;Actor&gt;) -&gt; Graph&lt;Supervision&gt; {
   <span class="kw">for</span> actor <span class="kw">in</span> g.actors
   <span class="kw">where</span> actor.can_fault <span class="kw">and</span> actor.supervisor = none
   <span class="kw">emit</span> actor ^ [supervisor:<span class="id">#actor.id</span>]
@@ -988,7 +1056,7 @@ on trust.</p>
 importers — procedural power that cannot live in the stratified system — run as
 <b>sealed tools</b> behind an explicit compiler capability wall.</p>
 
-<pre class="code"><code>[schema:<span class="id">#game</span>] <span class="rt">--&gt;</span> <span class="rt">/compiler</span>
+<pre class="code" data-not-current data-requires="metaprogramming"><code>[schema:<span class="id">#game</span>] <span class="rt">--&gt;</span> <span class="rt">/compiler</span>
 <span class="rt">/compiler</span> <span class="rt">==generated(tool=#generator-hash)==&gt;</span> [bindings:<span class="id">#hash</span>]</code></pre>
 
 <p>A sealed tool requires: a pinned tool hash; explicit input hashes; declared
@@ -1005,7 +1073,7 @@ appears in the <a href="#buildfilms">build film</a>.</div>
 
 <p>Compile-time reflection over canonical structure is rich and free:</p>
 
-<pre class="code"><code>graph.actors      graph.routes       graph.boundaries
+<pre class="code" data-not-current data-requires="reflection"><code>graph.actors      graph.routes       graph.boundaries
 type.fields       fragment.holes     fragment.capabilities</code></pre>
 
 <p><b>Runtime reflection is capability-controlled.</b> A mirror over an actor is
@@ -1020,7 +1088,7 @@ private actor state does not exist.</p>
 
 <h3>35.1 · Content-addressed modules</h3>
 
-<pre class="code"><code><span class="kw">module</span> race.timing<span class="id">@#a184</span>
+<pre class="code" data-not-current data-requires="modules"><code><span class="kw">module</span> race.timing<span class="id">@#a184</span>
 
 <span class="kw">export</span> { Time, FinishResult, rank_finish }
 
@@ -1030,7 +1098,7 @@ private actor state does not exist.</p>
 <p>Human-readable names and versions are <b>metadata that point to immutable
 hashes</b>:</p>
 
-<pre class="code"><code>race.timing@1.4 -&gt; <span class="id">#a184</span></code></pre>
+<pre class="code" data-not-current data-requires="modules"><code>race.timing@1.4 -&gt; <span class="id">#a184</span></code></pre>
 
 <p>A locked build stores the hashes, not only the human versions. Upgrading
 never mutates a sealed artifact; it produces a <i>new</i> artifact with a
@@ -1061,7 +1129,7 @@ film</b>: which stencils expanded with which arguments, which derives fired,
 which trait instances were resolved and pinned, which sealed tools ran against
 which input hashes, and what was hashed.</p>
 
-<pre class="code"><code>wrl replay build.film</code></pre>
+<pre class="code" data-not-current data-requires="modules"><code>wrl replay build.film</code></pre>
 
 <p>Consequences: any build reproduces bit-for-bit; provenance views
 (<a href="#laws">Law 5</a>) are film queries; and <b>"why does this node exist?"
@@ -1072,7 +1140,7 @@ both worlds.</p>
 
 <h3>37.1 · Tests are first-class graph specifications</h3>
 
-<pre class="code"><code><span class="kw">test</span> <span class="lit">"formatting does not affect identity"</span> {
+<pre class="code" data-not-current data-requires="testing"><code><span class="kw">test</span> <span class="lit">"formatting does not affect identity"</span> {
   hash(program_a) = hash(program_b)
 }
 
@@ -1094,7 +1162,7 @@ effects behind mockable walls — is a <b>construction property of the language,
 not a retrofit</b>. So the test runner explores adversity as ordinary
 execution:</p>
 
-<pre class="code"><code><span class="kw">check</span> schedules=<span class="lit">10_000</span>
+<pre class="code" data-not-current data-requires="testing"><code><span class="kw">check</span> schedules=<span class="lit">10_000</span>
 <span class="kw">check</span> partitions=<span class="lit">100</span>
 <span class="kw">check</span> restores=<span class="lit">100</span>
 <span class="kw">check</span> scores=<span class="lit">all</span>          <span class="cm">; systematically enumerate scored-branch choices</span></code></pre>
@@ -1116,12 +1184,12 @@ implementation are the same graph.</p>
 <p>The FFI is boundary-based. Impure native calls cross a named wall and return
 observations:</p>
 
-<pre class="code"><code>[physics_request] <span class="rt">--&gt;</span> <span class="rt">/native.physics</span>
+<pre class="code" data-not-current data-requires="ffi"><code>[physics_request] <span class="rt">--&gt;</span> <span class="rt">/native.physics</span>
 <span class="rt">/native.physics</span> <span class="rt">==observed(result=#hash)==&gt;</span> [world]</code></pre>
 
 <p>Pure native functions may be imported as verified deterministic modules:</p>
 
-<pre class="code"><code><span class="kw">extern pure fn</span> vec_dot(a: Vec3, b: Vec3) -&gt; Fixed&lt;16&gt;
+<pre class="code" data-not-current data-requires="ffi"><code><span class="kw">extern pure fn</span> vec_dot(a: Vec3, b: Vec3) -&gt; Fixed&lt;16&gt;
   <span class="kw">from artifact</span> <span class="id">#native-math-v3</span></code></pre>
 
 <p>Every extern pins the target ABI, the compiler/toolchain hash, the native
@@ -1214,7 +1282,7 @@ aiming at, read on.</div>
 <h3>43.1 · Criterium race</h3>
 <p class="src">staging · stencils · periods · async · finish · podium</p>
 
-<pre class="code"><code><span class="cm">; a five-lap criterium with async team radio and a podium</span>
+<pre class="code" data-not-current data-requires="podium,behaviours,async-route"><code><span class="cm">; a five-lap criterium with async team radio and a podium</span>
 
 ::: rider(name, watts)
   [<span class="kw">rider</span>:<span class="id">#name</span>](watts=watts, energy=<span class="lit">100</span>, lap=<span class="lit">0</span>, status=staged){road, radio, timing}
@@ -1254,7 +1322,7 @@ content-addresses the outcome. Nothing here is a library function.</p>
 <h3>43.2 · Supervised worker pool</h3>
 <p class="src">mailboxes · quiescence · faults · restart</p>
 
-<pre class="code"><code>::: worker(id)
+<pre class="code" data-not-current data-requires="supervision,behaviours,async-route"><code>::: worker(id)
   [<span class="kw">worker</span>:<span class="id">#id</span>](status=idle, checkpoint=<span class="lit">0</span>){jobs: Mailbox&lt;Job, capacity=<span class="lit">256</span>, overflow=reject&gt;, supervisor}
 ///
 
@@ -1286,7 +1354,7 @@ runtime-spawnable process. The design is stated; the runtime is not there.</p>
 <h3>43.3 · Replicated fact lattice</h3>
 <p class="src">CRDT merge · partition · convergence</p>
 
-<pre class="code"><code>: [node:<span class="id">a</span>]{facts, peers}
+<pre class="code" data-not-current data-requires="merge-routes,collections"><code>: [node:<span class="id">a</span>]{facts, peers}
 : [node:<span class="id">b</span>]{facts, peers}
 : [node:<span class="id">c</span>]{facts, peers}
 
@@ -1317,7 +1385,7 @@ which is only meaningful because
 <h3>43.4 · Forge world fabrication</h3>
 <p class="src">model wall · checks · verification · seal</p>
 
-<pre class="code"><code>: [brief](goal=<span class="lit">"coastal cycling city"</span>, players=<span class="lit">64</span>)
+<pre class="code" data-not-current data-requires="metaprogramming,derives"><code>: [brief](goal=<span class="lit">"coastal cycling city"</span>, players=<span class="lit">64</span>)
 : [seed:<span class="id">#city17</span>]
 
 [brief] &amp; [seed:<span class="id">#city17</span>] <span class="rt">--derive--&gt;</span> [world_spec]
@@ -1346,7 +1414,7 @@ argument for putting generation behind a wall.</p>
 <h3>43.5 · Cell signaling</h3>
 <p class="src">membranes · diffusion · decay</p>
 
-<pre class="code"><code>::: cell(id, kind)
+<pre class="code" data-not-current data-requires="behaviours,numerics"><code>::: cell(id, kind)
   [<span class="kw">cell</span>:<span class="id">#id</span>](kind=kind, active=false, energy=<span class="lit">50</span>){membrane, neighbors}
 ///
 
@@ -1375,7 +1443,7 @@ which is the claim the example exists to test.</p>
 <h3>43.6 · Proof-carrying patch</h3>
 <p class="src">parallel lanes · verified acceptance · seal</p>
 
-<pre class="code"><code>: [issue:<span class="id">#217</span>](failure=<span class="lit">"stale imported schedule"</span>)
+<pre class="code" data-not-current data-requires="verified-route,derives"><code>: [issue:<span class="id">#217</span>](failure=<span class="lit">"stale imported schedule"</span>)
 : [repo:<span class="id">#trvm</span>](revision=<span class="id">#a91</span>)
 
 [issue:<span class="id">#217</span>] &amp; [repo:<span class="id">#trvm</span>] <span class="rt">--&gt;</span> <span class="rt">/model</span>
@@ -1405,7 +1473,7 @@ on what evidence" is a query, not an archaeology project.</p>
 <h3>43.7 · Versioned telemetry ingest</h3>
 <p class="src">expression notation · behavior block · backpressure · migration · test</p>
 
-<pre class="code"><code><span class="kw">module</span> ingest<span class="id">@#b12</span>
+<pre class="code" data-not-current data-requires="migration,typed-ports,async-route"><code><span class="kw">module</span> ingest<span class="id">@#b12</span>
 
 <span class="kw">type</span> Reading = { sensor: SensorId, value: Fixed&lt;16&gt;, at: Period }
 

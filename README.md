@@ -46,7 +46,7 @@ are checked on every change by [`test/conformance.mjs`](test/conformance.mjs).
 | `index.html` | The landing page — what the language is and why it has this shape |
 | `learn.html` | **WRL in 20 minutes** — build one world from an empty file, then watch its identity move |
 | `guide.html` | The complete language guide, in the order the language was designed |
-| `draft.html` | **The Complete Design Draft** — everything the language is designed to be, Parts II–VI, each section marked Core / Experimental / Proposed |
+| `draft.html` | **The authored full-language draft** — Parts II–VI of the original design, each section marked Core / Experimental / Proposed |
 | `reference.html` | Every table: grammar, roles, ports, edges, clocks, rotors, sugar bounds, diagnostic codes, pinned policy ids, stability tiers |
 | `spec.html` | **WRL Core 0.1.2** — Part I the normative frozen family extract, Part II a non-normative design draft |
 | `direction.html` | What the language is *for*, the honest scorecard, and the dependency-ordered list of what is missing |
@@ -54,21 +54,33 @@ are checked on every change by [`test/conformance.mjs`](test/conformance.mjs).
 
 ## What this is, and what it is not
 
-Judged as an **actor language** — spawnable processes, mailboxes, behaviour
-loops, supervision trees — WRL is weak, and it will not catch up to Erlang/OTP by
-imitating Erlang/OTP. It has no runtime-spawnable process, no user-written
-behaviour, no supervision floor, and no writable mailbox. The spec says so
-(§14, §14b); the site says so on every page.
+Three different things get called "WRL", and confusing them produces either an
+unfairly bad review or an unearned good one:
 
-None of that is an accident of an unfinished design. The language *has* a design
-for expressions, effects, capabilities, supervision, streams, metaprogramming,
-modules and foreign functions — forty-six sections of it — and it is published
-in full at [`draft.html`](draft.html) with the author's own three-tier marking
-(**Core** committed by the frozen extract, **Experimental** designed but not
-grounded, **Proposed** speculative). Read that page to learn what WRL is
-*designed* to be; read [`reference.html#tiers`](reference.html#tiers) to see how
-little of it you can type today. The gap is the point, and it is stated rather
-than hidden.
+1. **WRL Core 0.1.2, the writable surface.** Five roles, one texture, no
+   behaviours. Its actor surface is narrow, and the frozen extract says so
+   (§14, §14b).
+2. **The authored design.** A serious actor model — mailboxes with capacity and
+   overflow policy, behaviour blocks, capability walls, deterministic
+   supervision, verified live-state migration, content-addressed message
+   compatibility. Forty-six sections, written down, tier-marked, **not built**.
+   Published in full at [`draft.html`](draft.html).
+3. **The topology direction.** [`direction.html`](direction.html). It goes past
+   what conventional actor runtimes model, because it is about giving
+   *relationships* domain meaning rather than giving processes better plumbing.
+
+Judged as a general actor runtime, (1) is far behind Erlang/OTP and will not
+catch up by imitating it. Anyone choosing a language today to keep a million
+lightweight processes alive should choose Erlang or Elixir. But the part that
+*is* built is the part actor systems find hardest — deterministic replay,
+canonical ordering, a within-period fixpoint, content-addressed identity — so
+the shape is a **narrow surface on a strong foundation**, not a weak system.
+`direction.html` scores it five separate ways rather than once, because a single
+number describes nothing.
+
+Read [`draft.html`](draft.html) to learn what WRL is *designed* to be; read
+[`reference.html#tiers`](reference.html#tiers) to see how little of it you can
+type today. The gap is the point, and it is stated rather than hidden.
 
 What the language is actually good at today is describing a **network of
 identities** precisely enough that the description is a hash and the run is a
@@ -85,11 +97,30 @@ things that have to be built, and lists the conditions under which the whole
 thesis would be wrong. [`spec.html` Part II](spec.html#part2) states the same
 thing in the spec's own language, non-normatively.
 
-Every aspirational code block on those pages is marked `data-future` and is
-**asserted by the test suite to be rejected** by today's toolchain with
-`WRL_UNSUPPORTED_FEATURE`. When one of those constructs ships, the test goes red
-and the document has to be corrected — the docs cannot quietly claim less than
-the implementation any more than they can claim more.
+Every aspirational code block on those pages is **asserted by the test suite to
+be rejected** by today's toolchain, and each one names the
+[promotion capabilities](reference.html#capabilities) it waits on:
+
+```html
+<pre class="code" data-not-current data-requires="behaviours,typed-ports,async-route">
+```
+
+The suite parses the published capability table as its registry — not a parallel
+constant, because a registry that can drift from the page documenting it is not
+a registry — and checks the claim in both directions. Every named requirement
+must be a registered capability with a meaning tier, and **every registered
+capability must be required by at least one snippet**, so a capability cannot be
+invented in a footnote or quietly abandoned. When a capability ships, its
+snippets start sealing, the assertions go red, and the documents have to be
+corrected. That turns the draft into a **roadmap dependency graph** rather than
+inert prose.
+
+Paired spellings go further. Two blocks tagged
+`data-equivalent-future="rider-behavior-01"` — one a behaviour block, one the
+drawn routes it must canonicalize to — are checked today only for being a
+well-formed pair. When `behaviours` is promoted, the check becomes an assertion
+that both produce the same `sem-` id. That is the only way "two surfaces, one
+meaning" can be a property rather than an aspiration.
 
 ## The playground is not a mock
 
@@ -151,6 +182,16 @@ attributed relations → behaviours → `==` verified routes → dynamic topolog
 a supervision floor and `!!` → effect adapters → derives with checkers → domain
 profiles. The full ladder, with the gate each step must pass, is in
 [`direction.html#ladder`](direction.html#ladder).
+
+The argued next primitive is **not another actor feature**. It is broadening the
+runtime's third entity from a binary directed `Edge` to a general `Relation`
+carrying participants, directionality, cardinality, domain and typed attributes,
+with today's route as its simplest specialisation — the case is
+[`spec.html#d8`](spec.html#d8), and the rules for changing a topology at runtime
+are [`spec.html#d9`](spec.html#d9). The smallest thing worth building first is
+not the fleet demo everyone wants; it is the
+[resolved digital bus](direction.html#demo-bus), because every case in it has an
+answer hardware engineers settled decades ago, so it can fail recognisably.
 
 ## Related
 

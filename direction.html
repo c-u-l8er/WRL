@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Direction — what WallRiderLang is for, and what it still has to earn</title>
-<meta name="description" content="WallRiderLang is a weak actor language and a promising executable topology language. This page states the reframing, the five design pillars behind it, the dependency-ordered ladder of everything still missing, and the claims that would falsify the whole thesis.">
+<title>Direction — a deterministic actor foundation for executable topology</title>
+<meta name="description" content="WallRiderLang is a deterministic actor foundation for executable topology: a narrow writable surface today, a serious authored actor model behind it, and a topology direction that goes past what conventional actor runtimes model. Five ratings, six pillars, the dependency-ordered ladder, four worked demonstrations, and the claims that would falsify the thesis.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
@@ -45,15 +45,24 @@
   <a href="#reframe">The reframing</a>
   <a href="#thesis">One identity, many networks</a>
   <a href="#today">Where this actually is today</a>
-  <span class="part-label">The five pillars</span>
+  <a href="#today-features">— feature by feature</a>
+  <span class="part-label">The six pillars</span>
   <a href="#p1">1 · Node-aligned layers</a>
   <a href="#p2">2 · Not every link is a route</a>
   <a href="#p3">3 · Textures are guarantees</a>
   <a href="#p4">4 · Walls change the model</a>
   <a href="#p5">5 · Seal the answer, not the search</a>
+  <a href="#p6">6 · Relations, not more actors</a>
   <span class="part-label">Consequences</span>
   <a href="#domains">What each domain needs</a>
+  <a href="#matrix">— the requirements matrix</a>
   <a href="#specialists">The specialists</a>
+  <span class="part-label">Four demonstrations</span>
+  <a href="#demo-fleet">A · Delivery fleet</a>
+  <a href="#demo-bus">B · Resolved digital bus</a>
+  <a href="#demo-grid">C · Microgrid</a>
+  <a href="#demo-derive">D · Road-network derive</a>
+  <span class="part-label">Closing</span>
   <a href="#ladder">The dependency ladder</a>
   <a href="#falsify">What would falsify this</a>
   <a href="#first">The first real test</a>
@@ -62,13 +71,31 @@
 <div class="docbody">
 
 <div class="slot">DIRECTION · NON-NORMATIVE</div>
-<h1 style="font-size:clamp(28px,4vw,42px);max-width:22ch">A weak actor language and a promising topology language</h1>
+<h1 style="font-size:clamp(28px,4vw,42px);max-width:22ch">A deterministic actor foundation for executable topology</h1>
 
 <p class="lede">Every other page on this site documents what WallRiderLang
 <i>is</i>. This page documents what it is <b>for</b>, what it is <b>not</b>, and
 the ordered list of things that do not exist yet. Nothing here is frozen,
 nothing here is implemented, and every code block on this page is verified by
 the test suite to be <b>rejected</b> by today's toolchain.</p>
+
+<div class="note stop"><b>Three different things get called "WRL", and confusing
+them produces either an unfairly bad review or an unearned good one.</b>
+<ol style="margin:10px 0 0;padding-left:20px">
+<li><b>WRL Core 0.1.2, the writable surface.</b> Five roles, one texture, no
+behaviours. Its actor surface is <b>narrow</b>, and the frozen extract says so.</li>
+<li><b>The authored design.</b> A serious actor model with mailboxes, behaviour
+blocks, capabilities, supervision, live-state migration and message
+compatibility — written down in full, tier-marked, and published at
+<a href="draft.html">Design draft</a>. It is designed, not built.</li>
+<li><b>The topology direction.</b> This page. It goes <i>past</i> what
+conventional actor runtimes model, because it is about giving relationships
+domain meaning rather than giving processes better plumbing.</li>
+</ol>
+<p style="margin:12px 0 0">The order matters. (1) is what you can run, (2) is
+what the language is designed to be, (3) is what it is <i>for</i>. A review that
+scores (1) and concludes about (3) — or quotes (3) and implies (1) — is scoring
+the wrong artifact.</p></div>
 
 <div class="note warn"><b>This page is argument, not specification.</b> The
 normative document is <a href="spec.html">Core 0.1.2</a>, and its
@@ -88,11 +115,11 @@ in what order the missing pieces have to be built.</div>
 <h2 id="reframe">The reframing</h2>
 
 <p>WRL has been graded, reasonably, against the conventional actor model:
-processes, mailboxes, behaviour loops, supervision trees. Against that ruler it
-scores badly, and the score is <b>correct</b>. There are no arbitrary
-behaviours, no writable asynchronous mailboxes, no supervision, no selective
-receive, no process lifecycle, and nothing resembling the operational tooling
-that Erlang/OTP has accumulated over three decades of running telephone
+processes, mailboxes, behaviour loops, supervision trees. Against that ruler
+<b>the writable surface scores badly, and the score is correct</b>. There are no
+arbitrary behaviours, no writable asynchronous mailboxes, no supervision, no
+selective receive, no process lifecycle, and nothing resembling the operational
+tooling that Erlang/OTP has accumulated over three decades of running telephone
 switches.</p>
 
 <div class="note stop"><b>Stated plainly, so it cannot be read as marketing:</b>
@@ -101,7 +128,28 @@ up by imitating Erlang/OTP. Anyone choosing a language today to keep a million
 lightweight processes alive should choose Erlang or Elixir, and this page is not
 an argument against that.</div>
 
-<p>But that ruler measures the wrong thing. Erlang is an <b>actor operating
+<p>Two qualifications keep that from being the whole story, and neither is a
+softening of it.</p>
+
+<p><b>First: the part that <i>is</i> built is the part actor systems find
+hardest.</b> Deterministic replay, canonical event ordering, a within-period
+fixpoint, content-addressed identity, and a film that reconstructs a run exactly
+are not conveniences an actor runtime adds later — they are properties most
+actor runtimes gave up permanently in exchange for scheduling freedom, and
+cannot recover without redesigning from the bottom. WRL has a small actor
+surface sitting on an <b>unusually strong deterministic foundation</b>. That is
+a rarer position than a large actor surface on a nondeterministic one, and it is
+the reason the ceiling is high even though the floor is low.</p>
+
+<p><b>Second: the actor model is designed, it is just not built.</b> Mailboxes
+with declared capacity and overflow policy, behaviour blocks that canonicalize to
+the same bytes as the drawn form, capability walls, deterministic supervision,
+verified live-state migration and content-addressed message compatibility are
+all specified in the <a href="draft.html">authored draft</a>. The gap between
+WRL and OTP is mostly <i>implementation</i>, not <i>conception</i> — which is a
+different kind of gap, and closes differently.</p>
+
+<p>But the ruler still measures the wrong thing. Erlang is an <b>actor operating
 system</b>: it is superb at keeping large populations of processes alive,
 supervised and upgradable. It is deliberately indifferent to what those
 processes <i>mean</i>. A road network, a power grid or a robot fleet modelled in
@@ -154,7 +202,7 @@ run, and outcome — should have a single content-addressed name.</p>
 <p>Design-sketch notation, to make the shape concrete. This is
 <b>not</b> WRL Core 0.1.2 and the toolchain refuses it:</p>
 
-<pre class="code" data-future="multilayer sketch: unknown profile, roles, textures and attributes"><code><span class="kw">profile</span> wrl.mobility.v1
+<pre class="code" data-not-current data-requires="domain-profiles,attributed-relations,async-route,verified-route,supervision"><code><span class="kw">profile</span> wrl.mobility.v1
 
 [<span class="kw">drone</span>:<span class="id">d7</span>](<span class="lit">battery=82, payload=4kg</span>){<span class="rt">pose, telemetry, command</span>}
 [<span class="kw">airway</span>:<span class="id">a12</span>](<span class="lit">capacity=6, altitude=120</span>){<span class="rt">occupancy</span>}
@@ -177,8 +225,66 @@ unit.</p>
 
 <h2 id="today">Where this actually is today</h2>
 
-<p>Very early. It is worth being blunt about the gap between the thesis above
-and the artifact you can run:</p>
+<p>A single number here would be dishonest in both directions, because the five
+questions people actually mean when they ask "how good is it" have five
+different answers. Scored out of ten, generously enough that the low ones cannot
+be blamed on a harsh grader:</p>
+
+<div class="tbl"><table class="scorecard">
+<thead><tr><th>What is being scored</th><th></th><th>Why</th></tr></thead>
+<tbody>
+<tr><td><b>WRL Core's writable actor surface</b><br><span class="cite">what you can type today</span></td><td><b>3.5</b>/10</td><td>five fixed roles, one texture, no behaviours, no mailbox, no spawn. This is the number a hands-on reviewer will reach, and it is right</td></tr>
+<tr><td><b>The implemented deterministic runtime foundation</b><br><span class="cite">what the small surface sits on</span></td><td><b>7.5</b>/10</td><td>content-addressed worlds, canonical ordering, within-period fixpoint, byte-exact replay, an independent oracle. Rare, hard, and finished</td></tr>
+<tr><td><b>The full authored actor-model design</b><br><span class="cite">what the language is designed to be</span></td><td><b>8.7</b>/10</td><td>mailboxes with capacity and overflow, behaviour blocks, capability walls, deterministic supervision, verified migration, message compatibility — all written, none running</td></tr>
+<tr><td><b>Topology-native actor-system potential</b><br><span class="cite">the ceiling if the thesis is right</span></td><td><b>9.7</b>/10</td><td>no other actor language makes the relation itself a typed, attributed, sealed, replayable object. The ceiling is high because nobody is standing under it</td></tr>
+<tr><td><b>Production operations maturity vs OTP</b><br><span class="cite">running it in anger</span></td><td><b>2</b>/10</td><td>no distribution, no hot upgrade in production, no observer, no tracing, no thirty years of operators. This one is not close and will not be soon</td></tr>
+</tbody></table></div>
+
+<div class="note"><b>Read the spread, not the average.</b> Averaging 3.5 and 9.7
+produces a number that describes nothing. The shape of the spread is the actual
+finding: <b>a narrow surface on a strong foundation, with a designed middle and
+an unbuilt operational floor</b>. That shape says the risk is in delivery, not
+in conception — and it says the fastest way to be wrong is to widen the surface
+before the foundation can carry it.</div>
+
+<h3 id="today-features">Feature by feature</h3>
+
+<p>The same judgement at higher resolution. A score here is <b>how well the
+language handles the concern in principle, given what is designed and what is
+grounded</b> — not whether you can type it today. The "writable" column is what
+you can type today, and the two disagree on purpose.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Concern</th><th></th><th>Writable now</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>Stable identity</td><td><b>9.5</b></td><td>yes</td><td>identity is structural and content-addressed, not a runtime handle</td></tr>
+<tr><td>Semantic replay</td><td><b>9.5</b></td><td>yes</td><td>a film reconstructs a run byte-exactly; verified against an independent oracle</td></tr>
+<tr><td>Immutable messages</td><td><b>9.5</b></td><td>partly</td><td>values are immutable by construction; the asynchronous carrier is not writable</td></tr>
+<tr><td>Error / value / fault ladder</td><td><b>9.5</b></td><td>partly</td><td>three distinct outcome kinds, not exceptions; fault <i>state</i> exists, escalation does not</td></tr>
+<tr><td>Owned state</td><td><b>9</b></td><td>yes</td><td>single-writer per cell is a static check, not a convention</td></tr>
+<tr><td>Same-period vs later delivery</td><td><b>9</b></td><td>no</td><td>the distinction is frozen in the texture family; only <code class="inline">--</code> is writable</td></tr>
+<tr><td>Bounded mailboxes</td><td><b>9</b></td><td>no</td><td>capacity and overflow policy are part of the port type, not runtime configuration</td></tr>
+<tr><td>Quiescence</td><td><b>9</b></td><td>yes</td><td>defined precisely, and distinguished from termination</td></tr>
+<tr><td>Capability / effect walls</td><td><b>9</b></td><td>no</td><td>no effect happens invisibly; every crossing is a named, recorded wall</td></tr>
+<tr><td>Live-state migration</td><td><b>9</b></td><td>no</td><td>a verified route with recorded evidence, not an improvised upgrade script</td></tr>
+<tr><td>Explicit backpressure</td><td><b>8.5</b></td><td>no</td><td>overflow is a declared policy with an outcome, never a silent drop</td></tr>
+<tr><td>Deterministic supervision</td><td><b>8.5</b></td><td>no</td><td>designed to replay identically, which conventional supervision does not</td></tr>
+<tr><td>Behaviour blocks</td><td><b>8.5</b></td><td>no</td><td>required to canonicalize to the same bytes as the drawn form — a testable law</td></tr>
+<tr><td>Message compatibility</td><td><b>8.5</b></td><td>no</td><td>content-addressed message types; an unknown hash is an outcome, not a crash</td></tr>
+<tr><td>Dynamic process lifecycle</td><td><b>6</b></td><td>no</td><td>the hard case for sealed identity; sketched in <a href="spec.html#d9">§D9</a>, unresolved for genuinely open worlds</td></tr>
+<tr><td>Selective receive</td><td><b>5</b></td><td>no</td><td>no design; it interacts badly with canonical ordering and needs one</td></tr>
+<tr><td>Distributed placement</td><td><b>4</b></td><td>no</td><td>merge laws exist; placement, partition and consensus do not</td></tr>
+<tr><td>Scheduler implementation</td><td><b>4</b></td><td>n/a</td><td>the reducer is correct and unoptimised; no preemption, no fairness work</td></tr>
+<tr><td>Operational tooling</td><td><b>2</b></td><td>no</td><td>the honest floor. No observer, no tracing, no live introspection</td></tr>
+</tbody></table></div>
+
+<p>Two patterns in that table are worth naming. Everything scoring 9 or above is
+<b>a property of the identity and evidence machinery</b>, which is the part that
+is built. Everything scoring below 6 is <b>a property of a running distributed
+system</b>, which is the part that is not. The language is strong exactly where
+meaning is decided and weak exactly where operations happen.</p>
+
+<h3 id="today-gap">The gap, restated as a table</h3>
 
 <div class="tbl"><table class="scorecard">
 <thead><tr><th>The claim</th><th>What exists today</th></tr></thead>
@@ -205,11 +311,12 @@ reproducible, then every layer added on top inherits an unfalsifiable
 foundation. Adding drones to a language whose worlds do not hash reliably would
 produce an impressive demo and a worthless artifact.</div>
 
-<p class="part">The five pillars</p>
+<p class="part">The six pillars</p>
 
-<p>Five design decisions follow from the thesis. Each is stated in spec language
+<p>Six design decisions follow from the thesis. Each is stated in spec language
 in <a href="spec.html#part2">Core 0.1.2 Part II</a>; here is the argument for
-each.</p>
+each. The first five are about what a world <i>means</i>; the sixth is about
+what to build next, and is the one most likely to be argued with.</p>
 
 <h2 id="p1">1 · The layers are node-aligned, because identity is not per-layer</h2>
 
@@ -388,6 +495,60 @@ satisfies every capacity and time window, and here is the arithmetic" is a
 smaller claim than "this is the best plan", and it is the one that can be
 independently checked by a party who does not trust you.</p>
 
+<h2 id="p6">6 · The next primitive is a relation, not another actor feature</h2>
+
+<p>Everything above converges on one conclusion about sequencing, and it is the
+least intuitive claim on this page: <b>the next thing to build is not a better
+actor.</b></p>
+
+<p>The pull towards actor features is strong and it is the wrong pull. Spawn,
+selective receive, a supervision tree and a distribution layer would each close a
+visible gap against Erlang, and each would leave the language competing on
+Erlang's ground with thirty fewer years of work. Meanwhile the thing no actor
+runtime has — <b>a relation that is itself a typed, attributed, checkable,
+sealed object</b> — would still not exist.</p>
+
+<div class="note warn"><b>The claim.</b> An actor language whose connections are
+untyped arrows is a worse Erlang. An actor language whose <i>connections</i>
+carry domains, units, capacities, resolution rules and conservation laws — over
+identities that hash and runs that replay — is not a worse anything. Relations
+are the differentiator; actors are the substrate.</div>
+
+<p>Concretely, the near-term work is the shape argued in
+<a href="spec.html#d8">Core Part II §D8</a>: broaden the runtime's third entity
+from a binary directed <code class="inline">Edge</code> to a general
+<code class="inline">Relation</code>, with today's route as its simplest
+specialisation.</p>
+
+<pre class="code"><code>Relation { participants, directionality, cardinality, domain,
+           texture, attributes, policy, provenance }</code></pre>
+
+<p>Three unusual capabilities fall out of that one change, and none of them is
+reachable by improving actors:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Falls out</th><th>Because</th><th>Nobody else has it because</th></tr></thead>
+<tbody>
+<tr><td><b>Multi-participant relations</b> — a bus, a net, a shared segment</td><td><code class="inline">participants</code> is a sequence, not a pair. This is the link graph of a bigraph,<sup><a href="#c9">9</a></sup> where a link joins any number of ports</td><td>actor runtimes model connection as addressing, and an address has one target</td></tr>
+<tr><td><b>Acausal relations</b> — potentials equal, flows sum to zero</td><td><code class="inline">directionality</code> admits a value that names no source, which is what a physical connection actually is<sup><a href="#c2">2</a></sup></td><td>message passing presupposes a sender; a wire does not have one</td></tr>
+<tr><td><b>Domain-checked attributes</b> — capacity, cost, impedance, units</td><td><code class="inline">attributes</code> are typed by the world's profile, so <code class="inline">capacity=3</code> has a unit and a range and can be checked before the run</td><td>graph databases got here first for storage<sup><a href="#c10">10</a></sup> — but they do not seal, check, or replay</td></tr>
+</tbody></table></div>
+
+<p>And the reason to do it <i>before</i> the actor features rather than after is
+ordering, not preference. Typed ports, supervision, effect walls and domain
+profiles all need to know what a connection is. Building them against a binary
+directed arrow means rebuilding each of them when the arrow generalises — which
+is the same argument <a href="spec.html#d3">§D3</a> makes for why attributed
+relations must precede any domain profile.</p>
+
+<div class="note"><b>What it costs, stated where it cannot be skipped.</b> The
+broadening is only affordable if a plain <code class="inline">--sig--&gt;</code>
+route still serialises to byte-identical canonical output. If it does not, every
+published <code class="inline">sem-</code> id on this site moves, and the change
+stops being an extension and becomes a version break. That constraint is
+<a href="spec.html#d8">§D8</a>'s central obligation and the first thing an
+implementation should test.</div>
+
 <p class="part">Consequences</p>
 
 <h2 id="domains">Expressing a graph is not implementing its laws</h2>
@@ -418,6 +579,58 @@ because the answers are very different:</p>
 <tr><td>Auditable cyber-physical twin</td><td>the evidence half is real</td><td>everything above, plus effect adapters</td></tr>
 </tbody></table></div>
 
+<h3 id="matrix">What four domains actually demand</h3>
+
+<p>The previous table names what each domain needs in prose. This one crosses
+the four domains that matter most against the thirteen capabilities they draw
+on, because the useful information is in the <b>overlap</b>: a capability
+demanded by all four is infrastructure, and a capability demanded by one is a
+profile's business.</p>
+
+<p><b>■</b> required · <b>▨</b> needed for realistic use · <b>·</b> not
+essential.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Capability</th><th>Fleet</th><th>Circuit</th><th>Grid</th><th>Robotics</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>Attributed relations</td><td>■</td><td>■</td><td>■</td><td>■</td><td><a href="spec.html#d8">§D8</a> — sketched</td></tr>
+<tr><td>Typed quantities and units</td><td>■</td><td>■</td><td>■</td><td>■</td><td>drafted, ungrounded</td></tr>
+<tr><td>Safety invariants</td><td>■</td><td>▨</td><td>■</td><td>■</td><td>static checks exist; runtime invariants do not</td></tr>
+<tr><td>Discrete-event time</td><td>■</td><td>■</td><td>▨</td><td>■</td><td><b>built</b> — this is the period cycle</td></tr>
+<tr><td>Dynamic topology</td><td>■</td><td>·</td><td>▨</td><td>■</td><td><a href="spec.html#d9">§D9</a> — sketched</td></tr>
+<tr><td>Geometry and coordinate frames</td><td>■</td><td>·</td><td>·</td><td>■</td><td>nothing. Not even a frame concept</td></tr>
+<tr><td>Reservations and resources</td><td>■</td><td>·</td><td>▨</td><td>■</td><td>affine resources are drafted</td></tr>
+<tr><td>External solver interface</td><td>■</td><td>■</td><td>■</td><td>▨</td><td><a href="#p5">pillar 5</a> — derives, sketched</td></tr>
+<tr><td>Topology deltas</td><td>■</td><td>·</td><td>▨</td><td>■</td><td>needs <a href="spec.html#d9">§D9</a> first</td></tr>
+<tr><td>Uncertainty</td><td>▨</td><td>·</td><td>▨</td><td>■</td><td>nothing, and it fights determinism — see below</td></tr>
+<tr><td>Resolved terminals</td><td>·</td><td>■</td><td>■</td><td>·</td><td><a href="spec.html#d8">§D8</a> — sketched</td></tr>
+<tr><td>Acausal connectors</td><td>·</td><td>■</td><td>■</td><td>·</td><td><a href="spec.html#d8">§D8</a> — sketched</td></tr>
+<tr><td>Continuous time</td><td>·</td><td>■</td><td>■</td><td>▨</td><td>nothing. Needs a solver wall (<a href="#p4">pillar 4</a>)</td></tr>
+</tbody></table></div>
+
+<p>Three readings of that table, in decreasing order of comfort.</p>
+
+<p><b>The top four rows are unanimous</b>, and only one of them is built. That is
+a clean answer to "what next": attributed relations, units, invariants. Nothing
+domain-specific competes with a row that every domain needs.</p>
+
+<p><b>The split is real and it is diagonal.</b> Fleet and robotics want dynamic
+topology, geometry and reservations; circuit and grid want resolved terminals,
+acausal connectors and continuous time. Almost nothing in the bottom half is
+shared. This is the strongest argument for
+<a href="spec.html#d6">profiles rather than construct kinds</a> — a language
+that put all thirteen in the core would be a language nobody could learn, and
+one that picked a side would be a single-domain tool.</p>
+
+<div class="note stop"><b>Uncertainty is the row that does not fit, and it should
+not be smoothed over.</b> Real robots have noisy sensors and probabilistic
+beliefs. A language whose central promise is byte-exact replay cannot host
+sampling without either recording every draw as an observed fact — which makes
+the film enormous but keeps replay exact — or admitting nondeterminism, which
+ends the promise. The first is probably right and is untested. Until it is
+tested, "WRL for robotics" is an aspiration with a known unresolved
+obstruction.</div>
+
 <h2 id="specialists">The specialists, and what not to rebuild</h2>
 
 <p>Each of these is the right answer to a question WRL should not be trying to
@@ -447,6 +660,201 @@ tree, names are metadata pointing at immutable hashes.<sup><a href="#c8">8</a></
 WRL applies that idea one level out: it content-addresses the <b>topology and
 its policies</b> rather than the function body. That is the useful comparison,
 and it is a better guide to what WRL is than any comparison to Erlang.</div>
+
+<p class="part">Four demonstrations</p>
+
+<p>Arguments about a language are cheap. These four are the specific things
+that, <b>if they worked</b>, would demonstrate the thesis — and if they cannot be
+made to work, would refute it. They are written in design-sketch notation. None
+of them parses; each names the
+<a href="reference.html#capabilities">capabilities</a> it is waiting on, and the
+test suite checks on every run that today's toolchain still refuses it.</p>
+
+<div class="note"><b>These are later work and are recorded here on purpose.</b>
+The <a href="draft.html">authored draft</a> carries seven worked examples of its
+own — a criterium race, a supervised worker pool, a replicated fact lattice, a
+world fabricator, cell signalling, a proof-carrying patch, a versioned ingest.
+The four below are not in it. They belong to the topology extrapolation, so they
+live on this page rather than being back-dated into a document that did not
+contain them.</div>
+
+<h2 id="demo-fleet">A · Autonomous delivery fleet</h2>
+
+<p>The flagship, because it is the only one that exercises every layer at once.
+One drone participates simultaneously in <b>spatial occupancy, communications,
+command authority, energy, fault, evidence and economic fulfilment</b> — and the
+whole assembly has one name.</p>
+
+<pre class="code" data-not-current data-requires="domain-profiles,attributed-relations,typed-ports,async-route,verified-route,supervision,dynamic-topology,resources"><code><span class="kw">profile</span> wrl.mobility.v1
+
+[<span class="kw">drone</span>:<span class="id">d7</span>](<span class="lit">battery=82%, payload=4kg, frame=wgs84</span>)
+  {<span class="rt">pose, telemetry, command, fault_out, power_in</span>}
+[<span class="kw">airway</span>:<span class="id">a12</span>](<span class="lit">capacity=6, altitude=120m</span>){<span class="rt">occupancy</span>}
+[<span class="kw">fleet</span>:<span class="id">west</span>]{<span class="rt">telemetry_in, dispatch</span>}
+[<span class="kw">operator</span>:<span class="id">kim</span>](<span class="lit">role=dispatcher</span>){<span class="rt">command_out</span>}
+[<span class="kw">charger</span>:<span class="id">c3</span>](<span class="lit">watts=400</span>){<span class="rt">supply</span>}
+[<span class="kw">supervisor</span>:<span class="id">safety</span>](<span class="lit">on_fault=land_now</span>){<span class="rt">fault_in</span>}
+[<span class="kw">contract</span>:<span class="id">ord991</span>](<span class="lit">due=14:30, penalty=12.00usd</span>){<span class="rt">fulfilment</span>}
+
+<span class="cm">; spatial — an attributed relation against a finite capacity</span>
+[<span class="id">d7</span>] <span class="rt">--occupies(cost=1, until=lease(6))--&gt;</span> [<span class="id">a12</span>]
+<span class="cm">; communications — does not settle this period</span>
+[<span class="id">d7</span>] <span class="rt">~~telemetry(rate=4hz, loss=ok)~~&gt;</span> [<span class="id">west</span>]
+<span class="cm">; authority — a command carries evidence that it was permitted</span>
+[<span class="id">kim</span>] <span class="rt">==command(cap=reroute.v1)==&gt;</span> [<span class="id">d7</span>]
+<span class="cm">; energy — acausal: the charger does not "send" watts</span>
+<span class="kw">relation</span> electrical <span class="lit">acausal</span> {<span class="id">c3</span>.supply, <span class="id">d7</span>.power_in}
+<span class="cm">; fault — escalation, not an exception</span>
+[<span class="id">d7</span>] <span class="rt">!!fault(class=gps_loss)!!&gt;</span> [<span class="id">safety</span>]
+<span class="cm">; economic — the delivery discharges an obligation</span>
+[<span class="id">d7</span>] <span class="rt">--fulfils(units=1)--&gt;</span> [<span class="id">ord991</span>]</code></pre>
+
+<p>The demonstration is not that this can be drawn. It is that
+<code class="inline">d7</code> is written <b>once</b>, and the seven statements
+about it are checked together, sealed together, and replayed together.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>The question it answers</th><th>What passing would prove</th></tr></thead>
+<tbody>
+<tr><td>Can a static check catch <i>cross-layer</i> nonsense?</td><td>that <code class="inline">a12</code> is at capacity while <code class="inline">d7</code> is still committed to <code class="inline">ord991</code> is a contradiction between the spatial and economic layers. No single-domain tool can see it, because no single-domain tool holds both</td></tr>
+<tr><td>Does one identity really cost less than seven?</td><td>the integration bug class disappears rather than moving. If the layers still need reconciliation, node-alignment bought nothing</td></tr>
+<tr><td>Is the film evidence?</td><td>an operator can hand a regulator one file that reconstructs the flight, the authorisation, the energy draw and the contract state — with no trusted runtime in between</td></tr>
+</tbody></table></div>
+
+<h2 id="demo-bus">B · A resolved digital bus</h2>
+
+<p>The smallest demonstration, and the sharpest, because it is entirely
+falsifiable. A single-writer signal, a multi-driver resolved bus, high impedance,
+contention, a deterministic resolution function, and verified timing — with a
+right answer that hardware engineers already know.</p>
+
+<pre class="code" data-not-current data-requires="domain-profiles,resolved-terminals,attributed-relations,typed-ports"><code><span class="kw">profile</span> wrl.digital.v1
+
+<span class="cm">; an OWNED terminal: exactly one writer, today's frozen rule</span>
+[<span class="kw">reg</span>:<span class="id">r0</span>](<span class="lit">width=8</span>){<span class="rt">q: owned&lt;bits8&gt;</span>}
+[<span class="kw">gate</span>:<span class="id">g0</span>]{<span class="rt">a: in&lt;bits8&gt;, y: owned&lt;bits8&gt;</span>}
+[<span class="id">r0</span>] <span class="rt">--sig--&gt;</span> [<span class="id">g0</span>].a
+
+<span class="cm">; a RESOLVED terminal: many drivers, one named function.</span>
+<span class="cm">; the resolution table is part of the sealed document —</span>
+<span class="cm">; a bus whose resolver came from the runtime would break §11.</span>
+[<span class="kw">bus</span>:<span class="id">b0</span>](<span class="lit">width=8, resolve=std_logic</span>){<span class="rt">d: resolved&lt;logic8&gt;</span>}
+[<span class="kw">driver</span>:<span class="id">u1</span>](<span class="lit">oe=true</span>) {<span class="rt">y</span>}
+[<span class="kw">driver</span>:<span class="id">u2</span>](<span class="lit">oe=false</span>){<span class="rt">y</span>}  <span class="cm">; drives Z, high impedance</span>
+[<span class="kw">driver</span>:<span class="id">u3</span>](<span class="lit">oe=true</span>) {<span class="rt">y</span>}
+
+[<span class="id">u1</span>] <span class="rt">--drive--&gt;</span> [<span class="id">b0</span>].d
+[<span class="id">u2</span>] <span class="rt">--drive--&gt;</span> [<span class="id">b0</span>].d
+[<span class="id">u3</span>] <span class="rt">--drive--&gt;</span> [<span class="id">b0</span>].d</code></pre>
+
+<div class="tbl"><table>
+<thead><tr><th>Case</th><th>Required outcome</th></tr></thead>
+<tbody>
+<tr><td>Two drivers on an <b>owned</b> terminal</td><td><b>static error</b> before the seal — the rule frozen in §0, unchanged</td></tr>
+<tr><td>Three drivers on a <b>resolved</b> terminal, one enabled</td><td>legal. The value is the enabled driver's; the two <code class="inline">Z</code> contributions are absorbed by the resolution function</td></tr>
+<tr><td>Two enabled drivers disagreeing</td><td>legal to <i>write</i>, and resolves to <code class="inline">X</code> — contention is a <b>value</b>, not a crash, exactly as in <code class="inline">std_logic</code><sup><a href="#c3">3</a></sup></td></tr>
+<tr><td>The same world sealed on two machines</td><td>identical <code class="inline">sem-</code> id, because the resolution table is in the document</td></tr>
+<tr><td>REACT settling a resolved terminal</td><td>one pass, because <code class="inline">std_logic</code> resolution is associative, commutative and idempotent — the same three laws fact-merge already requires</td></tr>
+</tbody></table></div>
+
+<div class="note"><b>Why this one is the right first build.</b> It needs no
+solver, no continuous time, and no new phase in the period cycle. It is
+<a href="spec.html#d8">§D8</a>'s resolved-terminal half and nothing else, and it
+has a known-correct answer for every case — so it can be <i>wrong</i>, which the
+fleet demonstration cannot be for years yet.</div>
+
+<h2 id="demo-grid">C · A microgrid</h2>
+
+<p>The hardest of the four, because it needs an acausal electrical network
+solved <i>inside</i> a wall while five other layers proceed on the ordinary
+period cycle around it.</p>
+
+<pre class="code" data-not-current data-requires="domain-profiles,acausal-relations,attributed-relations,async-route,verified-route,supervision,derives"><code><span class="kw">profile</span> wrl.power.v1
+
+<span class="cm">; inside this wall the model of computation is not message</span>
+<span class="cm">; passing — it is a system of equations (pillar 4)</span>
+<span class="kw">wall</span> electrical <span class="lit">solver=power_flow.v1, tolerance=1e-6</span> {
+  [<span class="kw">bus</span>:<span class="id">b1</span>](<span class="lit">nominal=400V</span>){<span class="rt">pin</span>}
+  [<span class="kw">pv</span>:<span class="id">solar</span>](<span class="lit">rated=50kW</span>){<span class="rt">pin</span>}
+  [<span class="kw">battery</span>:<span class="id">bess</span>](<span class="lit">soc=61%, rated=120kWh</span>){<span class="rt">pin</span>}
+  [<span class="kw">feeder</span>:<span class="id">f4</span>](<span class="lit">length=1.8km, r=0.31ohm</span>){<span class="rt">pin_a, pin_b</span>}
+
+  <span class="cm">; no writer, no direction: potentials equal, flows sum to zero</span>
+  <span class="kw">relation</span> electrical <span class="lit">acausal</span> {<span class="id">b1</span>.pin, <span class="id">solar</span>.pin, <span class="id">bess</span>.pin, <span class="id">f4</span>.pin_a}
+}
+
+<span class="cm">; outside the wall, ordinary WRL, ordinary periods</span>
+[<span class="kw">scada</span>:<span class="id">ops</span>]{<span class="rt">telemetry_in, dispatch</span>}
+[<span class="kw">relay</span>:<span class="id">p22</span>](<span class="lit">trip=overcurrent(1.2pu, 200ms)</span>){<span class="rt">fault_out</span>}
+[<span class="kw">crew</span>:<span class="id">team3</span>](<span class="lit">skills=hv</span>){<span class="rt">assignment</span>}
+[<span class="kw">market</span>:<span class="id">da</span>](<span class="lit">interval=1h</span>){<span class="rt">commitment</span>}
+
+[<span class="id">f4</span>] <span class="rt">~~telemetry(rate=1hz)~~&gt;</span> [<span class="id">ops</span>]
+[<span class="id">ops</span>] <span class="rt">==dispatch(cap=setpoint.v1)==&gt;</span> [<span class="id">bess</span>]
+[<span class="id">p22</span>] <span class="rt">!!fault(class=overcurrent)!!&gt;</span> [<span class="id">ops</span>]
+[<span class="id">ops</span>] <span class="rt">--assigns(eta=40min)--&gt;</span> [<span class="id">team3</span>]
+[<span class="id">bess</span>] <span class="rt">--commits(mwh=0.4, price=?p)--&gt;</span> [<span class="id">da</span>]</code></pre>
+
+<p>What makes this a genuine test rather than a bigger picture: the electrical
+layer <b>does not settle by passing values</b>. Everything else does. A single
+world therefore contains two models of computation, and the wall is the only
+place they meet.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>The question it answers</th><th>Why it is hard</th></tr></thead>
+<tbody>
+<tr><td>Can a solver live inside a period without infecting it?</td><td>the solve must be a <i>deterministic function of the sealed inputs</i>. A tolerance, an iteration order or a starting guess that varies makes the film unreproducible</td></tr>
+<tr><td>Can a protection trip cross from the solved layer to the discrete one?</td><td>the relay reads a solved quantity and produces a discrete event, so the wall must define a crossing direction and a settlement order</td></tr>
+<tr><td>Do the crew and market layers stay honest?</td><td>an assignment and a market commitment are obligations over the same identities as the physics. Today they live in three unrelated systems</td></tr>
+</tbody></table></div>
+
+<h2 id="demo-derive">D · A road-network derive</h2>
+
+<p>The complete <a href="#p5">pillar 5</a> loop, end to end, and the one that
+decides whether "auditable optimisation" is a real category. A sealed road world,
+a fleet, a set of orders and a set of constraints go in; an <b>untrusted</b>
+external solver proposes; a <b>deterministic checker</b> accepts or refuses; the
+accepted plan is dispatched; execution produces a film.</p>
+
+<pre class="code" data-not-current data-requires="domain-profiles,derives,attributed-relations,verified-route,typed-ports"><code><span class="kw">profile</span> wrl.logistics.v1
+
+<span class="cm">; inputs are sealed BEFORE the solver is asked anything</span>
+[<span class="kw">roadnet</span>:<span class="id">metro</span>](<span class="lit">source=#osm.metro.v3, edges=88214</span>){<span class="rt">graph</span>}
+[<span class="kw">fleet</span>:<span class="id">north</span>](<span class="lit">vehicles=12, capacity=1400kg</span>){<span class="rt">assignment</span>}
+[<span class="kw">orders</span>:<span class="id">batch7</span>](<span class="lit">count=340, windows=hard</span>){<span class="rt">demand</span>}
+[<span class="kw">rules</span>:<span class="id">law</span>](<span class="lit">max_shift=9h, rest=45min</span>){<span class="rt">constraint</span>}
+
+<span class="cm">; the solver is an ORACLE. Its output is a claim, not a result.</span>
+<span class="kw">derive</span> plan <span class="lit">by=solver(or_tools.routing.v9, seed=7, limit=30s)</span>
+  <span class="kw">from</span> {[<span class="id">metro</span>], [<span class="id">north</span>], [<span class="id">batch7</span>], [<span class="id">law</span>]}
+  <span class="kw">check</span> feasibility.v1 {
+    <span class="cm">; each of these is cheap to verify and expensive to find</span>
+    every order served exactly once
+    every vehicle within capacity
+    every window respected
+    every shift within <span class="id">law</span>.max_shift
+    objective recomputed <span class="kw">from</span> [<span class="id">metro</span>].edge_costs
+  }
+
+<span class="cm">; only a CHECKED plan may be dispatched</span>
+[<span class="id">plan</span>] <span class="rt">==dispatch(cap=fleet.command.v1)==&gt;</span> [<span class="id">north</span>]</code></pre>
+
+<div class="note stop"><b>The one claim this demonstration must refuse to
+make.</b> The sealed plan may say <i>feasible under these constraints, objective
+value 4 812, produced by solver profile <code class="inline">or_tools.routing.v9</code>
+seed 7</i>. It may <b>never</b> say <i>optimal</i>. Feasibility is checkable in
+about the cost of reading the plan; optimality is not checkable without redoing
+the search. A language that let a derive stamp "optimal" on an unverifiable
+result would be laundering a heuristic into evidence, which is worse than having
+no derives at all.</div>
+
+<div class="tbl"><table>
+<thead><tr><th>The question it answers</th><th>What passing would prove</th></tr></thead>
+<tbody>
+<tr><td>Can an untrusted engine participate in a sealed world?</td><td>a solver that is non-deterministic run to run<sup><a href="#c7">7</a></sup> can still contribute to a byte-exact film, because the film records the <i>answer</i> and the check, not the search</td></tr>
+<tr><td>Is the checker actually cheaper than the search?</td><td>if it is not, derives collapse — either they seal unverifiable claims, or verification costs as much as solving and nobody runs it. This is <a href="spec.html#d7">falsification condition 2</a></td></tr>
+<tr><td>Does a third party need to trust the operator?</td><td>a regulator re-runs the checker against the sealed inputs and reaches the same verdict without the solver, the operator, or the runtime</td></tr>
+</tbody></table></div>
 
 <h2 id="ladder">The dependency ladder</h2>
 
@@ -483,7 +891,8 @@ sanctioned.</div>
 <h2 id="falsify">What would falsify this</h2>
 
 <p>An honest direction document names the observations that would sink it.
-These are the three that would.</p>
+These are the five that would. The spec states the same list, more tersely, as
+<a href="spec.html#d7">§D7</a>.</p>
 
 <h3>1 · If identity turns out to be per-layer after all</h3>
 
@@ -513,6 +922,29 @@ their contracts. If in practice every cross-profile wall needs global knowledge
 place — then "one world, many domains" degrades into a monolith with a plugin
 directory, and the composition claim was never real.</p>
 
+<h3>4 · If broadening the relation moves every published id</h3>
+
+<p><a href="#p6">Pillar 6</a> assumes a general
+<code class="inline">Relation</code> can serialise a plain directed route to the
+<i>same canonical bytes</i> today's edge produces, by eliding every defaulted
+field. If that cannot be arranged — if directionality, cardinality or an empty
+attribute map has to appear in the canonical form — then every
+<code class="inline">sem-</code> id ever published moves, the change is a version
+break rather than an extension, and the ordering of the entire ladder has to be
+reconsidered. This is the cheapest condition on the list to test, and it should
+be tested first.</p>
+
+<h3>5 · If useful worlds are genuinely open</h3>
+
+<p><a href="spec.html#d9">§D9</a> keeps a world's identity stable while its
+topology changes by sealing the initial configuration <i>plus the authorised
+operations</i>, so every later state is a deterministic function of the seal and
+the ledger. That works only if the set of <b>possible</b> participants is bounded
+by the document. A fleet that must accept another operator's vehicle mid-run —
+an identity the sealed world never anticipated — is not covered. If that is the
+normal case rather than the exotic one, then sealed identity and open topology
+are in genuine conflict, and one of them has to be given up.</p>
+
 <div class="note"><b>None of these are settled.</b> They are stated here so that
 the answers, when they arrive, are recognizable as answers rather than as
 surprises — and so that a reader can tell which parts of this page are
@@ -520,16 +952,35 @@ engineering and which are a bet.</div>
 
 <h2 id="first">The first real test</h2>
 
-<p>The demonstration that would actually validate the thesis is a single world
-in which one identity participates in road, communications, dispatch, energy and
-fault topologies at once; is executed across a multi-machine TRVM run; calls an
-external route solver through a derive; and produces a film that a third party
-can check without trusting the machine that produced it.</p>
+<p>Two different things get called "the first test", and separating them is the
+last piece of honesty this page owes.</p>
 
-<p>That demonstration is <b>step 10</b>. The work between here and there is
-steps 1 through 9, and none of it is glamorous: typed ports, an async surface,
-attributes on edges, an expression notation, an authorization model, a
-supervision floor, an effects boundary.</p>
+<p><b>The demonstration that would validate the thesis</b> is
+<a href="#demo-fleet">demonstration A</a>: a single world in which one identity
+participates in road, communications, dispatch, energy and fault topologies at
+once; executed across a multi-machine TRVM run; calling an external route solver
+through a derive; producing a film a third party can check without trusting the
+machine that produced it. That demonstration is <b>step 10</b>, and the work
+between here and there is steps 1 through 9 — typed ports, an async surface,
+attributes on relations, an expression notation, an authorization model, a
+supervision floor, an effects boundary. None of it is glamorous and none of it
+can be skipped.</p>
+
+<p><b>The demonstration that should be built first</b> is
+<a href="#demo-bus">demonstration B</a>, the resolved digital bus. It is the
+smallest thing that is not already true: no solver, no continuous time, no new
+phase in the period cycle, and no new profile machinery beyond one resolution
+table. It exercises exactly one half of
+<a href="spec.html#d8">§D8</a> — many drivers meeting at one terminal — and every
+case in it has an answer that hardware engineers settled decades ago. That is
+what makes it valuable: <b>it can fail in a recognisable way</b>, which
+demonstration A cannot do for years.</p>
+
+<div class="note"><b>The rule the two together imply.</b> Build the smallest
+thing that can be wrong, before the largest thing that would be impressive. The
+fleet profile is step 10 for the reason given above; the bus is not a step on the
+ladder at all, it is a test of whether the ladder's third rung is the right
+shape.</div>
 
 <blockquote>The strongest version of WRL is not Erlang with prettier arrows. It
 is a language for living networks — where identities persist, topology has
@@ -576,6 +1027,16 @@ respected inside the first-solution heuristic</a>; and
 <li id="c8"><a href="https://www.unison-lang.org/docs/the-big-idea/">Unison, “The
 big idea”</a> — definitions identified by a hash of their syntax tree; names as
 metadata over immutable hashes.</li>
+<li id="c9">R. Milner, <i><a href="https://www.cambridge.org/core/books/space-and-motion-of-communicating-agents/E71EEC0D2D5D3B08C99DAF0DA97317BE">The
+Space and Motion of Communicating Agents</a></i>, Cambridge University Press,
+2009 — a bigraph is a place graph and a link graph over one node set; links are
+hyperedges; reaction rules reconfigure structure and may create or destroy
+nodes.</li>
+<li id="c10"><a href="https://www.iso.org/standard/76120.html">ISO/IEC
+39075:2024, <i>Information technology — Database languages — GQL</i></a> — the
+first new ISO database language since SQL; standardises the property graph as a
+directed, labelled, attributed multigraph in which nodes and edges both carry
+properties.</li>
 </ol>
 
 <div class="btnrow" style="margin-top:40px">
