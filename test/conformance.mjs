@@ -414,26 +414,55 @@ ok("caps/registry-found", REGISTRY.size > 0,
  * promotion mechanism it did not have. `tier` says how settled the MEANING is;
  * `impl` says how much of the toolchain does it; `stages` says exactly which
  * pipeline stages accept it when the answer is "some of them". */
-const STAGES = ["tokenize", "parse", "type", "lower", "seal", "execute"];
+const STAGES =
+  ["desugar", "parse", "validate", "canonicalize", "serialize", "seal", "execute"];
 
-/* A partial capability must PROVE its claim, and the claim has to be the one
- * the implementation actually supports. An earlier version of this file said
- * these textures were "refused at lowering" and listed `tokenize,parse` as
- * working. That was wrong, and wrong in the flattering direction: there is no
- * route declaration and no lowering step for them. `parseWrlCore` matches the
- * characters and refuses the line where it stands, so `tokenize` is the last
- * stage the input COMPLETES and `parse` is the stage that refuses it.
+/* Every stage name above except `execute` is a FUNCTION THAT EXISTS in wrl.js,
+ * and the map below is what makes a stage claim executable rather than merely
+ * declared. This matters because the stage vocabulary has now been wrong twice.
  *
- * What is still true, and worth proving, is that the texture is RECOGNIZED
- * rather than merely rejected -- the parser has a branch for it that explains
- * what it is, instead of letting it fall through to "unrecognized notation".
- * Asserting that from the code would be circular, so each probe is paired with
- * a line of genuine nonsense and the two are required to fail DIFFERENTLY. If
- * the reserved branch were ever deleted, both would produce the same
- * fall-through diagnostic and the recognition claim would fail by name. */
+ *   v1: "refused at lowering" -- overstated. There is no route declaration and
+ *       no lowering step for these textures.
+ *   v2: "tokenize" completes   -- ALSO wrong, in the opposite direction. There
+ *       is no tokenizer. `parseWrlCore` splits on newlines, strips comments and
+ *       dispatches on regular expressions. Naming a stage the implementation
+ *       does not have is not a smaller error than naming one it has not reached.
+ *
+ * Both errors were possible because the claim lived only in prose and in a
+ * matching constant, so the two could agree with each other and with nothing
+ * else. A stage is now claimed by NAMING A FUNCTION AND RUNNING IT: every stage
+ * a capability says it completes must actually return, and the stage it says
+ * refuses it must actually throw. `desugar` survives that test -- `desugarCore`
+ * rewrites the surrounding sugar and passes the texture line through untouched
+ * -- and `tokenize` could not have, because there would have been nothing to
+ * put in the map.
+ *
+ * `execute` deliberately has no entry: the browser port stops at the seal (it
+ * does not reduce films), so no capability may claim to complete it. */
+const STAGE_FNS = {
+  desugar: (src) => W.desugarCore(src),
+  parse: (src) => W.parseWrlCore(W.desugarCore(src)),
+  validate: (src) => W.validateGraph(W.parseWrlCore(W.desugarCore(src))),
+  canonicalize: (src) =>
+    W.canonicalizeGraph(W.validateGraph(W.parseWrlCore(W.desugarCore(src)))),
+  serialize: (src) =>
+    W.serializeArtifact(
+      W.graphToIr(W.canonicalizeGraph(
+        W.validateGraph(W.parseWrlCore(W.desugarCore(src)))))),
+  seal: async (src) => (await W.sealWorld(src)).semanticId,
+};
+
+/* What is still true beyond stage position, and worth proving separately, is
+ * that the texture is RECOGNIZED rather than merely rejected -- the parser has
+ * a branch for it that explains what it is, instead of letting it fall through
+ * to "unrecognized notation". Asserting that from the code would be circular,
+ * so each probe is paired with a line of genuine nonsense and the two are
+ * required to fail DIFFERENTLY. If the reserved branch were ever deleted, both
+ * would produce the same fall-through diagnostic and the recognition claim
+ * would fail by name. */
 const STAGE_PROBES = {
-  "async-route": { texture: "~~sig~~>", through: ["tokenize"], refusedAt: "parse" },
-  "verified-route": { texture: "==sig==>", through: ["tokenize"], refusedAt: "parse" },
+  "async-route": { texture: "~~sig~~>", through: ["desugar"], refusedAt: "parse" },
+  "verified-route": { texture: "==sig==>", through: ["desugar"], refusedAt: "parse" },
 };
 const probeSource = (texture) =>
   `profile forge.world.core.v1\n` +
@@ -468,7 +497,32 @@ for (const [cap, r] of REGISTRY) {
        `come after every stage it completes; got stages="${r.stages.join(",")}" ` +
        `refused-at="${r.refusedAt}"`);
     if (probe) {
-      const res = await W.sealWorld(probeSource(probe.texture));
+      /* THE STAGE CLAIM, EXECUTED. Everything above compares the registry to
+         another constant in this file; the two checks below compare it to the
+         toolchain. Each claimed stage is run and must return; the refusing
+         stage is run and must throw. A stage name with no function behind it
+         (`tokenize`, as this file once claimed) cannot pass either. */
+      const src = probeSource(probe.texture);
+      for (const stage of r.stages) {
+        let completed = false, why = "";
+        try { await STAGE_FNS[stage]?.(src); completed = !!STAGE_FNS[stage]; }
+        catch (e) { why = ` -- it threw ${e.code || ""} ${e.message || e}`; }
+        ok(`caps/${cap}-completes-${stage}`, completed,
+           `"${cap}" claims the input completes the "${stage}" stage, so ` +
+           `running that stage must return${why}. If there is no function in ` +
+           `wrl.js named by STAGE_FNS["${stage}"], the stage does not exist and ` +
+           `the claim cannot be made at all.`);
+      }
+      let refused = null;
+      try { await STAGE_FNS[r.refusedAt]?.(src); }
+      catch (e) { refused = e; }
+      ok(`caps/${cap}-refused-by-${r.refusedAt}`,
+         !!refused && refused.code === "WRL_UNSUPPORTED_FEATURE",
+         `"${cap}" claims the "${r.refusedAt}" stage refuses it, so running ` +
+         `that stage must throw WRL_UNSUPPORTED_FEATURE; got ` +
+         `${refused ? refused.code : "no throw at all"}`);
+
+      const res = await W.sealWorld(src);
       ok(`caps/${cap}-probe-located`,
          !res.ok && res.code === "WRL_UNSUPPORTED_FEATURE" && res.line > 0,
          `the probe for "${cap}" should be refused with a LOCATED ` +
@@ -647,19 +701,67 @@ for (const cap of REGISTRY.keys()) {
      "could not locate the dependency-ladder table in direction.html");
 
   if (tbl) {
-    const steps = [...tbl[1].matchAll(/<tr><td>(\d+)<\/td>/g)].map((m) => Number(m[1]));
+    /* Each rung declares its number AND the exact capabilities it delivers.
+       Both are needed. An earlier version of this block read only the printed
+       number, and a reviewer showed that check was decorative: swapping the
+       steps of `supervision` and `dynamic-topology` in the registry and
+       re-sorting the rows left the suite at 569 passed, 0 failed. Range and
+       sort order are internal-consistency properties, and two pages can be
+       internally consistent while disagreeing with each other -- which is the
+       failure this check exists to catch, and is exactly the dependency error
+       (a fault route promoted before the supervision floor it requires) that
+       the ladder was written to prevent. */
+    const rungs = [...tbl[1].matchAll(
+      /<tr data-step="(\d+)" data-capabilities="([^"]*)"><td>(\d+)<\/td>/g)]
+      .map((m) => ({
+        step: Number(m[1]),
+        printed: Number(m[3]),
+        caps: m[2].split(",").map((s) => s.trim()).filter(Boolean),
+      }));
+    const steps = rungs.map((r) => r.step);
     ok("ladder/steps-are-1..n",
        steps.length > 0 && steps.every((n, i) => n === i + 1),
        `the ladder must be numbered 1..n with no gaps or repeats; got ` +
-       `[${steps.join(", ")}]`);
+       `[${steps.join(", ")}]. If this is empty, the rows lost their ` +
+       `data-step / data-capabilities annotations.`);
+    ok("ladder/number-matches-annotation",
+       rungs.every((r) => r.step === r.printed),
+       `a rung's data-step must equal the number printed in its first cell, ` +
+       `or the machine-readable ladder and the human-readable one differ: ` +
+       rungs.filter((r) => r.step !== r.printed)
+            .map((r) => `data-step=${r.step} prints ${r.printed}`).join(", "));
 
-    /* every step a capability claims must exist as a rung */
+    /* THE MAPPING, BOTH DIRECTIONS. This is what makes the ladder load-bearing
+       rather than illustrative: the registry's step number and the rung that
+       names the capability must be the same rung, and no capability may be
+       unplaced or placed twice. */
+    const placement = new Map();
+    for (const r of rungs) {
+      for (const c of r.caps) {
+        ok(`ladder/${c}-placed-once`, !placement.has(c),
+           `capability "${c}" is claimed by rung ${placement.get(c)} and rung ` +
+           `${r.step}. A capability is delivered at one step or the ladder is ` +
+           `not a dependency order.`);
+        ok(`ladder/${c}-is-registered`, REGISTRY.has(c),
+           `rung ${r.step} claims to deliver "${c}", which is not a row in the ` +
+           `published capability registry. A rung cannot promise something the ` +
+           `registry does not track.`);
+        placement.set(c, r.step);
+      }
+    }
     const top = steps.length;
     for (const [cap, r] of REGISTRY) {
       ok(`ladder/${cap}-step-in-range`,
          Number.isInteger(r.step) && r.step >= 1 && r.step <= top,
          `the registry puts "${cap}" at step ${r.step}, but the ladder in ` +
          `direction.html has rungs 1..${top}. One of the two pages is stale.`);
+      ok(`ladder/${cap}-step-agrees`, placement.get(cap) === r.step,
+         `reference.html puts "${cap}" at step ${r.step}; direction.html's ` +
+         `ladder ` + (placement.has(cap)
+           ? `delivers it at rung ${placement.get(cap)}. The two pages disagree ` +
+             `about the roadmap, and a reader has no way to tell which is right.`
+           : `does not deliver it at any rung. Every registered capability must ` +
+             `be named by exactly one rung, or the ladder is not a complete plan.`));
     }
 
     /* and the published row order must match the numbers, so a reader
@@ -699,6 +801,32 @@ for (const cap of REGISTRY.keys()) {
      `direction.html publishes falsification condition(s) [${orphans.join(", ")}] ` +
      `that spec.html does not declare. Either the spec retired the condition ` +
      `and Direction is stale, or Direction invented one.`);
+
+  /* Set parity is necessary and not sufficient. It stops a condition being
+     invented or resurrected under a new id; it does nothing about the two
+     pages describing the same id differently, which is the likelier drift and
+     the one that already happened once. There is no way to diff prose
+     mechanically, so the structural answer is to designate ONE statement as
+     normative and make the other cite it: spec.html §D7 states each condition
+     and carries `id="falsify-<id>"`, and every Direction heading must link to
+     that anchor. A reader who suspects drift is then one click from the
+     authority, and the link-integrity check above proves the anchor exists. */
+  const dirSrc = readFileSync(join(ROOT, "direction.html"), "utf8");
+  const specSrc = readFileSync(join(ROOT, "spec.html"), "utf8");
+  for (const id of dir) {
+    ok(`falsify/${id}-has-normative-anchor`,
+       specSrc.includes(`id="falsify-${id}"`),
+       `spec.html declares falsifier "${id}" but gives it no id="falsify-${id}" ` +
+       `anchor, so Direction has nothing citable to point at.`);
+    const heading = dirSrc.match(
+      new RegExp(`<h3 data-falsifier="${id}">([\\s\\S]*?)</h3>`));
+    ok(`falsify/${id}-cites-normative`,
+       !!heading && heading[1].includes(`href="spec.html#falsify-${id}"`),
+       `direction.html's heading for "${id}" must link to ` +
+       `spec.html#falsify-${id}. Direction is a non-normative summary; without ` +
+       `the citation the two statements can drift in wording while both ids ` +
+       `stay present and this check stays green.`);
+  }
 }
 
 /* THE PROMOTION TRIP-WIRE, and the honest version of a claim this suite used

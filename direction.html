@@ -543,10 +543,20 @@ from a binary directed <code class="inline">Edge</code> to a general
 <code class="inline">Relation</code>, with today's route as its simplest
 specialisation.</p>
 
-<pre class="code"><code>Relation { domain, kind, endpoints, orientation,
-           texture, attributes, policy, provenance }
+<pre class="code"><code>RelationInstance { relation_id, current_revision }
+
+RelationRevision  { domain, kind, endpoints, orientation,
+                    texture?, attributes, policy, provenance,
+                    predecessor? }
 
 Endpoint { terminal, role }</code></pre>
+
+<p>The split into a stable <code class="inline">relation_id</code> and a
+content-addressed revision is <a href="spec.html#d8-identity">§D8.1</a>, and it
+is what lets two physically distinct but identical relations — parallel cables,
+a redundant link, two lanes of one segment — be told apart, revised and failed
+independently. <code class="inline">texture?</code> is optional because an
+acausal relation has none.</p>
 
 <p>Three unusual capabilities fall out of that one change, and none of them is
 reachable by improving actors:</p>
@@ -779,7 +789,7 @@ right answer that hardware engineers already know.</p>
 <tr><td>Three drivers on a <b>resolved</b> terminal, one enabled</td><td>legal. The value is the enabled driver's; the two <code class="inline">Z</code> contributions are absorbed by the resolution function</td></tr>
 <tr><td>Two enabled drivers disagreeing</td><td>legal to <i>write</i>, and resolves to <code class="inline">X</code> — contention is a <b>value</b>, not a crash, exactly as in <code class="inline">std_logic</code><sup><a href="#c3">3</a></sup></td></tr>
 <tr><td>The same world sealed on two machines</td><td>identical <code class="inline">sem-</code> id, because the resolution table is in the document</td></tr>
-<tr><td>REACT settling a resolved terminal</td><td>one pass, because <code class="inline">std_logic</code> resolution is associative, commutative and idempotent — the same three laws fact-merge already requires</td></tr>
+<tr><td>REACT settling a resolved terminal</td><td>one pass, because the resolution is associative, commutative and total over its type. <b>Not</b> idempotent: that law belongs to <a href="spec.html#d2-two-resolutions">§9's join</a>, where it exists to make redelivery harmless, and a driver set has no unknown multiplicity to protect against. Requiring it here would forbid <i>"two enabled drivers is a fault"</i>, which is an ordinary bus rule</td></tr>
 </tbody></table></div>
 
 <div class="note"><b>Why this one is the right first build.</b> It needs no
@@ -888,20 +898,37 @@ no derives at all.</div>
 one needs. The same discipline applies to everything on this page. Here is the
 ordering, with the reason each step cannot move earlier:</p>
 
+<div class="note warn"><b>This table is checked against
+<a href="reference.html#capabilities">the capability registry</a>, and the check
+had to be repaired.</b> Each row carries <code class="inline">data-step</code>
+and <code class="inline">data-capabilities</code>, and the conformance suite
+requires that every registered capability be delivered by <i>exactly one</i> rung
+and that the rung number match the step the registry prints. An earlier version
+of that check read only the printed numbers, and a reviewer demonstrated it was
+decorative: swapping the steps of <code class="inline">supervision</code> and
+<code class="inline">dynamic-topology</code> in the registry and re-sorting the
+rows left the suite entirely green. That is precisely the dependency error this
+ladder exists to prevent — promoting the fault route before the supervision floor
+it requires — so the check was passing over the one bug it was written to catch.
+It now fails by name. A commit message in this repository claimed the earlier
+version was "the check that would have caught this commit's own bug"; it would
+not have, and the overstatement is recorded here rather than quietly
+corrected.</div>
+
 <div class="tbl"><table>
 <thead><tr><th>#</th><th>Step</th><th>Why it cannot come sooner</th></tr></thead>
 <tbody>
-<tr><td>1</td><td><b>Typed ports and message schemas</b></td><td>every later feature has to say <i>what</i> flows; without this, attributes and behaviours are untyped strings</td></tr>
-<tr><td>2</td><td><b><code class="inline">~~</code> async route + mailbox surface</b></td><td>already <a href="spec.html#s16">§16</a> step 2. Telemetry is asynchronous; a fleet without it is a diagram</td></tr>
-<tr><td>3</td><td><b>Profile <i>mechanism</i></b> — declaring relation kinds, attribute types, units, bounded resources and resolution functions</td><td>needs the type system from step 1. This is the machinery a profile is written <i>in</i>, and it has to exist before anything can be validated by one</td></tr>
-<tr><td>4</td><td><b>Attributed relations</b> (weight, capacity, units) and <b>resolved terminals</b></td><td>needs step 3 to say what <code class="inline">capacity=3</code> means, or "cost" is a name with no arithmetic and no unit</td></tr>
-<tr><td>5</td><td><b>Behaviours</b></td><td>needs the expression notation, which <a href="spec.html#s13">§13</a> still lists as Experimental in its entirety</td></tr>
-<tr><td>6</td><td><b><code class="inline">==</code> verified route</b></td><td><a href="spec.html#s16-1">§16.1</a>: needs claimant, target, operation family and named policy all enforced — nothing less is a verified route</td></tr>
-<tr><td>7</td><td><b>Supervision floor + <code class="inline">!!</code></b></td><td><a href="spec.html#s16">§16</a> step 6 is explicit: the fault route may only follow a supervision floor that actually exists</td></tr>
-<tr><td>8</td><td><b>Dynamic topology</b></td><td>identities joining and leaving is meaningless without a lifecycle, and a lifecycle without supervision leaks. It also needs step 4's bounded resources before an escrowed <code class="inline">attach</code> can be safe under partition</td></tr>
-<tr><td>9</td><td><b>Effect adapters</b> (walls to ROS, devices, APIs) and the <b>solver wall</b></td><td>a command that leaves the world needs step 6 to authorize it and a film to record it. Acausal relations settle here, because they settle in a solver</td></tr>
-<tr><td>10</td><td><b>Derive boundary + checkers</b></td><td>needs attributes (4) to state constraints and effects (9) to matter</td></tr>
-<tr><td>11</td><td><b>Production domain profiles</b> — mobility, electrical, logistics, robotics</td><td>a profile pins roles, ports, units, laws and film schemas — it can only pin things that exist</td></tr>
+<tr data-step="1" data-capabilities="typed-ports"><td>1</td><td><b>Typed ports and message schemas</b></td><td>every later feature has to say <i>what</i> flows; without this, attributes and behaviours are untyped strings</td></tr>
+<tr data-step="2" data-capabilities="async-route"><td>2</td><td><b><code class="inline">~~</code> async route + mailbox surface</b></td><td>already <a href="spec.html#s16">§16</a> step 2. Telemetry is asynchronous; a fleet without it is a diagram</td></tr>
+<tr data-step="3" data-capabilities="profile-mechanism"><td>3</td><td><b>Profile <i>mechanism</i></b> — <a href="spec.html#d6-bootstrap"><code class="inline">ProfileSchemaV1</code></a>: relation kinds, attribute types, units, bounded resources and <i>finite resolution tables</i></td><td>needs the type system from step 1, and nothing later. An earlier version of this row said "resolution <i>functions</i>", which need the expression notation from step 5 — a cycle in a ladder whose entire claim is that it is a dependency order. <a href="spec.html#d6-bootstrap">§D6.1</a> restricts the kernel to declarations, so the step is deliverable where it stands</td></tr>
+<tr data-step="4" data-capabilities="attributed-relations,resolved-terminals"><td>4</td><td><b>Attributed relations</b> (weight, capacity, units) and <b>resolved terminals</b></td><td>needs step 3 to say what <code class="inline">capacity=3</code> means, or "cost" is a name with no arithmetic and no unit</td></tr>
+<tr data-step="5" data-capabilities="behaviours,collections,expression-notation,generics-traits,numerics,resources"><td>5</td><td><b>Behaviours</b></td><td>needs the expression notation, which <a href="spec.html#s13">§13</a> still lists as Experimental in its entirety</td></tr>
+<tr data-step="6" data-capabilities="merge-routes,verified-route"><td>6</td><td><b><code class="inline">==</code> verified route</b></td><td><a href="spec.html#s16-1">§16.1</a>: needs claimant, target, operation family and named policy all enforced — nothing less is a verified route</td></tr>
+<tr data-step="7" data-capabilities="supervision"><td>7</td><td><b>Supervision floor + <code class="inline">!!</code></b></td><td><a href="spec.html#s16">§16</a> step 6 is explicit: the fault route may only follow a supervision floor that actually exists</td></tr>
+<tr data-step="8" data-capabilities="dynamic-topology"><td>8</td><td><b>Dynamic topology</b></td><td>identities joining and leaving is meaningless without a lifecycle, and a lifecycle without supervision leaks. It also needs step 4's bounded resources before an escrowed <code class="inline">attach</code> can be safe under partition</td></tr>
+<tr data-step="9" data-capabilities="acausal-relations,effect-walls,migration,podium"><td>9</td><td><b>Effect adapters</b> (walls to ROS, devices, APIs) and the <b>solver wall</b></td><td>a command that leaves the world needs step 6 to authorize it and a film to record it. Acausal relations settle here, because they settle in a solver</td></tr>
+<tr data-step="10" data-capabilities="derives,ffi,metaprogramming,modules,reflection,testing"><td>10</td><td><b>Derive boundary + checkers</b></td><td>needs attributes (4) to state constraints and effects (9) to matter</td></tr>
+<tr data-step="11" data-capabilities="domain-profiles"><td>11</td><td><b>Production domain profiles</b> — mobility, electrical, logistics, robotics</td><td>a profile pins roles, ports, units, laws and film schemas — it can only pin things that exist</td></tr>
 </tbody></table></div>
 
 <div class="note warn"><b>Two corrections to an earlier version of this
@@ -936,10 +963,23 @@ sanctioned.</div>
 <h2 id="falsify">What would falsify this</h2>
 
 <p>An honest direction document names the observations that would sink it.
-These are the five that would. The spec states the same list, more tersely, as
-<a href="spec.html#d7">§D7</a>.</p>
+These are the five that would.</p>
 
-<h3 data-falsifier="per-layer-identity">1 · If identity turns out to be per-layer after all</h3>
+<div class="note"><b>This section is a non-normative summary.</b>
+<a href="spec.html#d7">Core Part II §D7</a> is the normative statement of the
+falsification conditions; what follows expands five of its eight at argument
+length. Where the two differ, <b>the spec is right and this page is stale</b>.
+That is a real hazard rather than a formality — Direction once carried a
+condition §D9 had already retired, and every link on the page resolved
+correctly the whole time, because a link checker proves that citations
+<i>resolve</i> and not that two pages <i>agree</i>. So each heading below links
+to its normative row by a stable id, the conformance suite requires that link to
+be present, and it requires this page's set of conditions to be a subset of the
+spec's. None of that can diff prose; what it can do is make sure a reader who
+suspects drift is one click from the authority, and that a condition cannot be
+invented, resurrected or silently orphaned here.</div>
+
+<h3 data-falsifier="per-layer-identity">1 · If identity turns out to be per-layer after all <a class="cite" href="spec.html#falsify-per-layer-identity">normative statement</a></h3>
 
 <p>Node-alignment (<a href="#p1">pillar 1</a>) assumes one identity is the right
 granularity across every layer. That assumption fails if layers need to version
@@ -949,7 +989,7 @@ persist. If that turns out to be the common case rather than the exception, WRL
 needs per-layer replicas and explicit coupling edges, and the largest claimed
 advantage over conventional multilayer tooling evaporates.</p>
 
-<h3 data-falsifier="no-cheap-checker">2 · If checking is not cheaper than solving</h3>
+<h3 data-falsifier="no-cheap-checker">2 · If checking is not cheaper than solving <a class="cite" href="spec.html#falsify-no-cheap-checker">normative statement</a></h3>
 
 <p><a href="#p5">Pillar 5</a> assumes a plan's feasibility can be verified far
 more cheaply than the plan can be found. That is true for routing with capacity
@@ -959,7 +999,7 @@ check than to compute. Wherever that holds, the derive boundary provides
 paperwork rather than verification, and should say so instead of implying
 otherwise.</p>
 
-<h3 data-falsifier="central-registry">3 · If profiles cannot compose without a central registry</h3>
+<h3 data-falsifier="central-registry">3 · If profiles cannot compose without a central registry <a class="cite" href="spec.html#falsify-central-registry">normative statement</a></h3>
 
 <p><a href="#p4">Pillar 4</a> assumes a wall can join two profiles knowing only
 their contracts. If in practice every cross-profile wall needs global knowledge
@@ -967,7 +1007,7 @@ their contracts. If in practice every cross-profile wall needs global knowledge
 place — then "one world, many domains" degrades into a monolith with a plugin
 directory, and the composition claim was never real.</p>
 
-<h3 data-falsifier="relation-bytes-move">4 · If broadening the relation moves every published id</h3>
+<h3 data-falsifier="relation-bytes-move">4 · If broadening the relation moves every published id <a class="cite" href="spec.html#falsify-relation-bytes-move">normative statement</a></h3>
 
 <p><a href="#p6">Pillar 6</a> assumes a general
 <code class="inline">Relation</code> can serialise a plain directed route to the
@@ -985,7 +1025,7 @@ the change is a version break rather than an extension, and the ordering of the
 entire ladder has to be reconsidered. This is still the cheapest condition on
 the list to test, and it should still be tested first.</p>
 
-<h3 data-falsifier="admission-undecidable">5 · If admission cannot be decided from sealed rules and recorded evidence</h3>
+<h3 data-falsifier="admission-undecidable">5 · If admission cannot be decided from sealed rules and recorded evidence <a class="cite" href="spec.html#falsify-admission-undecidable">normative statement</a></h3>
 
 <p><a href="spec.html#d9-open">§D9</a> admits identities the document never
 enumerated by sealing an <b>admission rule</b> — trust roots, identity scheme,

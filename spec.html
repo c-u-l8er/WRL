@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="wrl.css">
 <style>
   .docbody h2{scroll-margin-top:80px}
-  .docbody h3{scroll-margin-top:80px}
+  .docbody h3,.docbody h4{scroll-margin-top:80px}
   .secnum{font-family:var(--mono);font-size:.62em;letter-spacing:.1em;
           color:var(--ink-faint);font-weight:500;margin-right:.7em;
           vertical-align:.12em}
@@ -94,12 +94,15 @@
   <a href="#part2">Status of Part II</a>
   <a href="#d1">D1 · Multilayer topology</a>
   <a href="#d2">D2 · Three connection kinds</a>
+  <a href="#d2-two-resolutions">D2.1 · Join vs driver-set resolution</a>
   <a href="#d3">D3 · Route axes vs textures</a>
   <a href="#d4">D4 · Walls and computation</a>
   <a href="#d5">D5 · Derives and search</a>
   <a href="#d6">D6 · Profiles, not new kinds</a>
+  <a href="#d6-bootstrap">D6.1 · Profile bootstrap kernel</a>
   <a href="#d7">D7 · Falsification conditions</a>
   <a href="#d8">D8 · Relation, not Edge</a>
+  <a href="#d8-identity">D8.1 · Relation identity</a>
   <a href="#d9">D9 · Dynamic topology</a>
 </aside>
 
@@ -908,12 +911,61 @@ ship.</div>
 <p><b>What this buys.</b> Power buses, shared physical media, contention on a
 road segment, and summed loads all stop needing to be faked as chains of relays.
 <b>What it costs.</b> The within-period REACT fixpoint (§8) is currently a
-single-pass settle over owned cells. Resolved ports still settle in one pass
-provided the resolution function is associative, commutative and idempotent —
-the same three laws §9 already demands of fact-merge, which is not a
-coincidence. <b>Acausal connections do not settle by passing values at all</b>:
-they require solving a system. That is a different execution model, which is what
-§D4 is for.</p>
+single-pass settle over owned cells. Resolved ports still settle in one pass,
+provided the resolution obeys the laws in §D2.1 below.
+<b>Acausal connections do not settle by passing values at all</b>: they require
+solving a system. That is a different execution model, which is what §D4 is
+for.</p>
+
+<h3 id="d2-two-resolutions">Two resolutions, and only one of them is a join</h3>
+
+<p>An earlier version of the paragraph above said resolved ports settle in one
+pass "provided the resolution function is associative, commutative and
+idempotent — the same three laws §9 already demands of fact-merge, which is not a
+coincidence". The three-law phrasing was borrowed from the CRDT literature
+because it was nearby, and the borrowing hid a distinction. It <i>is</i> a
+coincidence, at least in the third law, and reusing §9's laws here quietly
+forbids resolutions that are correct.</p>
+
+<p><b>Idempotence exists to make redelivery harmless.</b> That is its entire job.
+In §9's evidence merge, a replica cannot know how many times a fact will reach it
+— once, or twice by two paths, or again after a partition heals — so the merge
+must not be able to tell, and <code class="inline">x ⊔ x = x</code> is what
+guarantees it. Driver-set resolution has no such problem. The set of drivers
+reaching a terminal is fixed by the topology, the topology is in the sealed
+artifact, and §D9 makes even a changed topology a deterministic function of the
+ledger prefix. <b>The multiplicity is known exactly.</b> A law that pays for an
+unknown you do not have is not free — it is paid for in expressiveness.</p>
+
+<div class="tbl"><table>
+<thead><tr><th></th><th>Join resolution</th><th>Driver-set resolution</th></tr></thead>
+<tbody>
+<tr><td><b>Input</b></td><td>values arriving in unknown order and unknown multiplicity</td><td>one canonical map, <code class="inline">source terminal → drive value</code>, ordered by §11's existing terminal sort</td></tr>
+<tr><td><b>Required laws</b></td><td>associative, commutative, <b>idempotent</b></td><td>associative, commutative, <b>total</b>. Idempotence is <i>not</i> required</td></tr>
+<tr><td><b>Why those</b></td><td>the first two make the outcome independent of delivery order, the third of delivery count</td><td>the first two make the outcome independent of the canonical order chosen; count is not in question, because each source appears exactly once as a key</td></tr>
+<tr><td><b>Governs</b></td><td>§9 evidence merge, §D9's grow-only fact set</td><td>digital buses, drive strengths, contention and conflict tables</td></tr>
+<tr><td><b>Ships as</b></td><td>frozen, in §9</td><td>a <a href="#d6-bootstrap">§D6.1</a> finite resolution table over an enumerated type</td></tr>
+</tbody></table></div>
+
+<p>The cost of the borrowed law is concrete rather than theoretical. An
+idempotent resolution <b>cannot distinguish one driver from two</b> — that is
+precisely what <code class="inline">x ⊔ x = x</code> says. So it can never
+express <i>"two enabled drivers on this bus is a fault"</i>, which is an ordinary
+thing a hardware profile wants to say and a real bus-contention rule. Dropping
+idempotence admits conflict-detecting resolutions, and admits them without
+weakening anything: determinism comes from the canonical input order, and
+associativity and commutativity are still required so that the canonical order
+can be <i>chosen</i> without changing the answer.</p>
+
+<div class="note"><b>Nothing already true stops being true.</b>
+<code class="inline">std_logic</code> resolution <a class="cite" href="#r-vhdl">[V]</a>
+<i>is</i> idempotent — <code class="inline">resolve('1','1') = '1'</code> — and
+remains a perfectly good member of the wider class. The change is that
+idempotence becomes a property a particular table <i>may</i> have rather than an
+admission requirement every table must satisfy. And because §D6.1 makes these
+tables finite and enumerated, whether a given one is associative, commutative,
+total or idempotent is decided by <b>counting over the type</b>, not by proof —
+so the laws that remain are checked rather than asserted.</div>
 
 <h2 id="d3"><span class="secnum">§D3</span>Route axes are not route textures<span class="draft">draft</span></h2>
 
@@ -1040,8 +1092,11 @@ supply chains" is: <b>a profile</b>, and nothing else.</p>
 
 <p>A profile fixes the vocabulary that the frozen kinds are instantiated with:
 which roles exist, which relation names are legal, which attributes each relation
-carries and what they mean, which resolution functions are available, and which
-model of computation applies inside a wall that declares it.</p>
+carries and what they mean, which resolution rules are available, and which
+model of computation applies inside a wall that declares it.
+<a href="#d6-bootstrap">§D6.1</a> narrows the third of those from
+<i>functions</i> to <b>finite tables</b>, for a reason that turns out to matter
+to the whole promotion order.</p>
 
 <p>The sketch below is what a mobility profile might look like. It is
 <b>not valid WRL</b>, and the conformance suite asserts that it is rejected:</p>
@@ -1078,23 +1133,135 @@ Building the profile first would force each of those decisions to be made
 implicitly, in a hurry, to satisfy a demo — which is the same failure §16.2
 already refuses for <code class="inline">[worker:w1]</code>.</div>
 
+<h3 id="d6-bootstrap">The profile mechanism cannot wait for expressions</h3>
+
+<p>The paragraph above lists what a profile <i>declares</i>, and one item in it
+is a problem: <b>which resolution functions are available</b>. A function needs a
+notation to be written in, and the expression notation is
+<a href="direction.html#ladder">ladder step 5</a>, while the profile mechanism is
+step 3. Stated plainly, that is a cycle in a document whose central claim is that
+its promotion order is a dependency order. Either step 3 secretly needs step 5 —
+in which case the ladder is wrong — or step 3 needs less than it says.</p>
+
+<div class="note stop"><b>Draft rule D6.1 — the profile bootstrap kernel.</b>
+Step 3 delivers <code class="inline">ProfileSchemaV1</code>, a <b>restricted,
+purely declarative</b> profile language containing <b>no user-written
+expressions and no user-written functions</b>. It admits exactly:
+<br><br>
+<b>1.</b> primitive and enumerated <b>types</b>;
+<b>2.</b> <b>unit declarations</b> and the dimensional relations between them;
+<b>3.</b> <b>relation signatures</b> — domain, kind, orientation, endpoint arity,
+admissible roles;
+<b>4.</b> <b>endpoint-role constraints</b> (which object roles may occupy which
+endpoint role of which relation kind);
+<b>5.</b> <b>bounded-resource annotations</b> naming an attribute as a
+capacity subject to §D9's escrow class;
+<b>6.</b> <b>finite resolution tables</b> over enumerated types — enumerated, not
+computed;
+<b>7.</b> a <b>closed set of built-in validators</b> (range, unit compatibility,
+cardinality, uniqueness, non-negativity), referenced by name and implemented by
+the toolchain;
+<b>8.</b> <b>canonical default values</b>, so that an omitted attribute has one
+serialisation and not two.
+<br><br>
+Everything in that list is data. It canonicalises and hashes by §11's existing
+rules with nothing added, and it is <b>total and terminating by construction</b>
+rather than by analysis — there is no program in it to analyse.</div>
+
+<h4 id="d6-bootstrap-table">Why a table is enough, and not a compromise</h4>
+
+<p>The instinct is that a table is the weak version of a function, accepted
+because the strong version is not ready. For the case that actually motivates
+resolution, it is the other way round. VHDL's
+<a class="cite" href="#r-vhdl">[V]</a> <code class="inline">std_logic</code>
+resolution — the canonical example, and the one
+<a href="#d8-sketch">§D8's sketch</a> is written against — resolves a
+nine-valued enumerated type, and its resolution <i>is</i> a 9 × 9 table.
+Hardware engineers did not settle on a table because they lacked a language to
+write a function in. They settled on it because for a finite type it is the
+complete, inspectable, obviously-terminating specification, and a function would
+be a less direct way of denoting the same object.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Property</th><th>Finite table</th><th>User-written function</th></tr></thead>
+<tbody>
+<tr><td>Canonical bytes</td><td>the sorted entries — §11 already hashes exactly this shape</td><td>needs a canonical form for <i>syntax</i>, which is a new and contestable artifact</td></tr>
+<tr><td>Totality</td><td>checked by counting: |T|<sup>n</sup> entries present</td><td>undecidable in general; requires a totality checker before any profile can be trusted</td></tr>
+<tr><td>Termination</td><td>nothing executes</td><td>requires the language to be restricted anyway, at which point the restriction is the design</td></tr>
+<tr><td>Associativity, commutativity</td><td>verified exhaustively over the type</td><td>proved, assumed, or checked by sampling — and §D8's one-pass settlement <i>depends</i> on it</td></tr>
+<tr><td>Reviewable by a domain expert</td><td>yes — it is the table already in the standard</td><td>only by one who also reads the expression notation</td></tr>
+</tbody></table></div>
+
+<p>The last row of that table is the argument in one line: a resolution rule
+over a finite type has to be <b>exhaustively checkable</b>, and exhaustive
+checking over an enumeration is counting. Expressions do not make this easier;
+they make it a proof obligation instead of a loop.</p>
+
+<h4 id="d6-bootstrap-limits">What the kernel cannot do, said before someone finds out</h4>
+
+<p>A restriction that is only advertised by its benefits is a sales pitch. The
+kernel genuinely cannot express:</p>
+
+<ul>
+<li><b>Resolution over an unbounded type.</b> Summing currents on a
+<code class="inline">real</code>-valued acausal net is not a table. That is
+correctly outside the kernel and lands with the <b>solver wall</b> (<a href="#d4">§D4</a>),
+which is ladder step 9 — a solver was always going to be needed there, and
+routing it through a user-written resolution function would have put a numeric
+method inside a profile where §D4 cannot see it.</li>
+<li><b>Derived or computed attributes</b> — <code class="inline">cost = length ÷ speed</code>.
+These wait for expressions at step 5, and until then an attribute is declared and
+supplied, never computed.</li>
+<li><b>Conditional constraints</b> — <i>"capacity must exceed 2 when the segment
+is bidirectional"</i>. The built-in validators are unconditional. A profile
+needing more says so and waits.</li>
+</ul>
+
+<p>Each of those arrives as a <b>strictly additive</b> extension once expressions
+exist, because the kernel's obligations are the ones an extension must preserve
+rather than assumptions it may violate: a computed attribute still has to
+canonicalise, a conditional constraint still has to be total, and a real-valued
+resolution still has to be replayable. Building the declarative floor first is
+what makes those requirements explicit before there is a notation tempting enough
+to skip them.</p>
+
+<div class="note"><b>What this does to the ladder, and to a falsification
+condition.</b> Step 3 is now deliverable at step 3: nothing in
+<code class="inline">ProfileSchemaV1</code> needs a step-5 notation, so
+<a href="#d8">§D8</a>'s attributed relations at step 4 have the type system they
+require and the cycle is gone. It also sharpens condition
+<a href="#falsify-resolution-not-hashable">4</a> — <i>resolution functions cannot
+be expressed in the document and hashed with it</i> — from an open worry into a
+split verdict: for finite types it is <b>answered</b>, because a table is data
+and §11 already hashes data. For unbounded types it stands, and it is now
+precisely located at the solver wall rather than distributed over the whole idea
+of resolution.</div>
+
 <h2 id="d7"><span class="secnum">§D7</span>Falsification conditions<span class="draft">draft</span></h2>
 
 <p>A design draft that cannot be wrong is not a design draft. Part II is
 abandoned or substantially rewritten if any of the following turns out to be
 true:</p>
 
+<div class="note"><b>This table is the normative statement of the conditions.</b>
+<a href="direction.html#falsify">Direction</a> expands five of the eight at
+argument length and is a non-normative summary of them; where the two differ,
+this table governs. Each row carries a stable
+<code class="inline">id="falsify-…"</code> so that expansion can cite it, and the
+conformance suite requires every citing heading to link here and refuses any
+condition published there that is not declared in this table.</div>
+
 <div class="tbl"><table>
 <thead><tr><th>#</th><th>Condition</th><th>What it would falsify</th></tr></thead>
 <tbody>
-<tr data-falsifier="per-layer-identity"><td>1</td><td>Real domains require <b>per-layer identity</b> — the same entity genuinely needing distinct, independently-connected existence in two layers — often enough that "three identities and a wall" is unworkable</td><td><b>§D1.</b> Node-alignment would have to be relaxed to replica-based layers, and identity would stop being structural</td></tr>
-<tr data-falsifier="no-cheap-checker"><td>2</td><td>The results worth deriving have <b>no checker cheaper than the search</b></td><td><b>§D5.</b> Derives would either seal unverifiable claims or become useless, and optimisation stays permanently outside the language</td></tr>
-<tr data-falsifier="central-registry"><td>3</td><td>Profiles need a <b>central registry</b> to interoperate — that is, two independently-written profiles cannot be composed without an authority arbitrating names</td><td><b>§D6.</b> The "profiles, not construct kinds" answer would collapse into a governance problem, which a language cannot solve</td></tr>
-<tr data-falsifier="resolution-not-hashable"><td>4</td><td>Resolved-port resolution functions cannot be expressed in the document and hashed with it</td><td><b>§D2.</b> Resolved ports would break §11 content identity and must not ship</td></tr>
-<tr data-falsifier="boundary-undecidable"><td>5</td><td>Per-profile boundary safety across walls proves undecidable in practice</td><td><b>§D4.</b> Heterogeneous execution would have to be dropped, leaving acausal connections nowhere to live</td></tr>
-<tr data-falsifier="relation-bytes-move"><td>6</td><td>A broadened relation <b>cannot serialise a plain directed route to today's exact bytes</b>, so generalising the entity moves every published <code class="inline">sem-</code> id</td><td><b>§D8.</b> Relation would become a 0.2 breaking change rather than an 0.1.<i>x</i> extension, and the ordering of the entire ladder would change</td></tr>
-<tr data-falsifier="admission-undecidable"><td>7</td><td>Admission decisions <b>cannot be made from a sealed rule and recorded evidence alone</b> — real federation turns out to require consulting live external state that no film can replay</td><td><b>§D9.</b> The admission answer collapses back into the dilemma it replaced, and a world has to choose between a closed roster and a replayable film</td></tr>
-<tr data-falsifier="invariants-not-escrowable"><td>8</td><td>The invariants worth enforcing on a changing topology <b>cannot be escrowed</b> — every useful bound needs global coordination at the moment it is checked, not an allowance divided in advance</td><td><b>§D9.</b> Topology change would be safe only in a single-writer deployment, and the replication story would quietly be a single-node story</td></tr>
+<tr data-falsifier="per-layer-identity" id="falsify-per-layer-identity"><td>1</td><td>Real domains require <b>per-layer identity</b> — the same entity genuinely needing distinct, independently-connected existence in two layers — often enough that "three identities and a wall" is unworkable</td><td><b>§D1.</b> Node-alignment would have to be relaxed to replica-based layers, and identity would stop being structural</td></tr>
+<tr data-falsifier="no-cheap-checker" id="falsify-no-cheap-checker"><td>2</td><td>The results worth deriving have <b>no checker cheaper than the search</b></td><td><b>§D5.</b> Derives would either seal unverifiable claims or become useless, and optimisation stays permanently outside the language</td></tr>
+<tr data-falsifier="central-registry" id="falsify-central-registry"><td>3</td><td>Profiles need a <b>central registry</b> to interoperate — that is, two independently-written profiles cannot be composed without an authority arbitrating names</td><td><b>§D6.</b> The "profiles, not construct kinds" answer would collapse into a governance problem, which a language cannot solve</td></tr>
+<tr data-falsifier="resolution-not-hashable" id="falsify-resolution-not-hashable"><td>4</td><td>Resolved-port resolution functions cannot be expressed in the document and hashed with it. <b>Now split:</b> <a href="#d6-bootstrap">§D6.1</a> answers it for finite enumerated types, where resolution is a table and §11 already hashes tables. It stands for unbounded types, and is located at the solver wall</td><td><b>§D2.</b> Resolved ports would break §11 content identity and must not ship</td></tr>
+<tr data-falsifier="boundary-undecidable" id="falsify-boundary-undecidable"><td>5</td><td>Per-profile boundary safety across walls proves undecidable in practice</td><td><b>§D4.</b> Heterogeneous execution would have to be dropped, leaving acausal connections nowhere to live</td></tr>
+<tr data-falsifier="relation-bytes-move" id="falsify-relation-bytes-move"><td>6</td><td>A broadened relation <b>cannot serialise a plain directed route to today's exact bytes</b>, so generalising the entity moves every published <code class="inline">sem-</code> id</td><td><b>§D8.</b> Relation would become a 0.2 breaking change rather than an 0.1.<i>x</i> extension, and the ordering of the entire ladder would change</td></tr>
+<tr data-falsifier="admission-undecidable" id="falsify-admission-undecidable"><td>7</td><td>Admission decisions <b>cannot be made from a sealed rule and recorded evidence alone</b> — real federation turns out to require consulting live external state that no film can replay</td><td><b>§D9.</b> The admission answer collapses back into the dilemma it replaced, and a world has to choose between a closed roster and a replayable film</td></tr>
+<tr data-falsifier="invariants-not-escrowable" id="falsify-invariants-not-escrowable"><td>8</td><td>The invariants worth enforcing on a changing topology <b>cannot be escrowed</b> — every useful bound needs global coordination at the moment it is checked, not an allowance divided in advance</td><td><b>§D9.</b> Topology change would be safe only in a single-writer deployment, and the replication story would quietly be a single-node story</td></tr>
 </tbody></table></div>
 
 <div class="note">Conditions 6, 7 and 8 were added with §D8 and §D9, which are
@@ -1149,10 +1316,21 @@ something it cannot hold:</p>
 <p><b>Draft rule D8.</b> The runtime ontology keeps six entity types. The third
 is renamed and broadened:</p>
 
-<pre class="code"><code>Relation { domain, kind, endpoints, orientation,
-           texture, attributes, policy, provenance }
+<pre class="code"><code>RelationInstance { relation_id, current_revision }
+
+RelationRevision  { domain, kind, endpoints, orientation,
+                    texture?, attributes, policy, provenance,
+                    predecessor? }
 
 Endpoint { terminal, role }</code></pre>
+
+<p>The split into an <b>instance</b> and a <b>revision</b> is the subject of
+<a href="#d8-identity">§D8 identity</a> below; the field table describes the
+revision, which is what replaces the old <code class="inline">Edge</code>.
+<code class="inline">texture</code> is written <code class="inline">texture?</code>
+because it is genuinely optional — the table's own row says it is <b>absent</b>
+for an acausal relation, and a record that prints a field it does not always
+carry is a record that will be implemented wrongly.</p>
 
 <div class="tbl"><table>
 <thead><tr><th>Field</th><th>Range</th><th>Replaces</th></tr></thead>
@@ -1276,6 +1454,114 @@ contradictory positions in a single relation. If a profile has a genuine use for
 a reflexive <i>terminal</i>, it should declare that as an explicit feature with
 its own meaning, rather than receive it as an accident of a rule about
 uniqueness.</p>
+
+<h3 id="d8-identity">A relation needs a name that survives its value</h3>
+
+<p>Everything above describes what a relation <i>is</i>. It does not say how to
+<b>refer</b> to one, and until D9 that omission was invisible, because a fixed
+topology never needs to name a relation twice. The moment relations can be
+attached, revised and retired at runtime, the omission becomes the load-bearing
+defect in the pair of sections.</p>
+
+<p>The tempting answer is the one the rest of this language already uses: address
+a relation by the hash of its content, as §11 addresses a world. Applied here it
+fails twice, and both failures are ordinary rather than exotic.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Failure</th><th>Case</th><th>What breaks</th></tr></thead>
+<tbody>
+<tr><td><b>Distinct relations collide</b></td><td>two physical cables between the same pair of terminals; a redundant link deliberately provisioned as a second path; two lanes of one road segment carrying the same <code class="inline">mobility.occupies</code> kind</td><td>content-identical relations are the <i>same</i> relation under a content address, so the model cannot say there are two, cannot fail one and keep the other, and cannot report which one a fault was on. §D8 claims WRL supports multigraph relations; a content address quietly withdraws the claim</td></tr>
+<tr><td><b>Revision destroys the name</b></td><td>operation 5, <b>replace relation attributes</b> — a road segment's capacity drops from 3 to 2 after a lane closure</td><td>the attributes <i>are</i> the content the address was computed over, so changing them changes the name. The ledger fact then cannot say "this relation was revised"; it can only say one relation vanished and an unrelated one appeared, which is exactly the history a replay needs to not lose</td></tr>
+</tbody></table></div>
+
+<p>The second failure is the sharper one, because it is self-inflicted: nothing
+external went wrong, an authorised operation simply mutated the bytes being used
+as the identity. That is a category error, not a bug, and it has a standard
+resolution — separate the thing that persists from the thing that changes.</p>
+
+<div class="note stop"><b>Draft rule D8.1 — relation identity.</b> A relation has
+a <b>stable <code class="inline">relation_id</code></b>, minted once when the
+relation is created and never recomputed, and an ordered sequence of
+<b>content-addressed <code class="inline">RelationRevision</code>s</b>. The
+<code class="inline">relation_id</code> is the lifecycle handle: it is what a
+ledger fact, a diagnostic, a fault report and a film row name. The revision id is
+the value: it is what canonicalisation hashes and what a merge compares. Two
+parallel cables have two <code class="inline">relation_id</code>s and may share
+one revision id, and that is the correct description of two identical
+cables.</div>
+
+<p>This is not a new mechanism invented for relations. It is the mechanism every
+other entity in the ontology already has, and writing the four out together shows
+that the third one was the anomaly:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Entity</th><th>Stable identity</th><th>Replaceable value</th></tr></thead>
+<tbody>
+<tr><td><b>Actor</b></td><td>the object id — durable across every config change, which is what "durable identity" means in §1</td><td>role config, and under <a href="draft.html#behavior">draft §26</a> the behaviour</td></tr>
+<tr><td><b>Relation</b></td><td><code class="inline">relation_id</code> <span class="cite">(this rule — previously missing)</span></td><td><code class="inline">RelationRevision</code></td></tr>
+<tr><td><b>Boundary</b></td><td>the wall id</td><td>its open/closed state, changed by operation 7</td></tr>
+<tr><td><b>World</b></td><td>the <code class="inline">sem-</code> id, which §D9 keeps fixed across every topology change</td><td>the active configuration at period <i>n</i></td></tr>
+</tbody></table></div>
+
+<p>The world row is the argument in miniature. §D9's central move is that the
+world identity does <i>not</i> move when the world's structure changes, because
+identity and configuration are different things. D8.1 applies the same reasoning
+one level down. A rule that is right for the whole is not obviously wrong for a
+part.</p>
+
+<h4 id="d8-identity-ledger">What the ledger facts have to carry</h4>
+
+<p>Three of §D9's eight operations act on a relation, and each becomes
+expressible only once both ids exist. The <code class="inline">prior</code> field
+is what makes revision an <i>edit</i> rather than a coincidence, and it is why
+<code class="inline">predecessor?</code> appears on the revision record: the chain
+is recoverable from the revisions alone even if a ledger is read out of
+order.</p>
+
+<pre class="code"><code>RelationAttached { relation_id, revision_id }
+RelationRevised  { relation_id, prior_revision_id, next_revision_id }
+RelationRetired  { relation_id, prior_revision_id }</code></pre>
+
+<p>Each still obeys §D9's eight obligations unchanged, and two of them get
+sharper rather than harder. <b>Canonical event identity</b> is a content address
+over the operation and its arguments — which now includes a stable
+<code class="inline">relation_id</code>, so two hosts proposing the same revision
+agree on the event id without having to agree on hashing the attributes first.
+<b>Conflict rules</b> become statable: two <code class="inline">RelationRevised</code>
+facts in one period naming the same <code class="inline">relation_id</code> with
+different <code class="inline">prior_revision_id</code>s is a
+detectable conflict, not a race that the smaller hash wins. Without a stable id
+there is no way to notice that the two facts are about the same relation at
+all.</p>
+
+<h4 id="d8-identity-cost">What it costs the frozen artifact</h4>
+
+<p>Nothing today, and the reason is worth stating precisely rather than
+assumed. The <a href="#d8-projection">legacy projection</a> above emits
+<code class="inline">{"kind": K, "src": S, "dst": D}</code> and carries no
+relation id. That remains correct for the frozen corpus, but only because of a
+property the corpus happens to have:</p>
+
+<div class="note warn"><b>The projection's unstated precondition, now stated.</b>
+The V1 <code class="inline">edges</code> encoding can omit
+<code class="inline">relation_id</code> <b>only where the triple
+(<code class="inline">kind</code>, <code class="inline">src</code>,
+<code class="inline">dst</code>) is unique within the artifact</b> — because that
+triple is then a key, and the id is recoverable from position. Every world
+published on this site satisfies that. A world with two parallel relations of the
+same kind between the same objects does not, and it is precisely the multigraph
+case D8 exists to admit. Such a world therefore <b>cannot</b> be encoded in
+<code class="inline">ir_version 1.0</code> at all; it needs explicit ids under a
+newer <code class="inline">ir_version</code>. This is a real limit on V1, not a
+defect in D8.1 — and it is better as a stated precondition that a validator can
+check than as an assumption that holds until the first redundant link.</div>
+
+<p>Whether <code class="inline">relation_id</code> is minted from the sealed
+artifact (for relations present at period 0) or from the creating event's
+canonical id (for relations attached at runtime) is a mechanism question D8.1
+leaves open. Both are deterministic and both replay identically; the rule that
+matters is that whichever is chosen, the id is minted <b>once</b> and never
+recomputed from content that can later change.</p>
 
 <h3 id="d8-derived">Cardinality is derived, and therefore never stored</h3>
 
@@ -1447,10 +1733,11 @@ it, and records which capabilities it waits on:</p>
 
 <ol>
 <li><b>A canonical form</b> that leaves every existing <code class="inline">sem-</code> id where it is (the note above).</li>
+<li><b>A minting rule for <code class="inline">relation_id</code></b> (<a href="#d8-identity">§D8.1</a>), and a validator that enforces the V1 projection's precondition — that (<code class="inline">kind</code>, <code class="inline">src</code>, <code class="inline">dst</code>) is unique within any artifact encoded as <code class="inline">ir_version 1.0</code>. Without that check, the first genuine multigraph world silently seals as something it is not.</li>
 <li><b>An attribute type system.</b> <code class="inline">capacity=3</code> is meaningless without a unit and a range. This is the same requirement as typed ports (§D2), and neither should ship without the other.</li>
 <li><b>Terminal-level validation.</b> Single-writer becomes a property of a terminal rather than a global law, so validation must move with it: an owned terminal with two <code class="inline">source</code> endpoints reaching it is still an error, and must still be caught before the seal. A terminal declaring <code class="inline">resolved(f)</code> is the one exemption, and the exemption is visible on the terminal.</li>
 <li><b>A well-formedness rule per orientation.</b> Roles and orientation can contradict each other and the checker must say so: <code class="inline">directed</code> requires at least one <code class="inline">source</code> and at least one <code class="inline">target</code> and admits no other role; <code class="inline">symmetric</code> admits only <code class="inline">peer</code>; <code class="inline">acausal</code> admits only <code class="inline">terminal</code> and carries no texture. Each violation needs its own code.</li>
-<li><b>A settlement rule per orientation.</b> <code class="inline">directed</code> settles by the existing REACT pass — including into a resolved terminal, in one pass, provided the resolution function is associative, commutative and idempotent. <code class="inline">acausal</code> does not settle by passing values at all and requires a solver wall (§D4). <code class="inline">symmetric</code> has no settlement rule yet, which is the honest state of it.</li>
+<li><b>A settlement rule per orientation.</b> <code class="inline">directed</code> settles by the existing REACT pass — including into a resolved terminal, in one pass, provided the resolution is associative, commutative and total over its type (<a href="#d2-two-resolutions">§D2.1</a> — <i>not</i> idempotent; that law belongs to §9's join and forbids conflict-detecting resolutions here). <code class="inline">acausal</code> does not settle by passing values at all and requires a solver wall (§D4). <code class="inline">symmetric</code> has no settlement rule yet, which is the honest state of it.</li>
 <li><b>A film schema.</b> A relation's attributes are state, and §10 requires every state variable that determines future behaviour to be serialised.</li>
 </ol>
 
@@ -1526,13 +1813,27 @@ topology operations is an open set of ways for two hosts to disagree.</p>
 <tbody>
 <tr><td>1</td><td><b>create identity</b></td><td>adds an object with a role, config and ports</td><td><code class="inline">IdentityCreated</code></td></tr>
 <tr><td>2</td><td><b>retire identity</b></td><td>marks an object non-participating; its history stays addressable</td><td><code class="inline">IdentityRetired</code></td></tr>
-<tr><td>3</td><td><b>attach relation</b></td><td>adds a relation over existing terminals (§D8)</td><td><code class="inline">RelationAttached</code></td></tr>
-<tr><td>4</td><td><b>detach relation</b></td><td>ends a relation's participation</td><td><code class="inline">RelationRetired</code></td></tr>
-<tr><td>5</td><td><b>replace relation attributes</b></td><td>changes capacity, cost, latency … without changing endpoints</td><td><code class="inline">AttributesReplaced</code></td></tr>
+<tr><td>3</td><td><b>attach relation</b></td><td>adds a relation over existing terminals (§D8), minting its <code class="inline">relation_id</code></td><td><code class="inline">RelationAttached { relation_id, revision_id }</code></td></tr>
+<tr><td>4</td><td><b>detach relation</b></td><td>ends a relation's participation; the id stays addressable</td><td><code class="inline">RelationRetired { relation_id, prior_revision_id }</code></td></tr>
+<tr><td>5</td><td><b>replace relation attributes</b></td><td>changes capacity, cost, latency … without changing endpoints <i>or</i> the <code class="inline">relation_id</code> (<a href="#d8-identity">§D8.1</a>)</td><td><code class="inline">RelationRevised { relation_id, prior_revision_id, next_revision_id }</code></td></tr>
 <tr><td>6</td><td><b>transfer ownership</b></td><td>moves an owned terminal's single writer from one identity to another, atomically — no period has zero writers or two</td><td><code class="inline">OwnershipTransferred</code></td></tr>
 <tr><td>7</td><td><b>open / close boundary</b></td><td>admits or refuses crossings at a wall</td><td><code class="inline">BoundaryStateChanged</code></td></tr>
 <tr><td>8</td><td><b>expire lease</b></td><td>the timed form of 2, 4 or 7, scheduled at attach time</td><td>the corresponding fact, with the deadline as its cause</td></tr>
 </tbody></table></div>
+
+<div class="note warn"><b>Operations 3–5 depend on D8.1 and cannot be
+specified without it.</b> An earlier version of this table wrote the three
+relation facts as bare verbs — <code class="inline">RelationAttached</code>,
+<code class="inline">RelationRetired</code>,
+<code class="inline">AttributesReplaced</code> — with no field saying <i>which</i>
+relation. That reads fine and is unimplementable: under a content address, the
+third fact changes the very bytes the first two used as a name, and two identical
+parallel relations cannot be told apart by any of them.
+<a href="#d8-identity">§D8.1</a> supplies the missing stable
+<code class="inline">relation_id</code>, and the facts above are written in terms
+of it. The verb <code class="inline">AttributesReplaced</code> is renamed
+<code class="inline">RelationRevised</code> to match: what happens is a relation
+gaining a new revision, not a free-floating attribute set being swapped.</div>
 
 <h3 id="d9-derived">The ledger grows; the active view does not</h3>
 

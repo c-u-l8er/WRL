@@ -123,10 +123,21 @@ and "can the toolchain do it?" are different questions:
 | **Meaning** | `settled` · `drafted` · `sketched` | how firm the design is |
 | **Toolchain** | `shipped` · `partial` · `unshipped` | how far a real run gets |
 
-`partial` is measured, not asserted. `async-route` and `verified-route` declare
-`data-stages="tokenize,parse"`, and the suite fires a probe (`~~sig~~>`) that
-must be *located* at a real line and then refused with `WRL_UNSUPPORTED_FEATURE`
-— so a stage claim that stopped being true fails by name.
+`partial` is measured, not asserted, and every stage name is a **function that
+exists**. `async-route` and `verified-route` declare `data-stages="desugar"`
+`data-refused-at="parse"`, and the suite *runs* both: `desugarCore` must return,
+`parseWrlCore` must throw `WRL_UNSUPPORTED_FEATURE`. A separate probe pairs the
+texture with a line of genuine nonsense and requires the nonsense to say
+"unrecognized" while the texture does not — so *recognition* is demonstrated
+rather than claimed.
+
+This vocabulary has been wrong twice, which is why it is now executable. It said
+"refused at lowering" (there is no lowering step for these textures) and then
+said `tokenize` completes (**there is no tokenizer** — `parseWrlCore` splits on
+newlines and dispatches on regular expressions). Both survived review because the
+claim lived in prose and a matching constant, which could agree with each other
+and with nothing else. Naming a stage now requires putting a real function behind
+it.
 
 **What promotion does and does not do automatically.** An earlier version of
 this file claimed that when a capability ships its snippets "start sealing and
