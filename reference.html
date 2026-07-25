@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WallRiderLang reference</title>
+<meta name="description" content="WallRiderLang reference tables: grammar, the role registry, port signatures, edge kinds, clock and rotor vocabularies, sugar bounds, diagnostic codes, pinned policy ids, the canonical artifact shape, the identity ladder, and the stability tier table.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="wrl.css">
+<style>
+  .docbody table td code.inline,.docbody table th code.inline{white-space:nowrap}
+  .grammar{font-family:var(--mono);font-size:12.5px;line-height:1.9}
+  .idline{font-family:var(--mono);font-size:12px;background:var(--paper-2);
+    border-radius:6px;padding:10px 14px;margin:16px 0;color:var(--ink-soft);
+    word-break:break-all}
+  .idline b{color:var(--wire)}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site">
+  <a class="mark" href="./">WallRiderLang<small>WRL CORE 0.1.2 · FROZEN</small></a>
+  <nav>
+    <a href="learn.html">Learn</a>
+    <a href="guide.html">Guide</a>
+    <a href="reference.html" aria-current="page">Reference</a>
+    <a href="spec.html">Spec</a>
+    <a href="playground.html">Playground</a>
+    <a href="https://github.com/c-u-l8er/WRL">GitHub</a>
+  </nav>
+</header>
+
+<main id="main" class="doclayout">
+
+<aside class="toc">
+  <strong>Reference</strong>
+  <a href="#grammar">Grammar</a>
+  <a href="#roles">Role registry</a>
+  <a href="#ports">Port signatures</a>
+  <a href="#edges">Edge kinds</a>
+  <a href="#config">Configuration schema</a>
+  <a href="#clocks">Clock vocabulary</a>
+  <a href="#rotors">Rotor vocabulary</a>
+  <a href="#sugar">Sugar forms &amp; bounds</a>
+  <a href="#artifact">Canonical artifact</a>
+  <a href="#policies">Pinned policy ids</a>
+  <a href="#ladder">Identity ladder</a>
+  <a href="#codes">Diagnostic codes</a>
+  <a href="#parsers">Parser entry points</a>
+  <a href="#tiers">Stability tiers</a>
+  <a href="#api">Browser API</a>
+</aside>
+
+<div class="docbody">
+
+<div class="slot">REFERENCE</div>
+<h1 style="font-size:clamp(30px,4.4vw,46px);max-width:20ch">Every table, in one place.</h1>
+<p class="lede">This page is the lookup surface for WRL Core 0.1.2 — the exact
+vocabularies, signatures, bounds, codes and pinned ids that the canonicalizer
+enforces. Prose lives in the <a href="guide.html">guide</a>; the normative text
+lives in the <a href="spec.html">spec</a>.</p>
+
+<h2 id="grammar">Grammar</h2>
+
+<p>The complete core world surface. Whitespace outside tokens is insignificant.
+Comments start with <code class="inline">;</code> and run to end of line.</p>
+
+<pre class="code grammar"><code>document    ::= profile-line  ( declaration | edge | comment | blank )*
+
+profile-line ::= <span class="kw">"profile"</span> WS profile-id
+declaration  ::= <span class="rt">"["</span> role <span class="rt">":"</span> id <span class="rt">"]"</span> [ config ] [ ports ]
+edge         ::= <span class="rt">"["</span> [ role <span class="rt">":"</span> ] id <span class="rt">"]"</span> <span class="rt">"--"</span> edge-tag <span class="rt">"--&gt;"</span> <span class="rt">"["</span> [ role <span class="rt">":"</span> ] id <span class="rt">"]"</span>
+
+config       ::= <span class="rt">"("</span> [ config-item ( <span class="rt">","</span> config-item )* ] <span class="rt">")"</span>
+ports        ::= <span class="rt">"{"</span> [ port ( <span class="rt">","</span> port )* ] <span class="rt">"}"</span>
+config-item  ::= key <span class="rt">"="</span> value | clock-sugar | <span class="kw">"configurable"</span>
+
+role         ::= <span class="kw">"pulser"</span> | <span class="kw">"relay"</span> | <span class="kw">"door"</span> | <span class="kw">"spinner"</span> | <span class="kw">"orb"</span>
+edge-tag     ::= <span class="kw">"sig"</span> | <span class="kw">"socket"</span>
+id           ::= WORD                       <span class="cm">; [A-Za-z0-9_]+</span>
+comment      ::= <span class="rt">";"</span> ANY*</code></pre>
+
+<div class="note"><b><code class="inline">#</code> is not a comment marker.</b>
+In the core surface the only comment marker is <code class="inline">;</code>.
+<code class="inline">#</code> belongs to the identity family and is preserved by
+the parser rather than discarded.</div>
+
+<h3>Line regexes, as implemented</h3>
+
+<div class="tbl"><table>
+<thead><tr><th>Line</th><th>Pattern</th></tr></thead>
+<tbody>
+<tr><td>declaration</td><td><code class="inline">^\[(\w+):(\w+)\]\s*(\([^)]*\))?\s*(\{[^}]*\})?$</code></td></tr>
+<tr><td>edge</td><td><code class="inline">^\[(?:\w+:)?(\w+)\]\s*--(\w+)--&gt;\s*\[(?:\w+:)?(\w+)\]$</code></td></tr>
+<tr><td>epoch claim <span class="tier partial">scenario only</span></td><td><code class="inline">^\[epoch:(\d+)\]\s*(.*)$</code></td></tr>
+</tbody></table></div>
+
+<p>The role prefix is <b>optional on an edge endpoint</b> and, when present, is
+not part of the identity — <code class="inline">[relay:r0]</code> and
+<code class="inline">[r0]</code> refer to the same object on an edge line.</p>
+
+<h2 id="roles">Role registry</h2>
+
+<div class="tbl"><table>
+<thead><tr><th>Surface token</th><th>Canonical role</th><th>State schema ref</th><th>Surface status</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">pulser</code></td><td><code class="inline">Pulser</code></td><td><code class="inline">state.pulser.v1</code></td><td><span class="tier core">grounded</span></td></tr>
+<tr><td><code class="inline">relay</code></td><td><code class="inline">Relay</code></td><td><code class="inline">state.relay.v1</code></td><td><span class="tier core">grounded</span></td></tr>
+<tr><td><code class="inline">door</code></td><td><code class="inline">Door</code></td><td><code class="inline">state.door.v1</code></td><td><span class="tier core">grounded</span></td></tr>
+<tr><td><code class="inline">spinner</code></td><td><code class="inline">Spinner</code></td><td><code class="inline">state.spinner.v1</code></td><td><span class="tier core">grounded</span></td></tr>
+<tr><td><code class="inline">orb</code></td><td><code class="inline">Orb</code></td><td><code class="inline">state.orb.v1</code></td><td><span class="tier core">grounded</span></td></tr>
+<tr><td>— none —</td><td><code class="inline">Mailbox</code></td><td><code class="inline">state.mailbox.v1</code></td><td><span class="tier partial">IR-only</span></td></tr>
+</tbody></table></div>
+
+<div class="note warn"><b>Mailbox has no surface spelling.</b> It is
+IR/runtime-grounded — it exists in the canonical IR and the runtime honours it —
+but WRL source cannot declare it and the formatter cannot emit it. It is
+therefore <b>not</b> a sixth writable role, and its presence does not mean the
+async route texture was promoted.</div>
+
+<p>The state schema reference is derived, never written:
+<code class="inline">state.&lt;role lowercased&gt;.v1</code>.</p>
+
+<h2 id="ports">Port signatures</h2>
+
+<p>Frozen per role. The <code class="inline">{…}</code> group on a declaration is
+<b>checked against</b> this table, not defined by it.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Role</th><th>out</th><th>in</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">Pulser</code></td><td><code class="inline">sig_out</code></td><td>—</td></tr>
+<tr><td><code class="inline">Relay</code></td><td><code class="inline">sig_out</code></td><td><code class="inline">sig_in</code></td></tr>
+<tr><td><code class="inline">Door</code></td><td>—</td><td><code class="inline">sig_in</code></td></tr>
+<tr><td><code class="inline">Spinner</code></td><td><code class="inline">socket</code></td><td><code class="inline">sig_in</code></td></tr>
+<tr><td><code class="inline">Orb</code></td><td>—</td><td><code class="inline">pose</code></td></tr>
+<tr><td><code class="inline">Mailbox</code></td><td>—</td><td>—</td></tr>
+</tbody></table></div>
+
+<div class="note"><b>Empty groups are omitted, not emptied.</b> In the canonical
+artifact a Door carries <code class="inline">{"in":["sig_in"]}</code> with
+<i>no</i> <code class="inline">"out"</code> key. Emitting
+<code class="inline">"out":[]</code> produces different bytes and therefore a
+different <code class="inline">sem-</code> id.</div>
+
+<h2 id="edges">Edge kinds</h2>
+
+<div class="tbl"><table>
+<thead><tr><th>Surface tag</th><th>Canonical kind</th><th>Source port</th><th>Destination port</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">--sig--&gt;</code></td><td><code class="inline">SignalWire</code></td><td><code class="inline">sig_out</code></td><td><code class="inline">sig_in</code></td></tr>
+<tr><td><code class="inline">--socket--&gt;</code></td><td><code class="inline">SocketControl</code></td><td><code class="inline">socket</code></td><td><code class="inline">pose</code></td></tr>
+</tbody></table></div>
+
+<p>Legal source roles and destination roles fall out of the port table:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Kind</th><th>Legal sources</th><th>Legal destinations</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">SignalWire</code></td><td>Pulser, Relay</td><td>Relay, Door, Spinner</td></tr>
+<tr><td><code class="inline">SocketControl</code></td><td>Spinner</td><td>Orb</td></tr>
+</tbody></table></div>
+
+<div class="note warn"><b>At most one edge may land on any input port.</b> Fan-out
+is unrestricted; fan-in is <code class="inline">WRL_CONTROLLER_CONFLICT</code>.</div>
+
+<h2 id="config">Configuration schema</h2>
+
+<div class="tbl"><table>
+<thead><tr><th>Role</th><th>Surface keys</th><th>Canonical <code class="inline">static_config</code> keys</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">Pulser</code></td><td><code class="inline">mode</code>, <code class="inline">period</code>, <code class="inline">phase</code>, <code class="inline">epoch</code></td><td><code class="inline">clock</code></td></tr>
+<tr><td><code class="inline">Relay</code></td><td>—</td><td>—</td></tr>
+<tr><td><code class="inline">Door</code></td><td>—</td><td>—</td></tr>
+<tr><td><code class="inline">Spinner</code></td><td><code class="inline">w</code>, <code class="inline">n</code>, <code class="inline">rotor</code>, <code class="inline">configurable</code></td><td><code class="inline">w</code>, <code class="inline">n</code>, <code class="inline">rotor</code>, <code class="inline">configurable</code></td></tr>
+<tr><td><code class="inline">Orb</code></td><td>—</td><td>—</td></tr>
+<tr><td><code class="inline">Mailbox</code> <span class="tier partial">IR-only</span></td><td>—</td><td><code class="inline">w</code>, <code class="inline">cap</code></td></tr>
+</tbody></table></div>
+
+<p>The Pulser is the one role whose surface keys and canonical keys differ: four
+surface fields collapse into a single typed <code class="inline">clock</code>
+tuple.</p>
+
+<h3>Spinner fields</h3>
+
+<div class="tbl"><table>
+<thead><tr><th>Field</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">w</code></td><td>integer</td><td>total bit width of one rotor lane</td></tr>
+<tr><td><code class="inline">n</code></td><td>integer, <code class="inline">n &lt; w</code></td><td>fractional bits; unit = <code class="inline">1 &lt;&lt; n</code></td></tr>
+<tr><td><code class="inline">rotor</code></td><td>4 integers</td><td>quaternion lanes, written <code class="inline">a.b.c.d</code> or a name</td></tr>
+<tr><td><code class="inline">configurable</code></td><td>boolean</td><td>whether the rotor may be rewritten at run time</td></tr>
+</tbody></table></div>
+
+<p>Rotor lanes are written with <b>dots</b> in the core surface
+(<code class="inline">181.0.0.181</code>). The bootstrap surface used commas; that
+spelling is a legacy path.</p>
+
+<h2 id="clocks">Clock vocabulary</h2>
+
+<div class="tbl"><table>
+<thead><tr><th>Sugar</th><th>Explicit surface</th><th>Canonical <code class="inline">clock</code></th></tr></thead>
+<tbody>
+<tr><td><code class="inline">every K</code></td><td><code class="inline">mode=periodic, period=K, phase=0</code></td><td><code class="inline">["periodic", K, 0]</code></td></tr>
+<tr><td><code class="inline">every K, phase P</code></td><td><code class="inline">mode=periodic, period=K, phase=P</code></td><td><code class="inline">["periodic", K, P]</code></td></tr>
+<tr><td><code class="inline">once at E</code></td><td><code class="inline">mode=once, epoch=E</code></td><td><code class="inline">["once", E]</code></td></tr>
+</tbody></table></div>
+
+<p>A clock outside its legal range is
+<code class="inline">WRL_CLOCK_RANGE</code>: <code class="inline">period</code>
+must be at least 1, <code class="inline">phase</code> must be less than
+<code class="inline">period</code>, and <code class="inline">epoch</code> must be
+non-negative.</p>
+
+<h2 id="rotors">Rotor vocabulary</h2>
+
+<p>Named rotors split into two classes, and the distinction is recorded in build
+provenance.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Name</th><th>Lanes at fractional width <code class="inline">n</code></th><th>Class</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">identity</code></td><td><code class="inline">[u, 0, 0, 0]</code></td><td>exact</td></tr>
+<tr><td><code class="inline">reverse_x</code></td><td><code class="inline">[0, u, 0, 0]</code></td><td>exact</td></tr>
+<tr><td><code class="inline">reverse_y</code></td><td><code class="inline">[0, 0, u, 0]</code></td><td>exact</td></tr>
+<tr><td><code class="inline">reverse_z</code></td><td><code class="inline">[0, 0, 0, u]</code></td><td>exact</td></tr>
+<tr><td><code class="inline">quarter_turn_z</code></td><td><code class="inline">[q, 0, 0, q]</code> where <code class="inline">q = round(u/√2)</code></td><td>rounded</td></tr>
+</tbody></table></div>
+
+<p>where <code class="inline">u = 1 &lt;&lt; n</code>. Any other name is
+<code class="inline">WRL_UNSUPPORTED_FEATURE</code>.</p>
+
+<h3>The exact-integer projection</h3>
+
+<p>No floating point is used anywhere. <code class="inline">round(u/√2)</code> is
+computed with integer arithmetic only:</p>
+
+<pre class="code"><code>u      = 1 &lt;&lt; n
+two_uu = 2 * u * u
+q0     = isqrt(two_uu) / 2
+q      = q0 + 1   <span class="cm">when</span>  two_uu &gt; 4*q0*q0 + 4*q0 + 1
+       = q0       <span class="cm">otherwise</span></code></pre>
+
+<div class="tbl"><table>
+<thead><tr><th><code class="inline">n</code></th><th>unit <code class="inline">u</code></th><th><code class="inline">q</code></th></tr></thead>
+<tbody>
+<tr><td>4</td><td>16</td><td>11</td></tr>
+<tr><td>8</td><td>256</td><td>181</td></tr>
+<tr><td>16</td><td>65536</td><td>46341</td></tr>
+</tbody></table></div>
+
+<p>A rounded named rotor carries the provenance policy
+<code class="inline">forge_named_rotor_rne_sym_v1</code>. Exact named rotors carry
+none. <b>Provenance never enters the artifact bytes</b> — it records how a value
+was produced, not what the value is.</p>
+
+<h2 id="sugar">Sugar forms and bounds</h2>
+
+<p>Sugar version <code class="inline">sugar.v2</code>. A source-to-source pre-pass
+in front of the untouched canonical parser.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Form</th><th>Kind</th><th>Expands to</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">every K</code> / <code class="inline">once at E</code></td><td>value</td><td>explicit <code class="inline">mode=…</code> fields</td></tr>
+<tr><td><code class="inline">rotor=&lt;name&gt;</code></td><td>value</td><td>four explicit integer lanes</td></tr>
+<tr><td><code class="inline">[role:base*K]</code></td><td>structural</td><td><code class="inline">base0 … base(K-1)</code>, zero-based</td></tr>
+<tr><td><code class="inline">base*K</code> in an edge endpoint</td><td>structural</td><td>positional pairing across both sides</td></tr>
+<tr><td><code class="inline">[src] --tag--&gt; {a, b, c}</code></td><td>structural</td><td>one edge per listed destination</td></tr>
+</tbody></table></div>
+
+<div class="tbl"><table>
+<thead><tr><th>Bound</th><th>Value</th><th>Violation</th></tr></thead>
+<tbody>
+<tr><td>replication base index</td><td>0</td><td>—</td></tr>
+<tr><td>replication count max</td><td>1024</td><td><code class="inline">WRL_NUMERIC_RANGE</code></td></tr>
+<tr><td>fan-out count max</td><td>1024</td><td><code class="inline">WRL_NUMERIC_RANGE</code></td></tr>
+<tr><td>total expansion max</td><td>65536 lines</td><td><code class="inline">WRL_NUMERIC_RANGE</code></td></tr>
+<tr><td>count literal digits max</td><td>9</td><td><code class="inline">WRL_SUGAR_MALFORMED</code></td></tr>
+</tbody></table></div>
+
+<p>Three decisions worth knowing: replication members are <b>zero-based</b>;
+replicated edges pair <b>positionally</b> and require equal counts on both sides;
+an inline comment on a replicated line attaches to the <b>first</b> emitted
+line.</p>
+
+<div class="note"><b>The law is: no sugar-specific identity.</b> A sugared
+spelling and its explicit twin produce the same canonical bytes and seal to the
+same <code class="inline">sem-</code> id. That is <i>not</i> the claim that
+editing sugar cannot move an id — <code class="inline">sp*3</code> →
+<code class="inline">sp*4</code> is a different program and moves it.</div>
+
+<h2 id="artifact">Canonical artifact</h2>
+
+<p>The canonicalizer produces this record, serializes it as JSON with
+<b>sorted keys</b> and separators <code class="inline">","</code> /
+<code class="inline">":"</code> and no whitespace, then takes SHA-256 of the
+UTF-8 bytes.</p>
+
+<pre class="code"><code>{
+  <span class="kw">"ir_version"</span>: <span class="lit">"1.0"</span>,
+  <span class="kw">"profile_id"</span>: <span class="lit">"forge.world.core.v1"</span>,
+  <span class="kw">"objects"</span>: [
+    { <span class="kw">"object_id"</span>, <span class="kw">"role"</span>, <span class="kw">"ports"</span>, <span class="kw">"state_schema_ref"</span>, <span class="kw">"static_config"</span> }, …
+  ],
+  <span class="kw">"edges"</span>: [ { <span class="kw">"src"</span>, <span class="kw">"dst"</span>, <span class="kw">"kind"</span> }, … ],
+  <span class="kw">"schemas"</span>: {
+    <span class="kw">"runtime_state_schema"</span>: <span class="lit">"RuntimeStateV1"</span>,
+    <span class="kw">"epoch_input_schema"</span>:  <span class="lit">"EpochInputV1"</span>,
+    <span class="kw">"observable_schema"</span>:   <span class="lit">"EpochResultV1"</span>
+  },
+  <span class="kw">"semantic_policies"</span>: {
+    <span class="kw">"rulepack_id"</span>:       <span class="lit">"forge.world.core.rules.v1"</span>,
+    <span class="kw">"admit_policy_id"</span>:   <span class="lit">"admit_candidate_min_firstreceipt_v1"</span>,
+    <span class="kw">"film_schema_id"</span>:    <span class="lit">"film.v0.7"</span>,
+    <span class="kw">"numeric_policy_ids"</span>: [<span class="lit">"POLICY_FORGE"</span>]
+  }
+}</code></pre>
+
+<h3>Canonical ordering</h3>
+
+<div class="tbl"><table>
+<thead><tr><th>Collection</th><th>Sort key</th></tr></thead>
+<tbody>
+<tr><td>objects</td><td><b>identity-first</b>: <code class="inline">(object_id, role)</code></td></tr>
+<tr><td>edges</td><td>natural tuple order over <code class="inline">(src, kind, dst)</code></td></tr>
+<tr><td>JSON keys</td><td>lexicographic, at every depth</td></tr>
+</tbody></table></div>
+
+<p>Because objects sort identity-first, the <b>order you declare things in is
+inert</b>: shuffling declaration lines cannot move the
+<code class="inline">sem-</code> id.</p>
+
+<h2 id="policies">Pinned policy ids</h2>
+
+<div class="tbl"><table>
+<thead><tr><th>Constant</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>IR version</td><td><code class="inline">1.0</code> &nbsp;(mailbox profile: <code class="inline">1.1</code>)</td></tr>
+<tr><td>Profile</td><td><code class="inline">forge.world.core.v1</code></td></tr>
+<tr><td>Rulepack</td><td><code class="inline">forge.world.core.rules.v1</code></td></tr>
+<tr><td>Admit policy</td><td><code class="inline">admit_candidate_min_firstreceipt_v1</code></td></tr>
+<tr><td>Admit policy (mailbox)</td><td><code class="inline">admit_mailbox_deliver_all_v1</code></td></tr>
+<tr><td>Film schema</td><td><code class="inline">film.v0.7</code> &nbsp;(mailbox: <code class="inline">film.v0.7.mailbox.v1</code>)</td></tr>
+<tr><td>Numeric policies</td><td><code class="inline">["POLICY_FORGE"]</code></td></tr>
+<tr><td>Sugar version</td><td><code class="inline">sugar.v2</code></td></tr>
+<tr><td>Named-rotor rounding policy</td><td><code class="inline">forge_named_rotor_rne_sym_v1</code></td></tr>
+<tr><td>Mailbox width max</td><td><code class="inline">32</code></td></tr>
+</tbody></table></div>
+
+<div class="note"><b>A null or empty policy id is a hard error</b>
+(<code class="inline">WRL_UNSEALED_POLICY</code>). Policies are part of the
+semantic artifact; an unset one would let two genuinely different worlds hash to
+the same value.</div>
+
+<h2 id="ladder">Identity ladder</h2>
+
+<div class="tbl"><table>
+<thead><tr><th>Prefix</th><th>Names</th><th>Hash of</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">sem-</code></td><td>SemanticArtifactID</td><td>canonical IR + semantic policies</td></tr>
+<tr><td><code class="inline">bknd-</code></td><td>BackendArtifactID</td><td>the semantic id + the lowering profile</td></tr>
+<tr><td><code class="inline">scen-</code></td><td>ScenarioDigest</td><td>the digest domain of the run inputs</td></tr>
+<tr><td><code class="inline">replay-</code></td><td>ReplayBundleID</td><td>world + scenario together</td></tr>
+<tr><td><code class="inline">bundle-</code></td><td>ForgeBundleID</td><td>a self-contained exported project's canonical bytes</td></tr>
+<tr><td><code class="inline">env-</code></td><td>evaluation environment</td><td>its splits, canonicalized as sorted sets</td></tr>
+</tbody></table></div>
+
+<div class="idline">example &nbsp;<b>sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a</b></div>
+
+<p>Every id is <code class="inline">&lt;prefix&gt;-&lt;64 lowercase hex&gt;</code>,
+SHA-256 over the canonical bytes of the thing named. Nothing else may occupy
+those namespaces.</p>
+
+<h3>What moves an id, and what does not</h3>
+
+<div class="tbl"><table>
+<thead><tr><th>Change</th><th><code class="inline">sem-</code></th></tr></thead>
+<tbody>
+<tr><td>comments, blank lines, indentation, alignment</td><td>inert</td></tr>
+<tr><td>declaration order</td><td>inert</td></tr>
+<tr><td>edge order</td><td>inert</td></tr>
+<tr><td>sugared vs. explicit spelling of the same value</td><td>inert</td></tr>
+<tr><td>presentation: x/y position, colour, curve</td><td>inert</td></tr>
+<tr><td><code class="inline">periods</code> or <code class="inline">[epoch:N]</code> claims</td><td>inert — they are run inputs</td></tr>
+<tr><td>renaming an object</td><td><b>moves</b></td></tr>
+<tr><td>adding or removing an object or edge</td><td><b>moves</b></td></tr>
+<tr><td>reconnecting an edge</td><td><b>moves</b></td></tr>
+<tr><td>any rotor, clock or width value</td><td><b>moves</b></td></tr>
+<tr><td>the profile or any pinned policy id</td><td><b>moves</b></td></tr>
+</tbody></table></div>
+
+<h2 id="codes">Diagnostic codes</h2>
+
+<p>Every rejection is one of these typed codes. Downstream tools branch on the
+code; the detail string is for humans.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Code</th><th>Means</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">WRL_DUPLICATE_ID</code></td><td>a second object claims an id already declared</td></tr>
+<tr><td><code class="inline">WRL_UNKNOWN_ENDPOINT</code></td><td>an edge names an object that was never declared</td></tr>
+<tr><td><code class="inline">WRL_ILLEGAL_PORT_PAIR</code></td><td>an edge asks for a port the role does not have</td></tr>
+<tr><td><code class="inline">WRL_CONTROLLER_CONFLICT</code></td><td>two controllers reach the same input port</td></tr>
+<tr><td><code class="inline">WRL_CLOCK_RANGE</code></td><td>a pulser clock is outside its legal range</td></tr>
+<tr><td><code class="inline">WRL_NUMERIC_RANGE</code></td><td>a numeric field is outside its legal range</td></tr>
+<tr><td><code class="inline">WRL_EPOCH_RANGE</code></td><td>an epoch index is outside the declared run</td></tr>
+<tr><td><code class="inline">WRL_UNSUPPORTED_FEATURE</code></td><td>the construct is outside frozen Semantic IR v1</td></tr>
+<tr><td><code class="inline">WRL_UNSEALED_POLICY</code></td><td>a semantic policy id is null or empty</td></tr>
+<tr><td><code class="inline">WRL_MALFORMED_ARTIFACT</code></td><td>the artifact record has the wrong shape</td></tr>
+<tr><td><code class="inline">WRL_PORT_SIGNATURE</code></td><td>a <code class="inline">{ports}</code> group does not match the frozen signature</td></tr>
+<tr><td><code class="inline">WRL_BAD_LOWERING_PROFILE</code></td><td>a backend lowering profile is half-specified</td></tr>
+<tr><td><code class="inline">WRL_SEALED_IMMUTABLE</code></td><td>something tried to write to a sealed object</td></tr>
+<tr><td><code class="inline">WRL_UNKNOWN_ARTIFACT_FIELD</code></td><td>a sealed record carries an unknown field</td></tr>
+<tr><td><code class="inline">WRL_WORLD_SOURCE_HAS_SCENARIO</code></td><td>run inputs appeared in world source</td></tr>
+<tr><td><code class="inline">WRL_SUGAR_MALFORMED</code></td><td>a sugared spelling could not be expanded</td></tr>
+</tbody></table></div>
+
+<p>A diagnostic carries a code, a human detail, and — where the failure is
+lexical — a <b>line number in the authored source</b>, mapped back through any
+sugar expansion so it refers to what you wrote rather than to generated text.</p>
+
+<h2 id="parsers">Parser entry points</h2>
+
+<div class="tbl"><table>
+<thead><tr><th>Entry point</th><th>Accepts</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">parse_wrl_core(text)</code></td><td>world source only; rejects run inputs with <code class="inline">WRL_WORLD_SOURCE_HAS_SCENARIO</code></td><td><b>normative</b></td></tr>
+<tr><td><code class="inline">parse_wrl_legacy_document(text)</code></td><td>a pre-boundary combined document</td><td>migration bridge</td></tr>
+<tr><td><code class="inline">split_legacy_document(text)</code></td><td>a combined document</td><td>splits it into world + scenario</td></tr>
+</tbody></table></div>
+
+<p>Two forbidden tokens mark a world document as containing run inputs: a line
+beginning <code class="inline">periods&nbsp;</code>, and a line containing
+<code class="inline">[epoch:</code>.</p>
+
+<h2 id="tiers">Stability tiers</h2>
+
+<p>Four tiers. The badge next to a construct anywhere on this site refers to this
+table.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Tier</th><th>Means</th><th>May I build on it?</th></tr></thead>
+<tbody>
+<tr><td><span class="tier core">core</span></td><td>frozen in Core 0.1.2: the family's members are closed and each member's meaning-role is settled</td><td>Yes. The meaning will not change under you.</td></tr>
+<tr><td><span class="tier partial">partial</span></td><td>the notation is frozen, the machinery beneath it exists, but the surface construct is not writable or not complete</td><td>Read it, plan for it, do not depend on the spelling.</td></tr>
+<tr><td><span class="tier exp">experimental</span></td><td>designed in the draft, not frozen; may change shape entirely</td><td>No.</td></tr>
+<tr><td><span class="tier prop">proposed</span></td><td>sketched only; no grounding and no lowering</td><td>No.</td></tr>
+</tbody></table></div>
+
+<div class="note"><b>Freezing a family</b> means the set of members is closed and
+each member's meaning-role is settled. It does <b>not</b> freeze exact glyphs,
+argument grammars, sugar, or edge-case rules — those remain draft until a later
+revision promotes them.</div>
+
+<h3>Where each construct sits today</h3>
+
+<div class="tbl"><table>
+<thead><tr><th>Construct</th><th>Tier</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>Ten construct kinds (closed set)</td><td><span class="tier core">core</span></td><td>frozen §1</td></tr>
+<tr><td>Four reading laws</td><td><span class="tier core">core</span></td><td>frozen §2</td></tr>
+<tr><td>Containers <code class="inline">[ ] ( ) { }</code></td><td><span class="tier core">core</span></td><td>frozen §3</td></tr>
+<tr><td><code class="inline">#</code> <code class="inline">@</code> <code class="inline">?</code></td><td><span class="tier core">core</span></td><td>frozen §4</td></tr>
+<tr><td><code class="inline">*</code> replication-by-position</td><td><span class="tier partial">implemented</span></td><td>bounded surface sugar</td></tr>
+<tr><td><code class="inline">*</code> wildcard match</td><td><span class="tier prop">reserved</span></td><td>no lowering exists</td></tr>
+<tr><td>Route texture <code class="inline">--</code></td><td><span class="tier core">surface-grounded</span></td><td>declarable, emittable, round-trips</td></tr>
+<tr><td>Route texture <code class="inline">~~</code></td><td><span class="tier partial">partial</span></td><td>IR/runtime-grounded; no surface form, no structural edge declaration</td></tr>
+<tr><td>Route texture <code class="inline">==</code></td><td><span class="tier partial">partial</span></td><td>acceptance machinery exists; the construct does not</td></tr>
+<tr><td>Route texture <code class="inline">!!</code></td><td><span class="tier partial">partial</span></td><td>fault <i>state</i> exists; route and supervision do not</td></tr>
+<tr><td>Periods and superdense time</td><td><span class="tier core">core</span></td><td>frozen §6</td></tr>
+<tr><td>Five memory kinds</td><td><span class="tier core">core</span></td><td>frozen §7</td></tr>
+<tr><td>Period cycle, six phases</td><td><span class="tier core">core</span></td><td>frozen §8</td></tr>
+<tr><td>WorldFrame / EventLedger</td><td><span class="tier core">core</span></td><td>frozen §8b</td></tr>
+<tr><td>BuildFilm</td><td><span class="tier prop">proposed</span></td><td>build provenance</td></tr>
+<tr><td>Fact union</td><td><span class="tier core">core</span></td><td>union law only; settlement above it is proposed</td></tr>
+<tr><td><code class="inline">//commit</code></td><td><span class="tier core">grounded</span></td><td>—</td></tr>
+<tr><td><code class="inline">///seal</code></td><td><span class="tier partial">partial</span></td><td>commit grounded; the artifact registry is proposed</td></tr>
+<tr><td><code class="inline">/gate</code></td><td><span class="tier prop">reserved</span></td><td>no capability-gate node kind yet</td></tr>
+<tr><td>Canonicalization &amp; content identity</td><td><span class="tier core">core</span></td><td>frozen §11</td></tr>
+<tr><td>Document boundary</td><td><span class="tier core">normative</span></td><td>§15, new in 0.1.2</td></tr>
+<tr><td>Surface sugar</td><td><span class="tier partial">implemented</span></td><td>battery green, identity-equivalent, not frozen</td></tr>
+<tr><td>Mailbox role</td><td><span class="tier partial">IR-only</span></td><td>not a sixth surface role</td></tr>
+<tr><td>Expression notation, types, generics, numerics</td><td><span class="tier exp">experimental</span></td><td>—</td></tr>
+<tr><td>Effects, capabilities, entropy</td><td><span class="tier exp">experimental</span></td><td>—</td></tr>
+<tr><td>Supervision error ladder</td><td><span class="tier exp">experimental</span></td><td>—</td></tr>
+<tr><td>Streams and backpressure</td><td><span class="tier exp">experimental</span></td><td>—</td></tr>
+<tr><td>Actor behavior blocks</td><td><span class="tier exp">experimental</span></td><td>—</td></tr>
+<tr><td>Evolution and migration</td><td><span class="tier exp">experimental</span></td><td>—</td></tr>
+<tr><td>Podium / ranking</td><td><span class="tier exp">experimental</span></td><td>—</td></tr>
+<tr><td>Static-check catalog</td><td><span class="tier exp">experimental</span></td><td>—</td></tr>
+<tr><td>Execution profiles</td><td><span class="tier exp">experimental</span></td><td>—</td></tr>
+<tr><td>Fragments, stencils, derives, reflection</td><td><span class="tier prop">proposed</span></td><td>frozen as <i>kinds</i> only</td></tr>
+<tr><td>Modules and builds</td><td><span class="tier prop">proposed</span></td><td>—</td></tr>
+<tr><td>Foreign functions</td><td><span class="tier prop">proposed</span></td><td>—</td></tr>
+<tr><td>Distributed settlement above fact-union</td><td><span class="tier prop">proposed</span></td><td>receipts are recognized evidence, never blindly merged</td></tr>
+</tbody></table></div>
+
+<h2 id="api">Browser API</h2>
+
+<p><code class="inline">wrl.js</code> is an ES module: a faithful browser port of
+the identity spine, verified against the reference implementation's canonical
+bytes. It is what the <a href="playground.html">playground</a> runs, which is why
+the ids it shows are real.</p>
+
+<pre class="code"><code><span class="kw">import</span> * <span class="kw">as</span> W <span class="kw">from</span> <span class="lit">"./wrl.js"</span>;
+
+<span class="kw">const</span> r = <span class="kw">await</span> W.sealWorld(source);
+<span class="cm">// { ok: true,  source, desugared, origins, graph, artifact, bytes,</span>
+<span class="cm">//   semanticId: "sem-…", sugared }</span>
+<span class="cm">// { ok: false, code, message, line, locator, fieldPath }</span></code></pre>
+
+<div class="tbl"><table>
+<thead><tr><th>Export</th><th>Does</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">sealWorld(src)</code></td><td>the whole pipeline: desugar → parse → validate → canonicalize → serialize → hash</td></tr>
+<tr><td><code class="inline">desugarCore(src)</code></td><td>the source-to-source pre-pass alone</td></tr>
+<tr><td><code class="inline">desugarCoreMapped(src)</code></td><td>as above, plus authored-line origins for every emitted line</td></tr>
+<tr><td><code class="inline">parseWrlCore(src)</code></td><td>strict world parser; rejects run inputs</td></tr>
+<tr><td><code class="inline">parseWrlLegacyDocument(src)</code></td><td>combined-document migration bridge</td></tr>
+<tr><td><code class="inline">splitLegacyDocument(src)</code></td><td>splits a combined document into world + scenario</td></tr>
+<tr><td><code class="inline">validateGraph(g)</code></td><td>the structural laws, as typed codes</td></tr>
+<tr><td><code class="inline">canonicalizeGraph(g)</code></td><td>sorts and normalizes into canonical form</td></tr>
+<tr><td><code class="inline">graphToIr(g)</code></td><td>the canonical artifact record</td></tr>
+<tr><td><code class="inline">serializeArtifact(a)</code></td><td>canonical JSON bytes, sorted keys, no whitespace</td></tr>
+<tr><td><code class="inline">semanticArtifactId(a)</code></td><td><code class="inline">"sem-" + sha256(bytes)</code></td></tr>
+<tr><td><code class="inline">formatCore(g)</code></td><td>emits a canonical world document — no scenario syntax, ever</td></tr>
+<tr><td><code class="inline">objectPorts(role)</code></td><td>the frozen port projection, empty groups omitted</td></tr>
+<tr><td><code class="inline">namedRotor(name, n)</code></td><td>four exact integer lanes</td></tr>
+<tr><td><code class="inline">namedRotorPolicy(name)</code></td><td>the rounding provenance id, or <code class="inline">null</code> when exact</td></tr>
+<tr><td><code class="inline">roundUOverSqrt2(n)</code></td><td>the integer quarter-turn projection</td></tr>
+<tr><td><code class="inline">selfCheck()</code></td><td>re-seals the pinned demo world and asserts the frozen id</td></tr>
+</tbody></table></div>
+
+<p>Errors are thrown as <code class="inline">WrlError</code> carrying
+<code class="inline">code</code>, <code class="inline">detail</code>,
+<code class="inline">line</code>, <code class="inline">locator</code> and
+<code class="inline">fieldPath</code>.
+<code class="inline">sealWorld</code> catches them and returns them as data.</p>
+
+<div class="btnrow" style="margin-top:44px">
+  <a class="btn" href="playground.html">Try it in the playground →</a>
+  <a class="btn ghost" href="spec.html">Read the frozen spec</a>
+</div>
+
+</div>
+</main>
+
+<footer class="site">
+  <div class="inner">
+    <div>
+      <strong>WallRiderLang</strong>
+      <a href="learn.html">Tutorial</a><br>
+      <a href="guide.html">Language guide</a><br>
+      <a href="reference.html">Reference</a><br>
+      <a href="spec.html">Core 0.1.2 spec</a>
+    </div>
+    <div>
+      <strong>Tools</strong>
+      <a href="playground.html">Browser playground</a><br>
+      <a href="https://github.com/c-u-l8er/WRL">Source on GitHub</a>
+    </div>
+    <div>
+      <strong>Status</strong>
+      Core 0.1.2 — frozen<br>
+      Semantic IR v1 — frozen<br>
+      Sugar — sugar.v2
+    </div>
+    <div style="max-width:32ch">
+      <strong>Colophon</strong>
+      WRL is the authoring language of TRVM Forge. Riders move, walls
+      authorize, films prove.
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Learn WRL in 20 minutes — WallRiderLang</title>
+<meta name="description" content="A hands-on tutorial: build a working WallRiderLang world from an empty file, one construct at a time, and watch its identity move when — and only when — the meaning changes.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="wrl.css">
+<style>
+  .step{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--wire);
+        text-transform:uppercase;font-weight:600;margin-bottom:6px}
+  .idline{font-family:var(--mono);font-size:12px;background:var(--paper-2);
+    border-radius:6px;padding:10px 14px;margin:16px 0;color:var(--ink-soft);
+    word-break:break-all}
+  .idline b{color:var(--wire)}
+  .idline.moved{background:color-mix(in srgb,var(--brass) 16%,var(--paper-2))}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site">
+  <a class="mark" href="./">WallRiderLang<small>WRL CORE 0.1.2 · FROZEN</small></a>
+  <nav>
+    <a href="learn.html" aria-current="page">Learn</a>
+    <a href="guide.html">Guide</a>
+    <a href="reference.html">Reference</a>
+    <a href="spec.html">Spec</a>
+    <a href="playground.html">Playground</a>
+    <a href="https://github.com/c-u-l8er/WRL">GitHub</a>
+  </nav>
+</header>
+
+<main id="main" class="doclayout">
+
+<aside class="toc">
+  <strong>Tutorial</strong>
+  <a href="#why">Why this shape</a>
+  <a href="#read">0 · Read before you write</a>
+  <a href="#profile">1 · Declare the profile</a>
+  <a href="#pulser">2 · A thing that ticks</a>
+  <a href="#wire">3 · Wire it to something</a>
+  <a href="#spinner">4 · Rotation and pose</a>
+  <a href="#seal">5 · Seal it</a>
+  <a href="#inert">6 · What does not move the id</a>
+  <a href="#moves">7 · What does move it</a>
+  <a href="#errors">8 · Break it on purpose</a>
+  <a href="#scenario">9 · The document boundary</a>
+  <a href="#sugar">10 · Sugar</a>
+  <a href="#next">Where to go next</a>
+</aside>
+
+<div class="docbody">
+
+<div class="slot">TUTORIAL</div>
+<h1 style="font-size:clamp(30px,4.4vw,46px);max-width:20ch">WRL in 20 minutes.</h1>
+<p class="lede">You will build one small world from an empty file, seal it, and
+then spend most of the time on the interesting part: watching exactly when its
+identity moves and when it does not. Keep
+<a href="playground.html">the playground</a> open in another tab — every snippet
+here is meant to be pasted into it.</p>
+
+<h2 id="why">Why the language has this shape</h2>
+<p>Before the syntax, one paragraph of motivation, because WRL will look strange
+otherwise.</p>
+
+<p>WRL exists to author <b>worlds whose runs can be proven</b>. Not logged —
+proven. A run produces a <b>film</b>: an ordered, schema-versioned record of what
+happened, and that film is byte-identical no matter which machine produced it or
+how the work was scheduled. For that to be possible, a program cannot be a bag of
+instructions with ambient access to time, memory and the network. It has to be a
+<b>graph</b>: a fixed set of durable identities, a fixed set of connections
+between them, and a fixed cycle that advances them all together.</p>
+
+<p>So WRL's surface is designed to be a readable spelling of a graph, and its
+compiler's first job is to turn your text into the canonical form of that graph.
+Everything else — the identity, the determinism, the ability to swap backends
+without changing meaning — falls out of that one decision.</p>
+
+<div class="note"><b>The architectural rule.</b> WRL surface never lowers
+directly to the runtime. The only sanctioned path is
+<span class="k">source or canvas → canonical semantic graph → Semantic IR →
+runtime</span>. Every surface converges on the same seam, which is why a drawing
+and a document can be the same program.</div>
+
+<h2 id="read">0 · Read before you write</h2>
+<p>Here is a complete WRL world. You are not expected to understand it yet — just
+notice that you can already tell which parts are things, which are settings, and
+which are connections.</p>
+
+<pre class="code"><code><span class="kw">profile</span> forge.world.core.v1
+
+[<span class="kw">pulser</span>:<span class="id">p0</span>](<span class="lit">every 2</span>){<span class="rt">sig_out</span>}
+[<span class="kw">relay</span>:<span class="id">r0</span>]{<span class="rt">sig_in, sig_out</span>}
+[<span class="kw">spinner</span>:<span class="id">sp</span>](<span class="lit">w=16, n=8, rotor=quarter_turn_z, configurable</span>){<span class="rt">sig_in, socket</span>}
+[<span class="kw">orb</span>:<span class="id">ob</span>]{<span class="rt">pose</span>}
+
+[<span class="id">p0</span>] <span class="rt">--sig--&gt;</span> [<span class="id">r0</span>]
+[<span class="id">r0</span>] <span class="rt">--sig--&gt;</span> [<span class="id">sp</span>]
+[<span class="id">sp</span>] <span class="rt">--socket--&gt;</span> [<span class="id">ob</span>]</code></pre>
+
+<p>That readability is not an accident. Three of WRL's four reading laws are
+already doing work here:</p>
+
+<div class="tbl">
+<table>
+  <tr><th>You see</th><th>Law</th><th>It means</th></tr>
+  <tr><td><b>[ ]</b> square brackets</td><td>shape says what a thing is</td><td>a <b>durable identity</b> — something that persists across periods</td></tr>
+  <tr><td><b>( )</b> parentheses</td><td>shape says what a thing is</td><td><b>state</b> — the configuration this identity carries</td></tr>
+  <tr><td><b>{ }</b> braces</td><td>shape says what a thing is</td><td><b>wiring</b> — which ports the identity exposes</td></tr>
+  <tr><td><b>--sig--&gt;</b></td><td>line texture says how it moves</td><td>a <b>solid route</b>: synchronous, in-period, cannot silently drop</td></tr>
+  <tr><td><b>role:name</b></td><td>the colon introduces</td><td>this is a <code class="inline">pulser</code>, and it is called <code class="inline">p0</code></td></tr>
+</table>
+</div>
+
+<p>The fourth law — <i>marks for architecture, words for computation</i> — is why
+those brackets and arrows are punctuation rather than keywords. Structure is
+drawn; work is named.</p>
+
+<h2 id="profile">1 · Declare the profile</h2>
+<p>Start with an empty file and one line.</p>
+
+<pre class="code"><code><span class="kw">profile</span> forge.world.core.v1</code></pre>
+
+<p>A <b>profile</b> declares which frozen registry of roles, edges, policies and
+schemas this world is written against. It is the first thing validated and the
+first thing hashed. There is exactly one profile today, and naming it is not
+optional — a world that does not say what language it is written in cannot be
+given an identity.</p>
+
+<p>Paste that into the playground on its own. It seals. An empty world is still a
+world, and it still has an id.</p>
+
+<h2 id="pulser">2 · A thing that ticks</h2>
+<p>Add a source of signal.</p>
+
+<pre class="code"><code><span class="kw">profile</span> forge.world.core.v1
+
+[<span class="kw">pulser</span>:<span class="id">p0</span>](<span class="lit">every 2</span>){<span class="rt">sig_out</span>}</code></pre>
+
+<p>Read it left to right. <span class="k">[pulser:p0]</span> — a durable identity
+named <code class="inline">p0</code>, playing the <b>Pulser</b> role.
+<span class="k">(every 2)</span> — its state: a clock that fires every second
+period. <span class="k">{sig_out}</span> — its wiring: it exposes one output port
+called <code class="inline">sig_out</code>.</p>
+
+<p>Three things about that brace group are worth knowing now, because they will
+save you time later:</p>
+
+<ul>
+  <li>It is <b>checked, not decorative</b>. A Pulser's frozen port signature is
+  exactly <code class="inline">{sig_out}</code>. Writing
+  <code class="inline">{sig_in}</code>, or <code class="inline">{}</code>, or
+  <code class="inline">{sig_out, socket}</code> is a typed rejection
+  (<code class="inline">WRL_PORT_SIGNATURE</code>). Visible source is never
+  silently ignored.</li>
+  <li>It is <b>optional</b>. Omit the braces entirely and the ports come from the
+  role registry. Include them and they must be right. The language would rather
+  you write nothing than write something false.</li>
+  <li>It carries <b>no meaning of its own</b>. Ports are derived from the role,
+  so the braces are a projection you can choose to show. Adding or removing them
+  does not move the id.</li>
+</ul>
+
+<h3>The five surface roles</h3>
+<p>Core 0.1.2 freezes five roles you can write in text. Each has a fixed port
+signature, and that signature is what makes edge validation structural rather
+than special-cased.</p>
+
+<div class="tbl">
+<table>
+  <tr><th>Role</th><th>In</th><th>Out</th><th>Is</th></tr>
+  <tr><td><b>Pulser</b></td><td>—</td><td>sig_out</td><td>a clock; the only source of signal</td></tr>
+  <tr><td><b>Relay</b></td><td>sig_in</td><td>sig_out</td><td>a pass-through, so signal can travel</td></tr>
+  <tr><td><b>Door</b></td><td>sig_in</td><td>—</td><td>a sink; signal arrives and stops</td></tr>
+  <tr><td><b>Spinner</b></td><td>sig_in</td><td>socket</td><td>rotation: takes signal, drives a pose</td></tr>
+  <tr><td><b>Orb</b></td><td>pose</td><td>—</td><td>the thing that gets moved</td></tr>
+</table>
+</div>
+
+<p>There is a sixth role, <b>Mailbox</b>, in the IR. It has no surface spelling in
+Core 0.1.2 — you cannot type it — so we will leave it until the
+<a href="guide.html#routes">guide</a>.</p>
+
+<h2 id="wire">3 · Wire it to something</h2>
+<p>A pulser on its own does nothing observable. Give it somewhere to go.</p>
+
+<pre class="code"><code><span class="kw">profile</span> forge.world.core.v1
+
+[<span class="kw">pulser</span>:<span class="id">p0</span>](<span class="lit">every 2</span>){<span class="rt">sig_out</span>}
+[<span class="kw">door</span>:<span class="id">d0</span>]{<span class="rt">sig_in</span>}
+
+[<span class="id">p0</span>] <span class="rt">--sig--&gt;</span> [<span class="id">d0</span>]</code></pre>
+
+<p>An edge line names two identities and the tag of the connection between them.
+Core 0.1.2 has exactly two edge kinds:</p>
+
+<div class="tbl">
+<table>
+  <tr><th>You write</th><th>Kind</th><th>Connects</th></tr>
+  <tr><td><code class="inline">--sig--&gt;</code></td><td><b>SignalWire</b></td><td>a <code class="inline">sig_out</code> to a <code class="inline">sig_in</code></td></tr>
+  <tr><td><code class="inline">--socket--&gt;</code></td><td><b>SocketControl</b></td><td>a <code class="inline">socket</code> to a <code class="inline">pose</code></td></tr>
+</table>
+</div>
+
+<p>Edge validation is <b>entirely port-driven</b>. There is no table of "which
+role may connect to which role" — the compiler asks whether the source has the
+required out-port and the destination has the required in-port, and that is the
+whole rule. It is worth pausing on why that is a good design: because the rule is
+structural, a role that has no ports at all (like Mailbox) is automatically
+un-wireable, without anyone writing a special case to forbid it.</p>
+
+<div class="note warn"><b>One controller per port.</b> A node admits <b>at most
+one</b> incoming SignalWire, and at most one incoming SocketControl. Two
+controllers reaching the same input is
+<code class="inline">WRL_CONTROLLER_CONFLICT</code>. This is the constraint that
+makes a world's behaviour a function of its structure rather than of arrival
+order — and it is the one beginners hit first.</div>
+
+<h2 id="spinner">4 · Rotation and pose</h2>
+<p>Now the interesting pair. A <b>Spinner</b> converts arriving signal into
+rotation; an <b>Orb</b> holds the pose that results.</p>
+
+<pre class="code"><code><span class="kw">profile</span> forge.world.core.v1
+
+[<span class="kw">pulser</span>:<span class="id">p0</span>](<span class="lit">every 2</span>){<span class="rt">sig_out</span>}
+[<span class="kw">relay</span>:<span class="id">r0</span>]{<span class="rt">sig_in, sig_out</span>}
+[<span class="kw">spinner</span>:<span class="id">sp</span>](<span class="lit">w=16, n=8, rotor=quarter_turn_z, configurable</span>){<span class="rt">sig_in, socket</span>}
+[<span class="kw">orb</span>:<span class="id">ob</span>]{<span class="rt">pose</span>}
+
+[<span class="id">p0</span>] <span class="rt">--sig--&gt;</span> [<span class="id">r0</span>]
+[<span class="id">r0</span>] <span class="rt">--sig--&gt;</span> [<span class="id">sp</span>]
+[<span class="id">sp</span>] <span class="rt">--socket--&gt;</span> [<span class="id">ob</span>]</code></pre>
+
+<p>The spinner's state has four fields, and they are the first place where WRL's
+insistence on exactness becomes visible.</p>
+
+<div class="tbl">
+<table>
+  <tr><th>Field</th><th>Means</th><th>Constraint</th></tr>
+  <tr><td><b>w</b></td><td>total lane width in bits</td><td><code class="inline">w &gt; 0</code></td></tr>
+  <tr><td><b>n</b></td><td>how many of those bits are fractional</td><td><code class="inline">0 ≤ n ≤ w</code></td></tr>
+  <tr><td><b>rotor</b></td><td>four integer quaternion lanes</td><td>each lane in <code class="inline">[0, 2^w)</code></td></tr>
+  <tr><td><b>configurable</b></td><td>whether a claim may re-rotor it at runtime</td><td>a bare flag</td></tr>
+</table>
+</div>
+
+<p>There are <b>no floating-point numbers anywhere in WRL</b>. A rotor is four
+integers in a fixed-point format the spinner itself declares:
+<code class="inline">w=16, n=8</code> means sixteen bits total, of which eight are
+fractional, so one unit is <code class="inline">1 &lt;&lt; 8 = 256</code>. This is
+not austerity for its own sake — it is the reason two machines can agree on a
+film byte for byte.</p>
+
+<h3>Named rotors, and why one of them is special</h3>
+<p><code class="inline">rotor=quarter_turn_z</code> is sugar. It resolves to four
+explicit integers before the compiler ever sees a graph. Four of the five names
+are <b>exact at any geometry</b>, because their quaternion components are 0 or 1:</p>
+
+<div class="tbl">
+<table>
+  <tr><th>Name</th><th>Lanes at fractional width n</th><th>Exact?</th></tr>
+  <tr><td><code class="inline">identity</code></td><td><code class="inline">2^n . 0 . 0 . 0</code></td><td>yes, at any n</td></tr>
+  <tr><td><code class="inline">reverse_x</code></td><td><code class="inline">0 . 2^n . 0 . 0</code></td><td>yes, at any n</td></tr>
+  <tr><td><code class="inline">reverse_y</code></td><td><code class="inline">0 . 0 . 2^n . 0</code></td><td>yes, at any n</td></tr>
+  <tr><td><code class="inline">reverse_z</code></td><td><code class="inline">0 . 0 . 0 . 2^n</code></td><td>yes, at any n</td></tr>
+  <tr><td><code class="inline">quarter_turn_z</code></td><td><code class="inline">q . 0 . 0 . q</code>, q = round(2^n / √2)</td><td><b>no</b> — policy-governed</td></tr>
+</table>
+</div>
+
+<p>A quarter turn about z has components of √2⁄2, which is irrational and
+therefore not representable. WRL does not paper over this. Instead the projection
+is <b>pinned by a named policy</b>,
+<code class="inline">forge_named_rotor_rne_sym_v1</code>: round each of the two
+equal lanes independently to nearest, with no residual redistribution and no
+renormalization, computed in <b>exact integer arithmetic</b> — never a float.</p>
+
+<div class="tbl">
+<table>
+  <tr><th>n</th><th>q = round(2^n / √2)</th><th>rotor</th></tr>
+  <tr><td>4</td><td>11</td><td><code class="inline">11.0.0.11</code></td></tr>
+  <tr><td>8</td><td>181</td><td><code class="inline">181.0.0.181</code></td></tr>
+  <tr><td>16</td><td>46341</td><td><code class="inline">46341.0.0.46341</code></td></tr>
+</table>
+</div>
+
+<p>The consequence is worth stating plainly: <b>the same name at a different
+<code class="inline">n</code> is a different rotor and therefore a different
+world.</b> That is not a leak in the abstraction — it is the abstraction being
+honest. An approximation's value depends on how much room you gave it, and WRL
+makes you see that in the id.</p>
+
+<h2 id="seal">5 · Seal it</h2>
+<p>Paste the world from step 4 into the playground. You get:</p>
+
+<div class="idline"><b>sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a</b></div>
+
+<p>That is a real <b>SemanticArtifactID</b>. It is produced by a five-step
+pipeline you can follow exactly:</p>
+
+<div class="pipe">
+  <span><b>desugar</b></span><span><b>parse</b></span><span><b>validate</b></span>
+  <span><b>canonicalize</b></span><span><b>serialize</b></span><span><b>sha-256</b></span>
+</div>
+
+<ol>
+  <li><b>Desugar.</b> A source-to-source pre-pass rewrites
+  <code class="inline">every 2</code> to
+  <code class="inline">mode=periodic, period=2, phase=0</code> and
+  <code class="inline">quarter_turn_z</code> to
+  <code class="inline">181.0.0.181</code>. After this step there is no sugar
+  left.</li>
+  <li><b>Parse.</b> The strict world mouth builds a graph — objects and edges,
+  nothing else.</li>
+  <li><b>Validate.</b> Closed roles, unique well-formed ids, closed edge kinds,
+  declared endpoints, legal port pairs, one controller per port, every numeric
+  field in range. Each failure has a stable machine-readable code.</li>
+  <li><b>Canonicalize.</b> Objects are sorted identity-first by
+  <code class="inline">(object_id, role)</code>; edges by
+  <code class="inline">(kind, src, dst)</code>. Declaration order is now
+  gone.</li>
+  <li><b>Serialize and hash.</b> Sorted-key JSON with compact separators, then
+  SHA-256, then the <code class="inline">sem-</code> prefix.</li>
+</ol>
+
+<p>Every step is a pure function. There is no clock, no randomness, no
+environment lookup, and no build timestamp anywhere in that chain — which is why
+the id is the same everywhere.</p>
+
+<h2 id="inert">6 · What does <i>not</i> move the identity</h2>
+<p>This is the half of the story that makes WRL comfortable to work in. Try each
+of these in the playground and watch the id stay put.</p>
+
+<div class="tbl">
+<table>
+  <tr><th>Change</th><th>Id</th><th>Because</th></tr>
+  <tr><td>Reordering declarations</td><td>same</td><td>canonicalization sorts identity-first</td></tr>
+  <tr><td>Putting edges before nodes</td><td>same</td><td>the graph is a set, not a script</td></tr>
+  <tr><td>Extra whitespace or blank lines</td><td>same</td><td>layout never reaches the graph</td></tr>
+  <tr><td>Adding or editing <code class="inline">;</code> comments</td><td>same</td><td>comments are lexical</td></tr>
+  <tr><td>Adding or removing <code class="inline">{ports}</code></td><td>same</td><td>ports derive from the role</td></tr>
+  <tr><td>Writing sugar instead of its explicit twin</td><td>same</td><td>sugar is gone before a graph exists</td></tr>
+  <tr><td>Moving a box on a canvas</td><td>same</td><td>position is presentation, not semantics</td></tr>
+  <tr><td>Switching the backend counter encoding</td><td>same</td><td>that moves the <i>Backend</i>ArtifactID instead</td></tr>
+</table>
+</div>
+
+<p>The last two are the ones that matter in practice. Because presentation and
+backend both live outside the semantic artifact, you can redesign a diagram or
+retarget a compiler without a single downstream consumer noticing — and you can
+say so with a hash rather than a promise.</p>
+
+<h2 id="moves">7 · What <i>does</i> move it</h2>
+<p>Exactly one thing: a change in meaning.</p>
+
+<div class="tbl">
+<table>
+  <tr><th>Change</th><th>Id</th></tr>
+  <tr><td>Renaming an object</td><td><b>moves</b> — identity is part of the graph</td></tr>
+  <tr><td>Adding, removing or rerouting an edge</td><td><b>moves</b></td></tr>
+  <tr><td>Changing a rotor, a clock, a width</td><td><b>moves</b></td></tr>
+  <tr><td>Adding or removing the <code class="inline">configurable</code> flag</td><td><b>moves</b></td></tr>
+  <tr><td>Changing <code class="inline">n</code> under a policy-governed rotor</td><td><b>moves</b> — the projection changes</td></tr>
+  <tr><td>Declaring a Mailbox anywhere in the world</td><td><b>moves</b> — the whole semantic surface shifts to v1.1</td></tr>
+</table>
+</div>
+
+<p>Try it. Change <code class="inline">quarter_turn_z</code> to
+<code class="inline">identity</code>:</p>
+
+<div class="idline moved">sem-<b>…a different 64 hex digits…</b></div>
+
+<p>Change it back and the original id returns, byte for byte. Identity in WRL is
+a function, not a counter — there is no "version" that only goes up, and no state
+to get out of sync.</p>
+
+<h2 id="errors">8 · Break it on purpose</h2>
+<p>WRL's error behaviour is a feature, so it is worth meeting deliberately rather
+than by accident. Every rejection carries a <b>stable machine code</b>, and no
+rejection is ever a warning that proceeds anyway.</p>
+
+<h3>Two controllers on one port</h3>
+<pre class="code"><code>[<span class="kw">pulser</span>:<span class="id">p0</span>](<span class="lit">every 2</span>){<span class="rt">sig_out</span>}
+[<span class="kw">pulser</span>:<span class="id">p1</span>](<span class="lit">every 3</span>){<span class="rt">sig_out</span>}
+[<span class="kw">relay</span>:<span class="id">r0</span>]{<span class="rt">sig_in, sig_out</span>}
+
+[<span class="id">p0</span>] <span class="rt">--sig--&gt;</span> [<span class="id">r0</span>]
+[<span class="id">p1</span>] <span class="rt">--sig--&gt;</span> [<span class="id">r0</span>]   <span class="bad">; WRL_CONTROLLER_CONFLICT</span></code></pre>
+
+<h3>A port that does not exist</h3>
+<pre class="code"><code>[<span class="kw">door</span>:<span class="id">d0</span>]{<span class="rt">sig_in</span>}
+[<span class="kw">orb</span>:<span class="id">ob</span>]{<span class="rt">pose</span>}
+
+[<span class="id">d0</span>] <span class="rt">--sig--&gt;</span> [<span class="id">ob</span>]   <span class="bad">; WRL_ILLEGAL_PORT_PAIR — a Door has no sig_out</span></code></pre>
+
+<h3>A texture the runtime does not implement</h3>
+<pre class="code"><code>[<span class="id">p0</span>] <span class="bad">~~sig~~&gt;</span> [<span class="id">d0</span>]   <span class="bad">; WRL_UNSUPPORTED_FEATURE</span></code></pre>
+
+<p>That last one deserves comment, because it is the clearest example of how this
+language handles its own incompleteness. The async texture is <b>frozen in the
+notation</b> — the spec reserves the spelling and says what it will mean. It is
+<b>not implemented</b> in the runtime. So rather than lowering it to something
+approximate and hoping, the compiler refuses and tells you which frozen tier the
+construct sits in. There is no speculative lowering anywhere in WRL.</p>
+
+<div class="note"><b>The rule behind the errors.</b> An operation enforces only
+its own precondition; the <b>seal</b> judges structural legality. A surface
+expansion that produces an illegal graph is not blocked at expansion time — it
+reaches the seal and is rejected there with the ordinary typed code. That keeps
+each layer small and keeps every structural rule in exactly one place.</div>
+
+<h2 id="scenario">9 · The document boundary</h2>
+<p>Try adding a line like this to a world:</p>
+
+<pre class="code"><code><span class="bad">periods 7</span>
+<span class="bad">[epoch:3] SetRotor sp 181.0.0.181</span></code></pre>
+
+<p>You get <code class="inline">WRL_WORLD_SOURCE_HAS_SCENARIO</code>. This looks
+like pedantry and is actually the most load-bearing rule in the language.</p>
+
+<p><b>A world and its run inputs are different documents.</b> The world is the
+structure: what exists and how it is connected. The run inputs — how many periods
+to run, and which claims arrive at which epoch — are a separate
+<b>ScenarioV1</b>, with its own identity (<code class="inline">scen-</code>).</p>
+
+<p>Keeping them apart is what lets you say something precise and useful: <i>I ran
+the same world against a hundred different scenarios.</i> If run inputs could
+leak into the world document, that sentence would be unverifiable, because every
+scenario would silently produce a different world id. The boundary is enforced
+lexically, and it is a typed rejection rather than a silent acceptance,
+specifically so that nobody can drift across it by accident.</p>
+
+<div class="note"><b>What binds them.</b> A world id and a scenario digest
+together produce a <code class="inline">replay-</code> ReplayBundleID. Editing the
+world moves the bundle id and leaves the scenario digest untouched — the two
+halves stay independently addressable, which is exactly what you want when
+comparing runs.</div>
+
+<h2 id="sugar">10 · Sugar, and the law it obeys</h2>
+<p>WRL's sugar is deliberately small, and it obeys a rule stricter than most
+languages bother with.</p>
+
+<h3>Value sugar</h3>
+<div class="tbl">
+<table>
+  <tr><th>Sugared</th><th>Explicit</th></tr>
+  <tr><td><code class="inline">(every 2)</code></td><td><code class="inline">(mode=periodic, period=2, phase=0)</code></td></tr>
+  <tr><td><code class="inline">(every 4, phase 1)</code></td><td><code class="inline">(mode=periodic, period=4, phase=1)</code></td></tr>
+  <tr><td><code class="inline">(once at 5)</code></td><td><code class="inline">(mode=once, epoch=5)</code></td></tr>
+  <tr><td><code class="inline">rotor=identity</code> at n=8</td><td><code class="inline">rotor=256.0.0.0</code></td></tr>
+</table>
+</div>
+
+<h3>Structural sugar</h3>
+<p><code class="inline">*</code> mints a group by position, zero-based:</p>
+<pre class="code"><code>[<span class="kw">spinner</span>:<span class="id">sp*3</span>](<span class="lit">w=8, n=4, rotor=identity</span>){<span class="rt">sig_in, socket</span>}
+
+<span class="cm">; becomes sp0, sp1, sp2 — three explicit declarations</span></code></pre>
+
+<p><code class="inline">{...}</code> on an edge line fans out to each member,
+and <code class="inline">*</code> on both endpoints pairs positionally with equal
+counts required:</p>
+<pre class="code"><code>[<span class="id">p0</span>] <span class="rt">--sig--&gt;</span> {[<span class="id">a</span>], [<span class="id">b</span>]}   <span class="cm">; two edges</span>
+[<span class="id">p*3</span>] <span class="rt">--sig--&gt;</span> [<span class="id">d*3</span>]      <span class="cm">; p0→d0, p1→d1, p2→d2</span></code></pre>
+
+<h3>The law</h3>
+<p><b>There is no sugar-specific identity.</b> Desugaring is not exempt from
+identity — it is <i>upstream</i> of it. Because the sugar is gone before a graph
+exists, no separate id can be minted for the sugared spelling, and none can be
+added later without breaking the pre-pass.</p>
+
+<p>Note what that does not claim. It is not the stronger and false statement that
+a sugar edit cannot change an id. Changing <code class="inline">sp*3</code> to
+<code class="inline">sp*4</code> changes the program and moves the id, exactly as
+writing the fourth spinner out by hand would.</p>
+
+<div class="note warn"><b>Expansion has bounds, enforced before allocation.</b>
+A pre-pass that turns one line into N is a denial-of-service surface, so
+replication is capped at 1024 members, fan-out at 1024, and total emitted lines
+at 65536 — and the count is checked <i>before</i> any list is built. These are
+<b>surface-tooling</b> limits on what you may spell, not limits on what a graph
+may contain. A world with five thousand spinners is perfectly legal; it just
+cannot be written with one <code class="inline">*</code>.</div>
+
+<h2 id="next">Where to go next</h2>
+<p>You now know the whole of WRL Core 0.1.2's text surface: one profile, five
+roles, two edge kinds, one config group per role, two sugar tiers, and the
+document boundary. That is genuinely all of the frozen core.</p>
+
+<div class="grid g3" style="margin-top:26px">
+  <a class="card link" href="guide.html"><span class="n">NEXT</span>
+    <h3>The complete guide</h3>
+    <p>The other nine construct kinds, the memory kinds, the execution model, and
+    which parts of the design are still ahead of the runtime.</p></a>
+  <a class="card link" href="reference.html"><span class="n">KEEP OPEN</span>
+    <h3>Reference tables</h3>
+    <p>Ports, config keys, every error code, the sugar forms, the identity ladder,
+    the stability tiers.</p></a>
+  <a class="card link" href="spec.html"><span class="n">AUTHORITY</span>
+    <h3>The frozen spec</h3>
+    <p>Core 0.1.2 itself. When the guide and the spec disagree about what is
+    settled, the spec wins.</p></a>
+</div>
+
+</div>
+</main>
+
+<footer class="site">
+  <div class="inner">
+    <div><strong>WallRiderLang</strong>
+      <a href="learn.html">Tutorial</a><br><a href="guide.html">Language guide</a><br>
+      <a href="reference.html">Reference</a><br><a href="spec.html">Core 0.1.2 spec</a></div>
+    <div><strong>Tools</strong>
+      <a href="playground.html">Browser playground</a><br>
+      <a href="https://github.com/c-u-l8er/WRL">Source on GitHub</a></div>
+    <div><strong>Status</strong>Core 0.1.2 — frozen<br>Semantic IR v1 — frozen<br>Sugar — sugar.v2</div>
+  </div>
+</footer>
+</body>
+</html>

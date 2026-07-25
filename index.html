@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WallRiderLang — a spatial actor language whose meaning is a graph</title>
+<meta name="description" content="WallRiderLang (WRL) is a spatial actor language. Programs are durable identities in motion along textured routes, separated by boundaries that gate, commit and seal. The surface reads like a route map; the meaning is a precise, canonicalizable graph with a content-addressed identity.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="wrl.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site">
+  <a class="mark" href="./">WallRiderLang<small>WRL CORE 0.1.2 · FROZEN</small></a>
+  <nav>
+    <a href="learn.html">Learn</a>
+    <a href="guide.html">Guide</a>
+    <a href="reference.html">Reference</a>
+    <a href="spec.html">Spec</a>
+    <a href="playground.html">Playground</a>
+    <a href="https://github.com/c-u-l8er/WRL">GitHub</a>
+  </nav>
+</header>
+
+<main id="main">
+
+<!-- ============================================================== hero -->
+<section class="machine" style="padding-top:96px;padding-bottom:88px">
+  <div class="inner">
+    <div class="slot">A SPATIAL ACTOR LANGUAGE</div>
+    <h1>The surface reads like a route map. The meaning is a graph.</h1>
+    <p class="lede">A WallRiderLang program is a graph of <b>durable identities</b>
+    connected by <b>textured routes</b> and separated by <b>boundaries</b>. The
+    name is literal: programs are made of <b>riders</b> — identities in motion
+    along routes — and <b>walls</b> — the boundaries that gate, commit, and seal
+    what they do.</p>
+
+    <div class="dual" style="margin-top:38px">
+      <div>
+        <div class="pane-cap">You write this</div>
+<pre class="code"><code><span class="cm">; a signal, a rotation, a pose</span>
+<span class="kw">profile</span> forge.world.core.v1
+
+[<span class="kw">pulser</span>:<span class="id">p0</span>](<span class="lit">every 2</span>){<span class="rt">sig_out</span>}
+[<span class="kw">relay</span>:<span class="id">r0</span>]{<span class="rt">sig_in, sig_out</span>}
+[<span class="kw">spinner</span>:<span class="id">sp</span>](<span class="lit">w=16, n=8, rotor=quarter_turn_z, configurable</span>){<span class="rt">sig_in, socket</span>}
+[<span class="kw">orb</span>:<span class="id">ob</span>]{<span class="rt">pose</span>}
+
+[<span class="id">p0</span>] <span class="rt">--sig--&gt;</span> [<span class="id">r0</span>]
+[<span class="id">r0</span>] <span class="rt">--sig--&gt;</span> [<span class="id">sp</span>]
+[<span class="id">sp</span>] <span class="rt">--socket--&gt;</span> [<span class="id">ob</span>]</code></pre>
+      </div>
+      <div>
+        <div class="pane-cap">It means exactly this</div>
+<pre class="code" style="line-height:1.7"><code>SemanticArtifactID
+  <span class="kw">sem-8ae91fe9cbc5fd08…67429ecfe4a</span>
+
+<span class="cm">; a content hash of the canonical graph.
+; whitespace, comment, declaration order
+; and sugar spelling are all inert.
+; change the rotor and it moves.
+; recompile on any machine — same id.</span></code></pre>
+        <p style="font-size:16px;margin-top:14px;color:#9FB8AE">Every WRL world
+        has one. That id is the same on your laptop, in CI, and in the archive
+        five years from now.
+        <a href="playground.html">Compute it yourself →</a></p>
+      </div>
+    </div>
+
+    <div class="btnrow">
+      <a class="btn" href="learn.html">Learn WRL in 20 minutes</a>
+      <a class="btn ghost" href="playground.html">Open the playground</a>
+      <a class="btn ghost" href="spec.html">Read the frozen spec</a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ the creed -->
+<section>
+  <div class="inner">
+    <div class="slot">TEN CONSTRUCT KINDS · A CLOSED SET</div>
+    <h2>Every kind of thing a program can be, and what it is for.</h2>
+    <p class="lede">Most languages give you one universal construct and ask you
+    to encode everything else in it. WRL names ten, freezes the list, and gives
+    each a distinct shape on the surface so you can read a program's
+    architecture before you read its logic.</p>
+
+    <div class="grid g2" style="margin-top:34px">
+      <div class="card"><span class="n">01 — 02</span>
+        <h3>Functions calculate. Actors persist.</h3>
+        <p>A <code class="inline">function</code> is pure and returns. An
+        <code class="inline">actor</code> is a durable identity with state that
+        survives between periods. The difference is visible in the shape, not
+        buried in a signature.</p></div>
+      <div class="card"><span class="n">03 — 04</span>
+        <h3>Routes communicate. Walls authorize.</h3>
+        <p>A <code class="inline">route</code> carries a message from one
+        identity to another, and its <b>line texture</b> says how it may fail. A
+        <code class="inline">wall</code> is a boundary — nothing crosses it
+        without being gated, committed, or sealed.</p></div>
+      <div class="card"><span class="n">05 — 06</span>
+        <h3>Periods order. Fragments carry code.</h3>
+        <p>A <code class="inline">period</code> is the unit of time: one full
+        turn of the cycle. A <code class="inline">fragment</code> is a piece of
+        code addressed as data, so a program can carry the thing it is about to
+        run.</p></div>
+      <div class="card"><span class="n">07 — 08</span>
+        <h3>Stencils construct. Derives transform.</h3>
+        <p>A <code class="inline">stencil</code> builds graphs from a pattern; a
+        <code class="inline">derive</code> transforms a typed graph into another
+        typed graph. Metaprogramming with a type discipline, not string
+        splicing.</p></div>
+      <div class="card"><span class="n">09</span>
+        <h3>Films prove what occurred.</h3>
+        <p>A <code class="inline">film</code> is the committed record of a run —
+        an ordered, schema-versioned event ledger. It is not a log you enable
+        for debugging; it is the output.</p></div>
+      <div class="card"><span class="n">10</span>
+        <h3>Hashes identify what was built.</h3>
+        <p>A <code class="inline">hash</code> names a thing by its content.
+        Worlds, scenarios, replay bundles and export bundles each sit on a rung
+        of one identity ladder.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ====================================================== reading laws -->
+<section class="machine">
+  <div class="inner">
+    <div class="slot">FOUR READING LAWS</div>
+    <h2>You can learn to read WRL before you can write it.</h2>
+    <p class="lede">The notation is designed to be scanned. Four laws cover
+    nearly all of it, and they hold everywhere in the language.</p>
+
+    <div class="grid g4" style="margin-top:34px">
+      <div class="card"><span class="n">LAW 1</span>
+        <h3>Shape says what a thing is</h3>
+        <p><code class="inline">[x]</code> is a durable identity.
+        <code class="inline">(x)</code> is state.
+        <code class="inline">{x}</code> is wiring. You never have to guess which
+        of the three you are looking at.</p></div>
+      <div class="card"><span class="n">LAW 2</span>
+        <h3>Line texture says how it moves</h3>
+        <p><code class="inline">--x--&gt;</code> solid,
+        <code class="inline">~~x~~&gt;</code> async,
+        <code class="inline">==x==&gt;</code> verified,
+        <code class="inline">!!x!!&gt;</code> fault. The failure mode is drawn
+        into the arrow.</p></div>
+      <div class="card"><span class="n">LAW 3</span>
+        <h3>The colon introduces, the slash bounds</h3>
+        <p><code class="inline">role:name</code> introduces a thing.
+        <code class="inline">/gate</code>, <code class="inline">//commit</code>,
+        <code class="inline">///seal</code> bound it. More slashes, stronger
+        boundary.</p></div>
+      <div class="card"><span class="n">LAW 4</span>
+        <h3>Marks for architecture, words for computation</h3>
+        <p>Punctuation carries structure — <code class="inline">#</code>
+        content, <code class="inline">@</code> place,
+        <code class="inline">?</code> pattern. Words carry the actual work. The
+        two never compete for the same job.</p></div>
+    </div>
+
+    <div class="note" style="margin-top:38px"><b>Honesty note.</b> Of the four
+    route textures, only the solid <code class="inline">--x--&gt;</code> is
+    fully grounded in the current runtime. Async, verified and fault routes are
+    <span class="tier partial">partial</span> — the notation is frozen, the
+    execution semantics are not. This site labels every construct with its real
+    status; nothing here is aspirational without saying so.
+    <a href="reference.html#tiers">See the full tier table →</a></div>
+  </div>
+</section>
+
+<!-- ====================================================== the architectural rule -->
+<section>
+  <div class="inner">
+    <div class="slot">THE ARCHITECTURAL RULE</div>
+    <h2>WRL never lowers straight to the runtime.</h2>
+    <p class="lede">This is section zero of the frozen spec and the reason the
+    identity story works at all. There is exactly one sanctioned path from
+    surface to execution, and every surface — text, canvas, editor gesture —
+    converges on the same seam.</p>
+
+    <div class="pipe">
+      <span><b>WRL source</b> or canvas</span>
+      <span>canonical semantic <b>graph</b></span>
+      <span><b>Forge Semantic IR v1</b></span>
+      <span>compile plan</span>
+      <span>runtime reduction</span>
+      <span><b>Film</b> + identity</span>
+    </div>
+
+    <p>Because the canonical graph sits in the middle, two things become true
+    that are normally very hard. First, <b>a drawing and a document are the same
+    program</b> — moving a box on a canvas cannot change what a world means,
+    because position never reaches the graph. Second, <b>identity is decidable</b>
+    — the graph canonicalizes to bytes, and the bytes hash.</p>
+
+    <div class="note"><b>The determinism property.</b> Given the same initial
+    configuration and the same sequence of external observations, the committed
+    film is <b>byte-identical across any hardware scheduling</b>. Not
+    "deterministic modulo floating point". Byte-identical.</div>
+
+    <h3>What that buys you</h3>
+    <ul>
+      <li><b>Reproducible builds by construction.</b> A world's id is a pure
+      function of its meaning, so two people who wrote the same program in
+      different orders, with different spacing and different sugar, get the same
+      id.</li>
+      <li><b>Backend swaps that are provably inert.</b> Switching a counter from
+      one-hot to binary moves the <i>Backend</i>ArtifactID and leaves the
+      <i>Semantic</i>ArtifactID untouched. The split makes the claim checkable
+      rather than aspirational.</li>
+      <li><b>Verification without trust.</b> A run ships its film and its ids.
+      Anyone can re-derive both from the source.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ====================================================== period cycle -->
+<section class="machine">
+  <div class="inner">
+    <div class="slot">THE PERIOD CYCLE · FROZEN</div>
+    <h2>Six phases, in this order, forever.</h2>
+    <p class="lede">Time in WRL is not a wall clock. It is a <b>period</b>: one
+    complete turn of a six-phase cycle. Every period runs all six, in the same
+    order, and nothing may run out of phase.</p>
+
+    <div class="pipe" style="margin-top:30px">
+      <span><b>OBSERVE</b></span><span><b>ACCEPT</b></span><span><b>MAP</b></span>
+      <span><b>COMMIT</b></span><span><b>REACT</b></span><span><b>FILM</b></span>
+    </div>
+
+    <div class="tbl">
+      <table>
+        <tr><th>Phase</th><th>What happens</th><th>Why it is separate</th></tr>
+        <tr><td><b>OBSERVE</b></td><td>Signed facts cross the effect walls into the world frame.</td><td>The only point where the outside gets in — so the input sequence is a nameable thing.</td></tr>
+        <tr><td><b>ACCEPT</b></td><td>Claims are admitted or refused under the pinned admit policy.</td><td>Admission is a policy decision, not an accident of arrival order.</td></tr>
+        <tr><td><b>MAP</b></td><td>Accepted facts are merged into the fact lattice.</td><td>Merge is total and order-independent, so concurrent writers cannot diverge.</td></tr>
+        <tr><td><b>COMMIT</b></td><td>The frame is sealed; receipts are minted.</td><td>After this point the period's truth cannot change.</td></tr>
+        <tr><td><b>REACT</b></td><td>Actors run and emit for the next period.</td><td>Reaction reads committed state only — never a half-built frame.</td></tr>
+        <tr><td><b>FILM</b></td><td>The event ledger for the period is written.</td><td>The proof is produced by the cycle, not bolted on afterwards.</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ====================================================== identity ladder -->
+<section>
+  <div class="inner">
+    <div class="slot">THE IDENTITY LADDER</div>
+    <h2>Six rungs, and each one names a different question.</h2>
+    <p class="lede">Most systems have one hash and overload it. WRL splits
+    identity by what changed, so that when an id moves you already know which
+    kind of thing moved.</p>
+
+    <div class="tbl">
+      <table>
+        <tr><th>Prefix</th><th>Names</th><th>Moves when</th></tr>
+        <tr><td><b>sem-</b></td><td>SemanticArtifactID — the world's meaning</td><td>the graph changes: a role, a wire, a rotor, a clock</td></tr>
+        <tr><td><b>bknd-</b></td><td>BackendArtifactID — meaning + lowering profile</td><td>the backend encoding or compiler changes</td></tr>
+        <tr><td><b>scen-</b></td><td>ScenarioDigest — the run inputs</td><td>periods or claim batches change (never the world)</td></tr>
+        <tr><td><b>replay-</b></td><td>ReplayBundleID — world bound to scenario</td><td>either side of the binding moves</td></tr>
+        <tr><td><b>bundle-</b></td><td>ForgeBundleID — a self-contained export</td><td>anything in the exported closure changes</td></tr>
+        <tr><td><b>env-</b></td><td>Environment id — an evaluation environment</td><td>splits or environment definition change</td></tr>
+      </table>
+    </div>
+
+    <div class="note"><b>The document boundary.</b> A world document and its run
+    inputs are different documents. <code class="inline">periods</code> and
+    <code class="inline">[epoch:N]</code> claims are <b>ScenarioV1</b> — they
+    never enter a SemanticArtifactID. Writing them in world source is a typed
+    rejection (<code class="inline">WRL_WORLD_SOURCE_HAS_SCENARIO</code>), not a
+    silent acceptance. That single rule is what lets you re-run one world across
+    a hundred scenarios and still say honestly that it is the same world.</div>
+  </div>
+</section>
+
+<!-- ====================================================== the sugar law -->
+<section class="machine">
+  <div class="inner">
+    <div class="slot">SUGAR, WITHOUT THE USUAL LIE</div>
+    <h2>Convenience that cannot fork your identity.</h2>
+    <p class="lede">WRL has surface sugar — named rotors, concise clocks,
+    replication, fan-out. It also has an unusually strict rule about it.</p>
+
+    <div class="dual">
+      <div>
+        <div class="pane-cap">Sugared</div>
+<pre class="code"><code>[<span class="kw">pulser</span>:<span class="id">p0</span>](<span class="lit">every 2</span>)
+[<span class="kw">spinner</span>:<span class="id">sp</span>](<span class="lit">w=16, n=8,
+    rotor=quarter_turn_z</span>)</code></pre>
+      </div>
+      <div>
+        <div class="pane-cap">Its explicit twin</div>
+<pre class="code"><code>[<span class="kw">pulser</span>:<span class="id">p0</span>](<span class="lit">mode=periodic, period=2, phase=0</span>)
+[<span class="kw">spinner</span>:<span class="id">sp</span>](<span class="lit">w=16, n=8,
+    rotor=181.0.0.181</span>)</code></pre>
+      </div>
+    </div>
+
+    <p style="margin-top:22px"><b>These seal to identical bytes.</b> There is no
+    sugar-specific identity, because desugaring is a source-to-source pre-pass
+    that runs <i>before</i> a graph exists. The sugar is gone by the time
+    anything can be hashed, so no separate id can be minted for the sugared
+    spelling — and none can be added later without breaking the pre-pass.</p>
+
+    <p>Note carefully what that does <i>not</i> claim. It does not say a sugar
+    edit is harmless: changing <code class="inline">quarter_turn_z</code> to
+    <code class="inline">identity</code> changes the program and moves the id,
+    exactly as the explicit spelling would. And because
+    <code class="inline">quarter_turn_z</code> is irrational, its integer
+    projection depends on the spinner's fractional width — so the same name at a
+    different <code class="inline">n</code> is a different rotor and a different
+    world. The projection is pinned by a named policy computed in exact integer
+    arithmetic, never a float.</p>
+  </div>
+</section>
+
+<!-- ====================================================== where to go -->
+<section>
+  <div class="inner">
+    <div class="slot">START HERE</div>
+    <h2>Four doors, depending on how you like to learn.</h2>
+    <div class="grid g2" style="margin-top:30px">
+      <a class="card link" href="learn.html"><span class="n">TUTORIAL</span>
+        <h3>WRL in 20 minutes</h3>
+        <p>Build one working world from an empty file, one construct at a time,
+        and watch its identity move when — and only when — the meaning
+        changes.</p></a>
+      <a class="card link" href="guide.html"><span class="n">GUIDE</span>
+        <h3>The complete language guide</h3>
+        <p>Every notation, every construct kind, the memory kinds, the execution
+        model, and the parts of the design that are still ahead of the
+        runtime.</p></a>
+      <a class="card link" href="reference.html"><span class="n">REFERENCE</span>
+        <h3>Tables you will actually keep open</h3>
+        <p>Roles, ports, config keys, edge kinds, every typed error code, the
+        sugar forms, the identity ladder, the stability tiers.</p></a>
+      <a class="card link" href="playground.html"><span class="n">PLAYGROUND</span>
+        <h3>Seal a world in your browser</h3>
+        <p>The real identity spine, ported to JavaScript. Parse, desugar,
+        validate, canonicalize and hash — no server, no account, real ids.</p></a>
+    </div>
+
+    <div class="note warn" style="margin-top:40px"><b>What WRL is not, yet.</b>
+    WallRiderLang is a frozen <i>core</i> with a much larger design draft around
+    it. The core — five surface roles, two edge kinds, one profile, the six-phase
+    cycle, the identity ladder — is implemented, property-tested and shipping
+    inside TRVM Forge. The wider language (expression notation, capabilities,
+    supervisors, stencils, derives) is
+    <span class="tier exp">experimental</span> or
+    <span class="tier prop">proposed</span>. Read
+    <a href="reference.html#tiers">the tier table</a> before you build on
+    anything.</div>
+  </div>
+</section>
+
+</main>
+
+<footer class="site">
+  <div class="inner">
+    <div>
+      <strong>WallRiderLang</strong>
+      <a href="learn.html">Tutorial</a><br>
+      <a href="guide.html">Language guide</a><br>
+      <a href="reference.html">Reference</a><br>
+      <a href="spec.html">Core 0.1.2 spec</a>
+    </div>
+    <div>
+      <strong>Tools</strong>
+      <a href="playground.html">Browser playground</a><br>
+      <a href="https://github.com/c-u-l8er/WRL">Source on GitHub</a>
+    </div>
+    <div>
+      <strong>Status</strong>
+      Core 0.1.2 — frozen<br>
+      Semantic IR v1 — frozen<br>
+      Sugar — sugar.v2
+    </div>
+    <div style="max-width:32ch">
+      <strong>Colophon</strong>
+      WRL is the authoring language of TRVM Forge. Riders move, walls
+      authorize, films prove.
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

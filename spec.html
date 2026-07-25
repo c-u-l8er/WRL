@@ -1,0 +1,752 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WRL Core 0.1.2 — frozen family extract</title>
+<meta name="description" content="The normative WallRiderLang Core 0.1.2 specification: the frozen meaning families, the architectural rule, the period cycle, canonicalization, the document boundary, the surface-grounded vs IR-grounded distinction, and the Core 0.2 promotion order.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="wrl.css">
+<style>
+  .docbody h2{scroll-margin-top:80px}
+  .docbody h3{scroll-margin-top:80px}
+  .secnum{font-family:var(--mono);font-size:.62em;letter-spacing:.1em;
+          color:var(--ink-faint);font-weight:500;margin-right:.7em;
+          vertical-align:.12em}
+  .frozen{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;
+          text-transform:uppercase;color:var(--wire);border:1px solid var(--wire);
+          border-radius:3px;padding:2px 7px;margin-left:10px;
+          vertical-align:.22em;font-weight:600;white-space:nowrap}
+  blockquote{border-left:2px solid var(--paper-3);margin:22px 0;padding:2px 0 2px 20px;
+             color:var(--ink-soft)}
+  blockquote b{color:var(--ink)}
+  .errata{background:var(--paper-2);border-radius:8px;padding:20px 24px;margin:26px 0}
+  .errata h3{margin-top:0;font-size:15px}
+  .errata ol{margin-bottom:0}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site">
+  <a class="mark" href="./">WallRiderLang<small>WRL CORE 0.1.2 · FROZEN</small></a>
+  <nav>
+    <a href="learn.html">Learn</a>
+    <a href="guide.html">Guide</a>
+    <a href="reference.html">Reference</a>
+    <a href="spec.html" aria-current="page">Spec</a>
+    <a href="playground.html">Playground</a>
+    <a href="https://github.com/c-u-l8er/WRL">GitHub</a>
+  </nav>
+</header>
+
+<main id="main" class="doclayout">
+
+<aside class="toc">
+  <strong>Core 0.1.2</strong>
+  <a href="#status">Status &amp; errata</a>
+  <a href="#s0">0 · Architectural rule</a>
+  <a href="#s1">1 · Ten construct kinds</a>
+  <a href="#s2">2 · Four reading laws</a>
+  <a href="#s3">3 · Containers</a>
+  <a href="#s4">4 · Identity &amp; addressing</a>
+  <a href="#s5">5 · Route textures</a>
+  <a href="#s6">6 · Time</a>
+  <a href="#s7">7 · Memory kinds</a>
+  <a href="#s8">8 · Execution model</a>
+  <a href="#s8b">8b · History family</a>
+  <a href="#s9">9 · Fact-merge</a>
+  <a href="#s10">10 · Boundaries</a>
+  <a href="#s11">11 · Canonicalization</a>
+  <a href="#s12">12 · Conformance</a>
+  <a href="#s13">13 · What is not frozen</a>
+  <a href="#s14">14 · TRVM grounding</a>
+  <a href="#s14b">14b · Surface vs IR grounding</a>
+  <a href="#s15">15 · The document boundary</a>
+  <a href="#s16">16 · Core 0.2 promotion order</a>
+  <a href="#s17">17 · Surface sugar tier</a>
+</aside>
+
+<div class="docbody">
+
+<div class="slot">NORMATIVE SPECIFICATION</div>
+<h1 style="font-size:clamp(28px,4vw,42px);max-width:24ch">WRL Core 0.1.2 — Frozen Family Extract</h1>
+
+<p class="lede">This document commits the <b>meaning families</b> of
+WallRiderLang that the TRVM runtime and the Forge semantic graph have grounded.
+It freezes <i>which kinds of things exist and what each kind means</i> — not the
+detailed surface rules, which remain a design draft and may still change.</p>
+
+<h2 id="status">Status and errata</h2>
+
+<p><b>Status: frozen (families only).</b> Extracted from the Complete Design Draft
+per the WRL ruling, Phase 1. This is the living Core-0.1.x document; the current
+revision is <b>0.1.2</b>.</p>
+
+<div class="note"><b>Freezing a family</b> means: the set of members is closed,
+and each member's meaning-role is settled. It does <b>not</b> freeze exact glyphs,
+argument grammars, sugar, or edge-case rules — those live in the design draft and
+are Experimental or Proposed until a later frozen revision promotes them.</div>
+
+<blockquote>When the design draft and this document conflict about <i>what is
+settled</i>, <b>this document wins</b>. The draft remains authoritative for full
+rationale and forward design.</blockquote>
+
+<div class="errata">
+<h3>Errata 0.1 → 0.1.1</h3>
+<p>Before freezing Forge Semantic IR v1, five corrections were required so that
+the frozen core reflects the ADMIT and persistent-world results rather than the
+older actor execution model:</p>
+<ol>
+<li>The period cycle is <b>OBSERVE→ACCEPT→MAP→COMMIT→REACT→FILM</b>, not
+Collect→Order→Reduce→Commit→Record.</li>
+<li>"Conflicts dissolve" is narrowed — single ownership stops generic cell races,
+but claim and control conflicts need explicit policies.</li>
+<li>Canonical ordering is <b>policy-pinned</b>, not a fixed hash formula.</li>
+<li>History splits into <b>WorldFrame / EventLedger / BuildFilm</b>.</li>
+<li>The grounding language distinguishes grounded from reserved and partial.</li>
+</ol>
+</div>
+
+<div class="errata">
+<h3>Errata 0.1.1 → 0.1.2</h3>
+<p>Four corrections, none of which move a frozen family. They make the
+<i>grounding claims</i> honest and add the two structural facts the
+implementation established after 0.1.1 was written:</p>
+<ol>
+<li><b>Mailbox is <code class="inline">partial</code>, not
+<code class="inline">reserved</code>.</b> The mailbox declaration is grounded in
+the canonical IR and the runtime, but the <code class="inline">~~</code> route
+construct is <b>not surface-emittable</b> and has no structural edge declaration.
+Mailbox is therefore <b>not</b> a sixth surface-grounded role — it is
+IR/runtime-grounded and surface-partial. §14 is corrected; §14b is new.</li>
+<li><b><code class="inline">*</code> is narrowed.</b> Only the
+replication-by-position meaning is implemented; wildcard matching remains
+reserved with no lowering. §4 is corrected.</li>
+<li><b>The document boundary is normative</b> (new §15). A WRL world document and
+a scenario are different documents. <code class="inline">periods</code> and
+<code class="inline">[epoch:N]</code> claims are run inputs and are deliberately
+outside the <code class="inline">SemanticArtifactID</code>. The strict world
+parser is normative; the combined-document parser is an explicitly-named
+migration bridge.</li>
+<li><b>The Core 0.2 promotion order is recorded</b> (new §16), together with the
+conditions each construct must meet before it may be promoted.</li>
+</ol>
+</div>
+
+<h2 id="s0"><span class="secnum">§0</span>Architectural rule<span class="frozen">frozen</span></h2>
+
+<p>WRL denotes the <b>canonical Forge semantic graph</b>. It is <b>not</b> lowered
+by compiling surface syntax directly to hand-written interaction-calculus text.
+The only sanctioned path is:</p>
+
+<div class="pipe">
+  <span>WRL source / canvas</span>
+  <span><b>canonical semantic graph</b></span>
+  <span><b>Forge Semantic IR</b></span>
+  <span>TRVM facts · films · reductions</span>
+</div>
+
+<p>Forge Semantic IR v1 is a separate gated deliverable. Until it is frozen, no
+lowering target is normative.</p>
+
+<h2 id="s1"><span class="secnum">§1</span>The ten construct kinds<span class="frozen">frozen · closed set</span></h2>
+
+<p>Every WRL construct is exactly one of these ten kinds. The set is closed.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Kind</th><th>Role (frozen)</th></tr></thead>
+<tbody>
+<tr><td>Function</td><td>calculates — pure local computation</td></tr>
+<tr><td>Actor</td><td>persists — durable identity + owned state</td></tr>
+<tr><td>Route</td><td>communicates — a directed, textured transition edge</td></tr>
+<tr><td>Wall (boundary)</td><td>authorizes — gate / commit / seal on propagation</td></tr>
+<tr><td>Period</td><td>orders — logical-time step under which events settle</td></tr>
+<tr><td>Fragment</td><td>carries code — quoted graph as movable data</td></tr>
+<tr><td>Stencil</td><td>constructs graphs — parameterized fragment producer</td></tr>
+<tr><td>Derive</td><td>transforms typed graphs</td></tr>
+<tr><td>Film</td><td>proves what occurred — append-only replayable log</td></tr>
+<tr><td>Hash</td><td>identifies what was built — content address</td></tr>
+</tbody></table></div>
+
+<p>Of these, <b>Actor, Route, Wall, Period, Film, Hash</b> are additionally
+grounded by TRVM today (§14). <b>Function, Fragment, Stencil, Derive</b> are
+frozen <i>as kinds</i> but their detailed semantics remain draft.</p>
+
+<h2 id="s2"><span class="secnum">§2</span>The four reading laws<span class="frozen">frozen</span></h2>
+
+<ol>
+<li><b>Shape says what a thing is.</b> Bracket shape identifies the kind of
+object.</li>
+<li><b>Line texture says how it moves.</b> Route style identifies the operational
+guarantee.</li>
+<li><b>The colon introduces; the slash bounds.</b> Both families cap at three
+strokes, ordered by permanence: transient · committed · sealed.</li>
+<li><b>Marks for architecture, words for computation.</b> Process notation owns
+punctuation; expression notation defaults to words.</li>
+</ol>
+
+<h2 id="s3"><span class="secnum">§3</span>Container / shape-as-kind family<span class="frozen">frozen · 3 members</span></h2>
+
+<div class="tbl"><table>
+<thead><tr><th>Shape</th><th>Kind (frozen)</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">[x]</code></td><td>durable <b>identity</b> (actor, region, mailbox, named artifact)</td></tr>
+<tr><td><code class="inline">(x)</code></td><td><b>state</b> — current, mutable-by-replacement cell</td></tr>
+<tr><td><code class="inline">{x}</code></td><td><b>wiring</b> — permitted topology / capabilities / ports</td></tr>
+</tbody></table></div>
+
+<p>Frozen invariant: <code class="inline">(state)</code> is single-owner and
+mutable by replacement; <code class="inline">{…}</code> is permitted, static
+structure, distinct from current state. Exact field grammars are draft.</p>
+
+<h2 id="s4"><span class="secnum">§4</span>Identity / addressing family<span class="frozen">frozen · 4 members</span></h2>
+
+<div class="tbl"><table>
+<thead><tr><th>Symbol</th><th>Meaning-role (frozen)</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">#</code></td><td>canonical identity / content hash</td></tr>
+<tr><td><code class="inline">@</code></td><td>address / placement / stamp</td></tr>
+<tr><td><code class="inline">?</code></td><td>pattern variable introduced by matching</td></tr>
+<tr><td><code class="inline">*</code></td><td>wildcard match, or replication-by-position</td></tr>
+</tbody></table></div>
+
+<p>Frozen invariant: executable identity is a hash; human aliases are words and
+never semantic.</p>
+
+<p><b>Implementation status of <code class="inline">*</code> (0.1.2).</b> The
+symbol's <i>family role</i> stays frozen as written, but the two meanings are at
+different maturities and the spec must not imply otherwise:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Meaning</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>replication-by-position (<code class="inline">[relay:r*3]</code>)</td><td><b>implemented</b> — surface sugar, bounded, identity-equivalent (§17)</td></tr>
+<tr><td>wildcard match</td><td><b>reserved</b> — no lowering exists</td></tr>
+</tbody></table></div>
+
+<h2 id="s5"><span class="secnum">§5</span>Route / texture family<span class="frozen">frozen · 4 core textures</span></h2>
+
+<p>The reduction relation is defined over exactly these four irreducible
+textures. All surface sugar canonicalizes down to one of them plus attributes.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Texture</th><th>Guarantee (frozen)</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">--x--&gt;</code> solid</td><td>deterministic local transition; settles within the period</td></tr>
+<tr><td><code class="inline">~~x~~&gt;</code> async</td><td>asynchronous message; appended to a mailbox; observable next period</td></tr>
+<tr><td><code class="inline">==x==&gt;</code> verified</td><td>evidence-backed / committed transition under a named policy</td></tr>
+<tr><td><code class="inline">!!x!!&gt;</code> fault</td><td>crash / cancel / reject / interrupt; engages supervision</td></tr>
+</tbody></table></div>
+
+<p><b>Frozen:</b> the <i>set</i> of core textures and their guarantee-roles.
+<b>Not frozen:</b> label, payload and guard grammar; the sugar table; branch and
+lane rules.</p>
+
+<p><b>Surface status (0.1.2).</b> Freezing a texture's <i>meaning-role</i> is not
+the same as grounding its <i>construct</i>. Only <code class="inline">--</code> is
+surface-grounded today:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Texture</th><th>Surface status</th><th>See</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">--</code> solid</td><td><b>surface-grounded</b> — declarable, emittable, round-trips</td><td>§14</td></tr>
+<tr><td><code class="inline">~~</code> async</td><td><b>partial</b> — IR/runtime-grounded, not surface-emittable, no structural edge declaration</td><td>§14b, §16</td></tr>
+<tr><td><code class="inline">==</code> verified</td><td><b>partial</b> — acceptance machinery exists; the construct does not</td><td>§16.1</td></tr>
+<tr><td><code class="inline">!!</code> fault</td><td><b>partial</b> — fault <i>state</i> exists; route and supervision do not</td><td>§16</td></tr>
+</tbody></table></div>
+
+<h2 id="s6"><span class="secnum">§6</span>Time family<span class="frozen">frozen</span></h2>
+
+<ul>
+<li>Logical time is <b>superdense</b>: every event carries
+<code class="inline">(period t, microstep m)</code>.</li>
+<li>A <b>period</b> is the settle-and-commit unit; same-period events are ordered
+by microstep.</li>
+<li>Wall-clock enters only through an explicit boundary and is recorded as a
+signed fact; <b>wall-clock is never replayable state, logical time is</b>.</li>
+</ul>
+
+<p><b>Frozen:</b> the period/microstep model and the wall-clock-as-fact
+discipline. <b>Not frozen:</b> the tick surface syntax details.</p>
+
+<h2 id="s7"><span class="secnum">§7</span>Memory-kind family<span class="frozen">frozen · 5 members</span></h2>
+
+<div class="tbl"><table>
+<thead><tr><th>Shape</th><th>Memory kind (frozen)</th><th>Lifetime rule</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">(state)</code></td><td>volatile cell</td><td>mutable by replacement; single-owner</td></tr>
+<tr><td><code class="inline">{facts}</code></td><td>monotonic knowledge</td><td>grow-only; merges by lattice union; never retracts</td></tr>
+<tr><td><code class="inline">[archive]</code></td><td>durable store</td><td>persistent addressable actor; survives restart</td></tr>
+<tr><td><code class="inline">:: fragment //</code></td><td>code memory</td><td>quoted graph as portable data</td></tr>
+<tr><td><code class="inline">#hash</code></td><td>sealed identity</td><td>immutable, content-addressed</td></tr>
+</tbody></table></div>
+
+<div class="note"><b>Frozen invariant: no shared mutable cell.</b> Shared
+knowledge is <code class="inline">{facts}</code> (monotone union); shared identity
+is <code class="inline">[archive]</code>. This single-owner discipline is what
+makes execution deterministic without a runtime conflict resolver.</div>
+
+<h2 id="s8"><span class="secnum">§8</span>Execution-model family — the deterministic reactive floor<span class="frozen">frozen</span></h2>
+
+<p>Grounded directly by TRVM's deterministic reduction, ADMIT reducer, persistent
+fold, and replayable films.</p>
+
+<p><b>Configuration</b> (frozen shape): the persistent runtime state — world state
+(owned state cells), monotone claim facts, immutable acceptance receipts,
+capacity-fault latches, clock state, poses, rotors, numeric faults; plus static
+topology and policies. Mailboxes, supervisor and behavior tables are
+Experimental and are not part of the frozen floor.</p>
+
+<h3>Two frozen invariants (enforced statically)</h3>
+<ol>
+<li><b>Single-owner cells</b> — no shared mutable cell.</li>
+<li><b>Disjoint deterministic guards</b> — at most one deterministic rule enabled
+per actor-state; genuine choice must be an explicit <i>scored</i> branch.</li>
+</ol>
+
+<h3>Period cycle <span class="frozen">frozen · 6 phases</span></h3>
+
+<div class="pipe">
+  <span><b>OBSERVE</b></span><span><b>ACCEPT</b></span><span><b>MAP</b></span>
+  <span><b>COMMIT</b></span><span><b>REACT</b></span><span><b>FILM</b></span>
+</div>
+
+<div class="tbl"><table>
+<thead><tr><th>Phase</th><th>Definition</th></tr></thead>
+<tbody>
+<tr><td><b>OBSERVE</b></td><td>canonicalize and insert distinct claims</td></tr>
+<tr><td><b>ACCEPT</b></td><td>create missing receipts per the pinned acceptance policy</td></tr>
+<tr><td><b>MAP</b></td><td>newly-accepted successful ops → controls</td></tr>
+<tr><td><b>COMMIT</b></td><td>apply control writes and fault resets to owned cells</td></tr>
+<tr><td><b>REACT</b></td><td>deterministic within-period token cascade to fixpoint; latch current overflow</td></tr>
+<tr><td><b>FILM</b></td><td>record the entries needed to replay the epoch</td></tr>
+</tbody></table></div>
+
+<blockquote>For claim-free profiles the first three phases
+(OBSERVE/ACCEPT/MAP) <b>degenerate to identity but must not disappear</b> from the
+semantic model: the OBSERVE/ACCEPT/MAP distinction is what determines which
+claims were seen, which candidate was accepted, whether a retransmission retries
+an effect, which controls were committed, and whether a same-epoch configuration
+affects that epoch's reaction.</blockquote>
+
+<h3>Canonical ordering is policy-pinned <span class="frozen">frozen as a family, not a formula</span></h3>
+
+<p>Events and accepted operations are ordered by a <b>total canonical key whose
+schema and policy identity are part of the semantic artifact</b>. Worker arrival
+order is never semantic. The current ADMIT profile pins the CandidateKey and the
+canonical accepted-event ordering; a future mailbox profile may pin a different
+key. The <i>existence and policy-pinning</i> of the key is frozen; the specific
+formula is not.</p>
+
+<h3>Conflicts <span class="frozen">narrowed in 0.1.1</span></h3>
+
+<p><i>Cell-write conflicts are structurally constrained; claim and control
+conflicts are resolved by explicit, policy-pinned recognition, acceptance and
+canonical application laws.</i> Concretely:</p>
+
+<ul>
+<li>single-owner cells remove generic write-write races;</li>
+<li>append and fact-union structures merge deterministically;</li>
+<li>but equivocation, conflicting accepted operations, claim retransmission,
+receipt divergence, configuration ordering, fault-reset-vs-new-overflow, and
+capacity failure are <b>not</b> dissolved by ownership — each is resolved by an
+explicit pinned policy.</li>
+</ul>
+
+<div class="tbl"><table>
+<thead><tr><th>Concern</th><th>Pinned law</th></tr></thead>
+<tbody>
+<tr><td>recognition</td><td>distinct-CandidateKey count</td></tr>
+<tr><td>acceptance</td><td>MIN CandidateKey / first receipt</td></tr>
+<tr><td>application</td><td>canonical event order</td></tr>
+<tr><td>fault</td><td>COMMIT clears, then REACT ORs</td></tr>
+<tr><td>capacity</td><td>atomic latch; no partial</td></tr>
+</tbody></table></div>
+
+<p><b>Not frozen:</b> the podium/ranking ceiling, scored-branch scoring functions,
+distributed termination detection.</p>
+
+<h2 id="s8b"><span class="secnum">§8b</span>History family — WorldFrame / EventLedger / BuildFilm<span class="frozen">frozen · 3 distinct artifacts</span></h2>
+
+<p>"Film" is not one undifferentiated object. Three conceptual artifacts are
+frozen distinct; their current serialization is the Film v0.6/v0.7 family.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Artifact</th><th>Frozen role</th></tr></thead>
+<tbody>
+<tr><td><b>WorldFrame</b></td><td>authoritative observable state sufficient for future behavior — the physical world snapshot (Film v0.6 bytes)</td></tr>
+<tr><td><b>EventLedger</b></td><td>accepted events, receipts, effects, outcomes — the claim-aware layer (Film v0.7 adds this over v0.6)</td></tr>
+<tr><td><b>BuildFilm</b></td><td>compiler / build provenance <span class="tier prop">proposed</span></td></tr>
+</tbody></table></div>
+
+<p>A replay package is frozen as:</p>
+
+<pre class="code"><code>ReplayBundle { initial_artifact, initial_state, event_ledger, frames, policy_ids }</code></pre>
+
+<p><b>Frozen:</b> the three-way distinction and the ReplayBundle shape.
+<b>Not frozen:</b> byte layouts — they are the Film serialization, a backend
+concern.</p>
+
+<h2 id="s9"><span class="secnum">§9</span>Fact-merge family<span class="frozen">frozen · union law only</span></h2>
+
+<p>Replicated <code class="inline">{facts}</code> merge by a <b>join-semilattice
+union</b> that is commutative, associative and idempotent. This is the frozen
+distributed floor and matches TRVM's proven claim-fact set union.</p>
+
+<div class="note warn"><b>Explicitly NOT frozen (Proposed in draft):</b>
+acceptance-receipt settlement across logs, Byzantine and trust modes, sequencer
+or authority settlement, signatures and reputation. Conflicting receipts are
+<i>recognized evidence for later settlement</i>, never blindly merged.</div>
+
+<h2 id="s10"><span class="secnum">§10</span>Boundary (wall) family<span class="frozen">frozen · gate / commit / seal</span></h2>
+
+<div class="tbl"><table>
+<thead><tr><th>Boundary</th><th>Reduction effect (frozen role)</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">/gate</code></td><td>require capability; emit an effect-request node (no ambient I/O)</td></tr>
+<tr><td><code class="inline">//commit</code></td><td>canonicalize the fragment-so-far; assign a content id; freeze it</td></tr>
+<tr><td><code class="inline">///seal</code></td><td>commit, then register the artifact under a content hash</td></tr>
+</tbody></table></div>
+
+<p><b>Frozen:</b> the three-tier ordering by permanence, and the
+no-ambient-authority rule — effects cross named walls only. <b>Not frozen:</b>
+exact policy grammars.</p>
+
+<h2 id="s11"><span class="secnum">§11</span>Canonicalization &amp; content-identity family<span class="frozen">frozen</span></h2>
+
+<ul>
+<li>Meaning is <b>normalized before content addressing</b>. Comments, spacing,
+alignment, decorative line and route length, and presentation color never affect
+the semantic hash.</li>
+<li>Identity is <b>content-addressed</b> (<code class="inline">#hash</code>); the
+same normalized graph yields the same hash on every host.</li>
+<li>Builds and expansion are <b>hermetic and host-blind</b>: same source, same
+canonical bytes.</li>
+</ul>
+
+<p>This matches TRVM's content-addressed objects and the digest / candidate-key
+discipline used in the ADMIT core.</p>
+
+<h2 id="s12"><span class="secnum">§12</span>Conformance families frozen</h2>
+
+<p>These observable properties are frozen as <i>families of guarantee</i>; their
+exact test matrices remain draft.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Family</th><th>Guarantee</th></tr></thead>
+<tbody>
+<tr><td>Formatting invariance</td><td>presentation never changes the hash</td></tr>
+<tr><td>Replay exactness</td><td>a live run and its replay share all observables</td></tr>
+<tr><td>Build invariance</td><td>same inputs → identical film + hashes across hosts</td></tr>
+<tr><td>Merge laws</td><td>fact union is commutative / associative / idempotent</td></tr>
+<tr><td>Boundary safety</td><td>undeclared effects cannot cross walls</td></tr>
+<tr><td>Scheduler invariance</td><td>worker ordering never changes the committed film</td></tr>
+<tr><td>World round-trip <span class="tier core">0.1.2</span></td><td>a format→parse cycle preserves the complete canonical world projection, defined by exclusion (§15)</td></tr>
+<tr><td>Identity round-trip <span class="tier core">0.1.2</span></td><td>a format→parse cycle preserves the canonical artifact bytes and the <code class="inline">SemanticArtifactID</code></td></tr>
+<tr><td>Document separation <span class="tier core">0.1.2</span></td><td>a world document excludes run inputs both semantically and lexically (§15)</td></tr>
+</tbody></table></div>
+
+<h2 id="s13"><span class="secnum">§13</span>What Core 0.1 does NOT freeze</h2>
+
+<p>Deferred to later frozen revisions:</p>
+
+<ul>
+<li><b>Experimental:</b> the entire expression notation (values, functions, types,
+generics, numerics), effects / capabilities / entropy, the supervision error
+ladder, streams and backpressure, actor behavior blocks, evolution and migration,
+podium / ranking, the static-check catalog, execution profiles.</li>
+<li><b>Proposed:</b> metaprogramming (fragments, stencils, derives, reflection,
+sealed compiler tools) beyond their kind-role; modules and builds; build films;
+foreign functions; and all distributed settlement above fact-union.</li>
+</ul>
+
+<blockquote><b>0.1.2:</b> "mailboxes" was removed from the Experimental list — the
+mailbox is no longer merely experimental, it is IR/runtime-grounded and
+surface-partial (§14b). It is still not promoted.</blockquote>
+
+<p><b>Promotion path:</b> a family moves from Experimental → Core only after it is
+<b>surface-grounded</b> (§14b) in a running Forge/TRVM implementation, at which
+point this file is revised. The steered order for 0.2 is recorded in §16.</p>
+
+<h2 id="s14"><span class="secnum">§14</span>TRVM grounding<span class="frozen">corrected 0.1.1</span></h2>
+
+<p>Grounding is stated honestly: <b>grounded</b> = an isomorphic TRVM lowering
+exists; <b>partial / reserved</b> = the concept is grounded but the WRL language
+construct is not, or the construct is reserved with no lowering.</p>
+
+<blockquote><b>0.1.2:</b> the word "grounded" was doing two jobs. §14b now splits
+it into <b>IR/runtime-grounded</b> and <b>surface-grounded</b>. Every entry in the
+Grounded table below is surface-grounded.</blockquote>
+
+<h3>Grounded</h3>
+
+<div class="tbl"><table>
+<thead><tr><th>Family</th><th>TRVM grounding</th></tr></thead>
+<tbody>
+<tr><td>The five <b>surface-grounded</b> world roles (Pulser / Relay / Door / Spinner / Orb) — Mailbox is <b>not</b> a sixth</td><td>fixture node kinds; lowered by the compiler</td></tr>
+<tr><td>State + wiring</td><td>state schema (counters, wires, rotor-as-state, pose, sticky fault); sig-wire + socket edges</td></tr>
+<tr><td>Deterministic signal route (<code class="inline">--</code>)</td><td>sig-wire delivery; within-period REACT fixpoint</td></tr>
+<tr><td>Periods</td><td>epoch-by-epoch persistent fold</td></tr>
+<tr><td>WorldFrame / EventLedger (§8b)</td><td>Film v0.6 (physical) / v0.7 (claim-aware); replay exactness proven</td></tr>
+<tr><td>Content identity (§11)</td><td>content-addressed rulepack hash; digest / CandidateKey packing</td></tr>
+<tr><td>Fact union (§9)</td><td>monotone claim-fact set union; immutable receipts kept separate</td></tr>
+<tr><td>ADMIT acceptance core (§8)</td><td>OBSERVE→ACCEPT→MAP reducer, single-epoch + persistent fold, reference == native</td></tr>
+<tr><td>Commit / react sequencing (§8, §10)</td><td>COMMIT (control writes + fault resets) → REACT → latch overflow</td></tr>
+</tbody></table></div>
+
+<h3>Reserved or partial — NOT a complete grounding</h3>
+
+<div class="tbl"><table>
+<thead><tr><th>Family</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>Async route / mailbox (<code class="inline">~~</code>)</td><td><b>partial</b> — the mailbox declaration is grounded in the canonical IR and the runtime, but the <code class="inline">~~</code> route construct is not surface-emittable and has <b>no structural edge declaration</b> (§14b)</td></tr>
+<tr><td>Verified route (<code class="inline">==</code>)</td><td><b>partial</b> — acceptance machinery grounded, but the route <i>construct</i> is not a complete lowering (§16.1)</td></tr>
+<tr><td>Fault route + supervision (<code class="inline">!!</code>)</td><td><b>partial</b> — numeric-fault <i>state</i> grounded; the route/supervision construct is not, and no supervision floor exists yet</td></tr>
+<tr><td>Capability gate (<code class="inline">/gate</code>)</td><td><b>reserved</b> — no capability-gate node kind yet</td></tr>
+<tr><td>Seal / artifact registry (<code class="inline">///seal</code>)</td><td><b>partial</b> — commit grounded; seal registry is Proposed</td></tr>
+<tr><td>General actor behaviors</td><td><b>reserved</b> — Experimental; no arbitrary-behavior runtime exists</td></tr>
+<tr><td>Wildcard <code class="inline">*</code></td><td><b>reserved</b> — only replication-by-position is implemented (§4)</td></tr>
+</tbody></table></div>
+
+<h2 id="s14b"><span class="secnum">§14b</span>Surface-grounded vs IR-grounded<span class="frozen">frozen distinction · new in 0.1.2</span></h2>
+
+<p>0.1.1 used a single word, <i>grounded</i>, for two genuinely different
+achievements. Conflating them let the Mailbox work read as if it had promoted a
+route texture, which it had not. 0.1.2 splits the term:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Term</th><th>Means</th></tr></thead>
+<tbody>
+<tr><td><b>IR/runtime-grounded</b></td><td>a canonical IR declaration exists, the runtime executes it, and it is covered by a battery</td></tr>
+<tr><td><b>surface-grounded</b></td><td><i>additionally</i>, WRL source can <b>declare</b> it, the formatter can <b>emit</b> it, and it round-trips through the canonical bytes</td></tr>
+</tbody></table></div>
+
+<p>A construct is only eligible for promotion into a frozen Core family when it
+is <b>surface-grounded</b>. IR/runtime grounding alone is necessary but not
+sufficient.</p>
+
+<p><b>Mailbox is the worked example.</b> The mailbox declaration is
+IR/runtime-grounded: it exists in the canonical IR, the runtime honours it, and
+the networking battery covers it. It is <b>not</b> surface-grounded: there is no
+<code class="inline">~~</code> surface form to write, the formatter cannot emit
+one, and — decisively — there is <b>no structural edge declaration</b> for it.</p>
+
+<blockquote><b>Mailbox is not a sixth <i>surface-grounded</i> role.</b> The five
+world roles (Pulser / Relay / Door / Spinner / Orb) are surface-grounded. Mailbox
+is IR/runtime-grounded and <b>surface-partial</b>.
+<br><br>
+The networking track is correct to call Mailbox a sixth <b>IR</b> role — that is
+exactly what it added, additively, without moving any pre-existing identity. What
+must not be inferred from it is that WRL now has six surface roles, or that the
+async route texture was promoted. It did not, and it was not.</blockquote>
+
+<div class="note stop">The edge-declaration point is the one that constrains the
+next slice. An async route is <b>not</b> an ordinary structural edge — it does not
+settle within the period, so it cannot participate in the within-period REACT
+fixpoint the way <code class="inline">--</code> does. Promoting
+<code class="inline">~~</code> therefore requires a <b>canonical logical route
+declaration that is distinct from the structural edge declaration</b>, not a new
+edge kind.</div>
+
+<h2 id="s15"><span class="secnum">§15</span>The document boundary<span class="frozen">normative · new in 0.1.2</span></h2>
+
+<p>A <b>world</b> and a <b>run of that world</b> are different documents.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Document</th><th>Carries</th><th>Enters <code class="inline">SemanticArtifactID</code>?</th></tr></thead>
+<tbody>
+<tr><td><b>World document</b></td><td>profile, objects, edges, static config, wiring</td><td><b>yes</b></td></tr>
+<tr><td><b>ScenarioV1</b></td><td><code class="inline">periods</code>, <code class="inline">[epoch:N]</code> claims, run inputs</td><td><b>no</b></td></tr>
+</tbody></table></div>
+
+<h3>Frozen consequences</h3>
+
+<ol>
+<li><b>Run inputs are not world content.</b> <code class="inline">periods</code>
+and <code class="inline">[epoch:N]</code> claims are run inputs. Changing them
+does not move the <code class="inline">SemanticArtifactID</code>; the same world
+can be run by many scenarios.</li>
+<li><b>A world formatter emits a world document.</b> It must exclude scenario
+syntax both <i>semantically</i> (reparsing yields no run inputs) and
+<i>lexically</i> (the emitted text does not contain scenario syntax at all). The
+lexical half is load-bearing: a formatter emitting a literal
+<code class="inline">periods 0</code> would satisfy the semantic half while still
+writing scenario syntax into a world document.</li>
+<li><b>Round-trip laws split in two.</b> The <b>world</b> round-trip preserves the
+complete canonical world projection; the <b>identity</b> round-trip preserves the
+canonical artifact bytes and the <code class="inline">SemanticArtifactID</code>.
+Neither subsumes the other.</li>
+</ol>
+
+<blockquote>The world projection is defined by <b>exclusion</b> — every canonical
+field <i>except</i> the run inputs — and never as a fixed tuple such as
+<code class="inline">(profile, nodes, edges)</code>. A fixed tuple silently stops
+covering any field a later slice adds; §16 adds route semantics, which such a
+tuple would omit.</blockquote>
+
+<h3 id="s15-1">15.1 · The two parser mouths</h3>
+
+<p><b>The strict world parser is normative.</b> Parameterizing the parser is
+sanctioned only as a <b>migration bridge</b>, and only through an unmistakable
+API — never a boolean flag on one function:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Entry point</th><th>Accepts</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">parse_wrl_core(text)</code></td><td>world source <b>only</b>; rejects run inputs with a typed <code class="inline">WRL_WORLD_SOURCE_HAS_SCENARIO</code></td><td><b>normative</b></td></tr>
+<tr><td><code class="inline">parse_wrl_legacy_document(text)</code></td><td>a pre-boundary <b>combined</b> document</td><td>explicit compatibility path</td></tr>
+</tbody></table></div>
+
+<p>The legacy path's destination is to <b>split</b> a combined document into a
+world document plus a scenario, rather than to keep parsing it forever.</p>
+
+<div class="note warn"><b>Open question (flagged, not decided).</b> The Phase-3C
+presentation surface <code class="inline">CanvasGraphV1</code> was never migrated
+across this boundary: it still carries top-level
+<code class="inline">periods</code> / <code class="inline">batches</code>, making
+it the structural parallel of the legacy parser. This is not a live defect,
+because the production canvas path is <code class="inline">CanvasLayoutV1</code>,
+which is world-only by construction. Whether
+<code class="inline">CanvasGraphV1</code> gets the same strict/legacy split or is
+retired is unruled.</div>
+
+<h2 id="s16"><span class="secnum">§16</span>Core 0.2 promotion order<span class="frozen">recorded · new in 0.1.2</span></h2>
+
+<p>The order below is <b>steered, not merely preferred</b> — each step supplies
+something the next one needs, so reordering them produces constructs that cannot
+be grounded honestly.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>#</th><th>Step</th><th>Gate it must pass</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><b>L-0 closure</b></td><td>the round-trip and document-boundary laws restated and green — <i>complete</i></td></tr>
+<tr><td>2</td><td><b><code class="inline">~~</code> async route</b></td><td>needs a <b>canonical logical route declaration distinct from the structural edge declaration</b> (§14b)</td></tr>
+<tr><td>3</td><td><b><code class="inline">==</code> verified route</b></td><td>see §16.1</td></tr>
+<tr><td>4</td><td><b><code class="inline">#</code> references and <code class="inline">&amp;</code> composition</b></td><td>—</td></tr>
+<tr><td>5</td><td><b><code class="inline">//commit</code> and <code class="inline">///seal</code></b></td><td>—</td></tr>
+<tr><td>6</td><td><b><code class="inline">!!</code> fault route</b></td><td>may only follow a <b>minimal supervision floor</b> actually existing</td></tr>
+<tr><td>7</td><td><b><code class="inline">/gate</code> capability gate</b></td><td>last</td></tr>
+</tbody></table></div>
+
+<h3 id="s16-1">16.1 · <code class="inline">==</code> is not "almost free"</h3>
+
+<p>It is tempting to read the verified route as nearly grounded, because ADMIT
+already accepts claims. That reading confuses two different things:</p>
+
+<ul>
+<li>the <b>declaration</b> <code class="inline">==</code> would introduce is
+<i>authorization structure</i>;</li>
+<li>the <b>frozen texture</b> <code class="inline">==</code> denotes an
+<i>evidence-backed transition</i>.</li>
+</ul>
+
+<div class="note stop"><code class="inline">==</code> is grounded <b>only when
+ADMIT enforces all four</b> of: the <b>claimant</b>, the <b>target</b>, the
+<b>operation family</b>, and a <b>named policy</b>. Anything less is a route that
+looks verified and is not.</div>
+
+<h3 id="s16-2">16.2 · Permission / instance split<span class="frozen">approved</span></h3>
+
+<div class="tbl"><table>
+<thead><tr><th>Layer</th><th>Carries</th></tr></thead>
+<tbody>
+<tr><td><b>World document</b></td><td>declares a <b>verified channel</b> and its <b>schema</b></td></tr>
+<tr><td><b>ScenarioV1</b></td><td>carries the <b>claim instances</b></td></tr>
+<tr><td><b>Receipts</b></td><td>prove <b>acceptance through that channel</b></td></tr>
+</tbody></table></div>
+
+<blockquote><b>Constraint.</b> Do <b>not</b> introduce a principal-shaped role such
+as <code class="inline">[worker:w1]</code> as part of this work. How principals
+and writers exist in the role system is a <b>separate question requiring its own
+sanction</b>; smuggling one in as a side effect of the verified route would freeze
+a role-system decision that was never ruled on.</blockquote>
+
+<h2 id="s17"><span class="secnum">§17</span>Surface sugar tier<span class="frozen">status · new in 0.1.2</span></h2>
+
+<p>Sugar is a <b>source-to-source pre-pass</b> that runs in front of the untouched
+canonical parser.</p>
+
+<p><b>Status:</b>
+<code class="inline">IMPLEMENTED — CURRENT BATTERY GREEN / IDENTITY-EQUIVALENT /
+NOT CLOSURE-PROVEN / NOT FROZEN</code>.</p>
+
+<h3>The law: no sugar-specific identity</h3>
+
+<p>Stated precisely, because the looser phrasing is false:</p>
+
+<ul>
+<li>A sugared spelling and its explicit twin desugar to the <b>same canonical
+bytes</b> and therefore seal to the <b>same</b>
+<code class="inline">SemanticArtifactID</code>. Sugar introduces no identity of its
+own and no privileged path to the seal.</li>
+<li>It is <b>not</b> the claim that editing sugar cannot move an identity.
+<code class="inline">sp*3</code> → <code class="inline">sp*4</code> is a
+<i>different program</i> and moves the identity, exactly as the explicit spelling
+would.</li>
+</ul>
+
+<h3>Two required properties, gated by battery</h3>
+
+<ol>
+<li><b>Bounded expansion.</b> A one-to-many form must reject an absurd count with
+a <b>typed diagnostic</b> <i>before</i> allocating the expansion.
+<code class="inline">sp*1000000000</code> is a diagnostic, not an out-of-memory
+event.</li>
+<li><b>Original-source mapping.</b> A one-to-many expansion must preserve the
+<b>authored spans</b>, so that diagnostics, completion, semantic diff and editor
+operations all refer to what the author wrote rather than to generated text.</li>
+</ol>
+
+<p>Generated names are judged by the <b>ordinary seal</b> — a collision between a
+generated name and an explicit one is a normal
+<code class="inline">WRL_DUPLICATE_ID</code>, not a special sugar rule.</p>
+
+<hr style="border:0;border-top:1px solid var(--paper-2);margin:56px 0 30px">
+
+<p style="color:var(--ink-faint);font-style:italic">End of WRL Core 0.1.2. The
+next gated deliverable is §16 step 2 — the <code class="inline">~~</code> async
+route — which requires a canonical logical route declaration distinct from the
+structural edge declaration.</p>
+
+<div class="btnrow" style="margin-top:40px">
+  <a class="btn" href="guide.html">Read the guide →</a>
+  <a class="btn ghost" href="reference.html">Reference tables</a>
+  <a class="btn ghost" href="playground.html">Playground</a>
+</div>
+
+</div>
+</main>
+
+<footer class="site">
+  <div class="inner">
+    <div>
+      <strong>WallRiderLang</strong>
+      <a href="learn.html">Tutorial</a><br>
+      <a href="guide.html">Language guide</a><br>
+      <a href="reference.html">Reference</a><br>
+      <a href="spec.html">Core 0.1.2 spec</a>
+    </div>
+    <div>
+      <strong>Tools</strong>
+      <a href="playground.html">Browser playground</a><br>
+      <a href="https://github.com/c-u-l8er/WRL">Source on GitHub</a>
+    </div>
+    <div>
+      <strong>Status</strong>
+      Core 0.1.2 — frozen<br>
+      Semantic IR v1 — frozen<br>
+      Sugar — sugar.v2
+    </div>
+    <div style="max-width:32ch">
+      <strong>Colophon</strong>
+      WRL is the authoring language of TRVM Forge. Riders move, walls
+      authorize, films prove.
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

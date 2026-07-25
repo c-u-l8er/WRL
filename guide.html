@@ -1,0 +1,850 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The WallRiderLang language guide</title>
+<meta name="description" content="The complete WallRiderLang guide: the ten construct kinds, containers, route textures, walls, periods, memory kinds, the deterministic period cycle, canonicalization, the identity ladder, and the surface you can write today.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="wrl.css">
+<style>
+  .part{font-family:var(--mono);font-size:11px;letter-spacing:.16em;
+        text-transform:uppercase;color:var(--wire);font-weight:600;
+        border-top:1px solid var(--paper-2);padding-top:26px;margin-top:64px}
+  .toc .part-label{display:block;font-family:var(--mono);font-size:10px;
+        letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);
+        margin:16px 0 6px}
+  .idline{font-family:var(--mono);font-size:12px;background:var(--paper-2);
+    border-radius:6px;padding:10px 14px;margin:16px 0;color:var(--ink-soft);
+    word-break:break-all}
+  .idline b{color:var(--wire)}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site">
+  <a class="mark" href="./">WallRiderLang<small>WRL CORE 0.1.2 · FROZEN</small></a>
+  <nav>
+    <a href="learn.html">Learn</a>
+    <a href="guide.html" aria-current="page">Guide</a>
+    <a href="reference.html">Reference</a>
+    <a href="spec.html">Spec</a>
+    <a href="playground.html">Playground</a>
+    <a href="https://github.com/c-u-l8er/WRL">GitHub</a>
+  </nav>
+</header>
+
+<main id="main" class="doclayout">
+
+<aside class="toc">
+  <strong>Language guide</strong>
+  <a href="#idea">What WRL is</a>
+  <span class="part-label">I · The design</span>
+  <a href="#laws">1 · The four reading laws</a>
+  <a href="#kinds">2 · The ten construct kinds</a>
+  <a href="#containers">3 · Containers</a>
+  <a href="#addressing">4 · Identity &amp; addressing</a>
+  <a href="#routes">5 · Routes and textures</a>
+  <a href="#walls">6 · Walls</a>
+  <a href="#time">7 · Periods and time</a>
+  <a href="#memory">8 · The five memory kinds</a>
+  <span class="part-label">II · The machine</span>
+  <a href="#cycle">9 · The period cycle</a>
+  <a href="#invariants">10 · Invariants and conflicts</a>
+  <a href="#history">11 · What a run leaves behind</a>
+  <a href="#canon">12 · Canonicalization</a>
+  <a href="#ladder">13 · The identity ladder</a>
+  <span class="part-label">III · The surface today</span>
+  <a href="#surface">14 · The world document</a>
+  <a href="#roles">15 · The five roles</a>
+  <a href="#wiring">16 · Edges, ports, wiring</a>
+  <a href="#numbers">17 · Numbers</a>
+  <a href="#sugar">18 · Sugar</a>
+  <a href="#boundary">19 · Worlds vs. runs</a>
+  <a href="#diagnostics">20 · Diagnostics</a>
+  <span class="part-label">IV · Status</span>
+  <a href="#conformance">21 · Conformance families</a>
+  <a href="#road">22 · The road to Core 0.2</a>
+</aside>
+
+<div class="docbody">
+
+<div class="slot">LANGUAGE GUIDE</div>
+<h1 style="font-size:clamp(30px,4.4vw,46px);max-width:22ch">The whole language, in the order it was designed.</h1>
+<p class="lede">The <a href="learn.html">tutorial</a> teaches you to write a world.
+This guide explains what every part of the language <i>means</i> and why it is
+shaped that way — including the parts that are designed and frozen as families
+but not yet writable. Where a construct is not yet writable, it says so in the
+margin rather than pretending.</p>
+
+<h2 id="idea">What WRL is</h2>
+
+<p>WallRiderLang is a <b>spatial actor language</b>. A program is not a sequence
+of statements; it is a <b>graph</b> of durable identities connected by textured
+routes and separated by boundaries. The name is literal. <b>Riders</b> are
+identities in motion along routes. <b>Walls</b> are the boundaries that gate,
+commit and seal what crosses them.</p>
+
+<p>The reason for that shape is a single design goal: <b>a run must be
+provable</b>. Not logged — proven. Executing a WRL world produces a <b>film</b>,
+an ordered schema-versioned record of what occurred, and that film is
+byte-identical regardless of which machine produced it or how the work was
+scheduled. Everything strange-looking about the language falls out of that
+requirement.</p>
+
+<div class="note"><b>The architectural rule (frozen).</b> WRL denotes the
+canonical Forge semantic graph. It is never lowered by compiling surface syntax
+directly to hand-written interaction-calculus text. The only sanctioned path
+is:</div>
+
+<div class="pipe">
+  <span>WRL source / canvas</span>
+  <span><b>canonical semantic graph</b></span>
+  <span><b>Forge Semantic IR v1</b></span>
+  <span>TRVM facts · films · reductions</span>
+</div>
+
+<p>Read that pipeline left to right and most of this guide's structure becomes
+predictable. Part I is the surface and its meaning families. Part II is the
+canonical graph and the machine that advances it. Part III is the subset you can
+type today.</p>
+
+<!-- ===================================================== PART I -->
+<div class="part">Part I · The design</div>
+
+<h2 id="laws">1 · The four reading laws</h2>
+
+<p>WRL is meant to be read before it is parsed. Four laws, frozen, govern every
+piece of notation in the language.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Law</th><th>What it means</th></tr></thead>
+<tbody>
+<tr><td><b>Shape says what a thing is</b></td><td>Bracket shape identifies the kind of object. You know what <code class="inline">[x]</code> is before you read <code class="inline">x</code>.</td></tr>
+<tr><td><b>Line texture says how it moves</b></td><td>Route style identifies the operational guarantee — deterministic, asynchronous, verified, or fault.</td></tr>
+<tr><td><b>The colon introduces; the slash bounds</b></td><td>Both families cap at three strokes, ordered by permanence: transient · committed · sealed.</td></tr>
+<tr><td><b>Marks for architecture, words for computation</b></td><td>Process notation owns the punctuation. Expression notation defaults to words, so arithmetic never competes with topology for symbols.</td></tr>
+</tbody></table></div>
+
+<p>The third law is the one that pays off later. <code class="inline">:</code>,
+<code class="inline">::</code>, <code class="inline">:::</code> and
+<code class="inline">/</code>, <code class="inline">//</code>,
+<code class="inline">///</code> are not four unrelated sigils; they are two
+ladders of increasing permanence, and stroke count <i>is</i> the ordering.</p>
+
+<h2 id="kinds">2 · The ten construct kinds</h2>
+
+<p>Every WRL construct is exactly one of ten kinds. The set is <b>closed</b> —
+this is frozen, and a future revision may refine members but may not add an
+eleventh kind.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Kind</th><th>Role</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>Function</td><td>calculates — pure local computation</td><td><span class="tier exp">experimental</span></td></tr>
+<tr><td>Actor</td><td>persists — durable identity + owned state</td><td><span class="tier core">core</span></td></tr>
+<tr><td>Route</td><td>communicates — a directed, textured transition edge</td><td><span class="tier core">core</span></td></tr>
+<tr><td>Wall</td><td>authorizes — gate / commit / seal on propagation</td><td><span class="tier core">core</span></td></tr>
+<tr><td>Period</td><td>orders — the logical-time step under which events settle</td><td><span class="tier core">core</span></td></tr>
+<tr><td>Fragment</td><td>carries code — a quoted graph as movable data</td><td><span class="tier prop">proposed</span></td></tr>
+<tr><td>Stencil</td><td>constructs graphs — a parameterized fragment producer</td><td><span class="tier prop">proposed</span></td></tr>
+<tr><td>Derive</td><td>transforms typed graphs</td><td><span class="tier prop">proposed</span></td></tr>
+<tr><td>Film</td><td>proves what occurred — an append-only replayable log</td><td><span class="tier core">core</span></td></tr>
+<tr><td>Hash</td><td>identifies what was built — a content address</td><td><span class="tier core">core</span></td></tr>
+</tbody></table></div>
+
+<p>The creed, which is how the ten are meant to be memorised:</p>
+
+<div class="note"><b>Functions calculate. Actors persist. Routes communicate.
+Walls authorize. Periods order. Fragments carry code. Stencils construct graphs.
+Derives transform typed graphs. Films prove what occurred. Hashes identify what
+was built.</b></div>
+
+<p>Six of the ten — Actor, Route, Wall, Period, Film, Hash — are grounded by a
+running implementation today. The other four are frozen <i>as kinds</i>; their
+detailed semantics are still draft.</p>
+
+<h2 id="containers">3 · Containers: <code class="inline">[x]</code>, <code class="inline">(x)</code>, <code class="inline">{x}</code></h2>
+
+<p>Three container shapes, frozen, closed.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Shape</th><th>Kind</th><th>Rule</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">[x]</code></td><td>durable <b>identity</b></td><td>an actor, region, mailbox, or named artifact — something that survives across periods</td></tr>
+<tr><td><code class="inline">(x)</code></td><td><b>state</b></td><td>a current cell, mutable <i>by replacement</i>, single-owner</td></tr>
+<tr><td><code class="inline">{x}</code></td><td><b>wiring</b></td><td>permitted topology, capabilities, ports — static structure, not current value</td></tr>
+</tbody></table></div>
+
+<p>The distinction between <code class="inline">( )</code> and
+<code class="inline">{ }</code> is not stylistic. <code class="inline">( )</code>
+is what the object <i>is right now</i>; <code class="inline">{ }</code> is what
+the object is <i>permitted to be connected to</i>, ever. Configuration lives in
+parens because it is state that was chosen at construction; ports live in braces
+because they are structure. In the world surface you write today, both appear on
+a declaration line and the parser treats them under exactly these rules.</p>
+
+<h2 id="addressing">4 · Identity and addressing</h2>
+
+<div class="tbl"><table>
+<thead><tr><th>Symbol</th><th>Meaning-role</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">#</code></td><td>canonical identity / content hash</td><td><span class="tier core">core</span></td></tr>
+<tr><td><code class="inline">@</code></td><td>address / placement / stamp</td><td><span class="tier core">core</span></td></tr>
+<tr><td><code class="inline">?</code></td><td>pattern variable introduced by matching</td><td><span class="tier core">core</span></td></tr>
+<tr><td><code class="inline">*</code></td><td>replication-by-position</td><td><span class="tier partial">implemented</span></td></tr>
+<tr><td><code class="inline">*</code></td><td>wildcard match</td><td><span class="tier prop">reserved</span></td></tr>
+</tbody></table></div>
+
+<div class="note"><b>The frozen invariant.</b> Executable identity is a hash.
+Human aliases are words, and they are <i>never</i> semantic. If two worlds differ
+only in what you called things, they are two different worlds — but if two worlds
+differ only in the order you declared identical things, they are the same
+world.</div>
+
+<p><code class="inline">*</code> is the one symbol whose two meanings are at very
+different maturities, and the spec is explicit about not letting that slide.
+Replication-by-position (<code class="inline">[relay:r*3]</code>) is implemented
+as bounded, identity-equivalent surface sugar — see <a href="#sugar">§18</a>.
+Wildcard matching is reserved: no lowering for it exists.</p>
+
+<h2 id="routes">5 · Routes and the four textures</h2>
+
+<p>The reduction relation is defined over exactly four irreducible route
+textures. All surface sugar canonicalizes down to one of them plus attributes.
+Reading a WRL diagram, the <i>texture of the line</i> tells you the operational
+guarantee without reading a single word.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Texture</th><th>Guarantee</th><th>Surface status</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">--x--&gt;</code> solid</td><td>deterministic local transition; settles <i>within</i> the period</td><td><span class="tier core">surface-grounded</span></td></tr>
+<tr><td><code class="inline">~~x~~&gt;</code> async</td><td>asynchronous message; appended to a mailbox; observable <i>next</i> period</td><td><span class="tier partial">partial</span></td></tr>
+<tr><td><code class="inline">==x==&gt;</code> verified</td><td>evidence-backed / committed transition under a named policy</td><td><span class="tier partial">partial</span></td></tr>
+<tr><td><code class="inline">!!x!!&gt;</code> fault</td><td>crash / cancel / reject / interrupt; engages supervision</td><td><span class="tier partial">partial</span></td></tr>
+</tbody></table></div>
+
+<p>The set of four and their guarantee-roles are frozen. Label, payload and guard
+grammar, the sugar table, and branch/lane rules are not.</p>
+
+<div class="note warn"><b>Only <code class="inline">--</code> is surface-grounded
+today.</b> Freezing a texture's <i>meaning-role</i> is not the same as grounding
+its <i>construct</i>. You can declare, emit and round-trip a solid route right
+now. You cannot write <code class="inline">~~</code>, <code class="inline">==</code>
+or <code class="inline">!!</code> in a world document — the machinery beneath
+them exists in varying degrees, but the surface forms do not. See
+<a href="#road">§22</a> for what each one still needs.</div>
+
+<h3>Why async cannot simply be another edge</h3>
+
+<p>This is the single most instructive constraint in the language. An async route
+does <b>not settle within the period</b>. A solid route participates in the
+within-period reaction cascade and reaches a fixpoint before the period commits;
+an async message is <i>observable next period</i> by construction. Those are
+different objects in the canonical graph, and so promoting
+<code class="inline">~~</code> requires a <b>canonical logical route declaration
+that is distinct from the structural edge declaration</b> — not a new edge kind.
+Adding it as an edge kind would silently claim async messages join the fixpoint,
+which is false.</p>
+
+<p>The mailbox is the worked example of the distinction the language is careful
+about. A mailbox declaration exists in the canonical IR, the runtime honours it,
+and a battery covers it. It is <b>IR/runtime-grounded</b>. There is no
+<code class="inline">~~</code> surface form to write and the formatter cannot
+emit one, so it is <b>not surface-grounded</b>, and it is therefore <i>not</i> a
+sixth writable role.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Term</th><th>Means</th></tr></thead>
+<tbody>
+<tr><td><b>IR/runtime-grounded</b></td><td>a canonical IR declaration exists, the runtime executes it, and a battery covers it</td></tr>
+<tr><td><b>surface-grounded</b></td><td><i>additionally</i>: WRL source can declare it, the formatter can emit it, and it round-trips through the canonical bytes</td></tr>
+</tbody></table></div>
+
+<p>A construct is eligible for promotion into a frozen Core family only when it
+is surface-grounded. IR grounding alone is necessary and not sufficient.</p>
+
+<h2 id="walls">6 · Walls: gate, commit, seal</h2>
+
+<p>Walls are the boundaries a rider crosses, and the slash ladder orders them by
+permanence.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Boundary</th><th>Reduction effect</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">/gate</code></td><td>require a capability; emit an effect-request node — <b>no ambient I/O</b></td><td><span class="tier prop">reserved</span></td></tr>
+<tr><td><code class="inline">//commit</code></td><td>canonicalize the fragment so far; assign a content id; freeze it</td><td><span class="tier core">grounded</span></td></tr>
+<tr><td><code class="inline">///seal</code></td><td>commit, then register the artifact under a content hash</td><td><span class="tier partial">partial</span></td></tr>
+</tbody></table></div>
+
+<p>The frozen part is the three-tier ordering and one rule with teeth: <b>effects
+cross named walls only</b>. There is no ambient authority anywhere in the
+language — a computation that wants to touch the outside world must emit an
+effect-request that crosses a declared boundary, which is what makes the film
+complete rather than merely detailed.</p>
+
+<h2 id="time">7 · Periods and superdense time</h2>
+
+<ul>
+<li>Logical time is <b>superdense</b>: every event carries a pair
+<code class="inline">(period t, microstep m)</code>.</li>
+<li>A <b>period</b> is the settle-and-commit unit. Events within the same period
+are ordered by microstep.</li>
+<li>Wall-clock time enters only through an explicit boundary, and is recorded as
+a <b>signed fact</b>.</li>
+</ul>
+
+<div class="note"><b>Wall-clock is never replayable state; logical time is.</b>
+If your world reads a clock, that reading becomes an input fact that the film
+carries, so the replay observes the same value the live run did. A world that
+could reach out and ask the host what time it is would not be replayable, so it
+cannot.</div>
+
+<h2 id="memory">8 · The five memory kinds</h2>
+
+<div class="tbl"><table>
+<thead><tr><th>Shape</th><th>Memory kind</th><th>Lifetime rule</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">(state)</code></td><td>volatile cell</td><td>mutable by replacement; single-owner</td></tr>
+<tr><td><code class="inline">{facts}</code></td><td>monotonic knowledge</td><td>grow-only; merges by lattice union; never retracts</td></tr>
+<tr><td><code class="inline">[archive]</code></td><td>durable store</td><td>persistent addressable actor; survives restart</td></tr>
+<tr><td><code class="inline">:: fragment //</code></td><td>code memory</td><td>quoted graph as portable data</td></tr>
+<tr><td><code class="inline">#hash</code></td><td>sealed identity</td><td>immutable, content-addressed</td></tr>
+</tbody></table></div>
+
+<div class="note"><b>No shared mutable cell.</b> This is the frozen invariant
+that does the most work in the whole language. Shared knowledge is
+<code class="inline">{facts}</code>, merged by monotone union. Shared identity is
+<code class="inline">[archive]</code>. There is no third option. That single-owner
+discipline is what makes execution deterministic <i>without</i> a runtime
+conflict resolver — the resolver is not fast, it is absent.</div>
+
+<!-- ===================================================== PART II -->
+<div class="part">Part II · The machine</div>
+
+<h2 id="cycle">9 · The period cycle</h2>
+
+<p>Every period advances the whole world through exactly six phases, in this
+order. This is frozen.</p>
+
+<div class="pipe">
+  <span><b>OBSERVE</b></span><span><b>ACCEPT</b></span><span><b>MAP</b></span>
+  <span><b>COMMIT</b></span><span><b>REACT</b></span><span><b>FILM</b></span>
+</div>
+
+<div class="tbl"><table>
+<thead><tr><th>Phase</th><th>What happens</th></tr></thead>
+<tbody>
+<tr><td><b>OBSERVE</b></td><td>canonicalize incoming claims and insert the distinct ones</td></tr>
+<tr><td><b>ACCEPT</b></td><td>create missing receipts according to the pinned acceptance policy</td></tr>
+<tr><td><b>MAP</b></td><td>turn newly-accepted successful operations into controls</td></tr>
+<tr><td><b>COMMIT</b></td><td>apply control writes and fault resets to owned cells</td></tr>
+<tr><td><b>REACT</b></td><td>run the deterministic within-period token cascade to fixpoint; latch any current overflow</td></tr>
+<tr><td><b>FILM</b></td><td>record exactly the entries needed to replay this period</td></tr>
+</tbody></table></div>
+
+<div class="note warn"><b>The first three phases never disappear.</b> A world with
+no claims makes OBSERVE, ACCEPT and MAP degenerate to identity — but they remain
+in the semantic model. That distinction is what determines which claims were
+seen, which candidate was accepted, whether a retransmission retries an effect,
+which controls were committed, and whether a same-period configuration change
+affects that period's reaction. Collapse them and every one of those questions
+becomes unanswerable.</div>
+
+<p>Notice the ordering of COMMIT before REACT. Configuration writes land
+<i>first</i>, then the cascade runs against the world those writes produced. A
+spinner reconfigured this period is reconfigured for this period's reaction, not
+the next one. That is a decision, not an accident, and it is why the phase list
+is ordered rather than merely enumerated.</p>
+
+<h2 id="invariants">10 · Two invariants, and what conflicts remain</h2>
+
+<p>Two invariants are enforced <b>statically</b>, before anything runs:</p>
+
+<ol>
+<li><b>Single-owner cells.</b> No shared mutable cell exists anywhere.</li>
+<li><b>Disjoint deterministic guards.</b> At most one deterministic rule is
+enabled per actor-state. Genuine choice must be written as an explicit scored
+branch, so a nondeterministic decision is always visible in the source.</li>
+</ol>
+
+<h3>Conflicts are narrowed, not dissolved</h3>
+
+<p>It is tempting to claim that single ownership makes conflict impossible. It
+does not, and the spec says so explicitly. Ownership removes generic write-write
+races; append and fact-union structures merge deterministically. But a real
+distributed world still faces conflicts that ownership cannot touch, and each of
+those is resolved by an <b>explicit, policy-pinned law</b>:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Question</th><th>Pinned law</th></tr></thead>
+<tbody>
+<tr><td>Recognition — did we see this claim before?</td><td>distinct-CandidateKey count</td></tr>
+<tr><td>Acceptance — which candidate wins?</td><td>MIN CandidateKey / first receipt</td></tr>
+<tr><td>Application — in what order do accepted events apply?</td><td>canonical event order</td></tr>
+<tr><td>Fault — reset vs. new overflow in the same period</td><td>COMMIT clears, then REACT ORs</td></tr>
+<tr><td>Capacity — partial failure</td><td>atomic latch; there is no partial</td></tr>
+</tbody></table></div>
+
+<div class="note"><b>Canonical ordering is policy-pinned, not a fixed formula.</b>
+Events and accepted operations are ordered by a total canonical key <i>whose
+schema and policy identity are part of the semantic artifact</i>. Worker arrival
+order is never semantic. What is frozen is that such a key exists and is pinned
+by policy; the specific formula belongs to the profile and may differ between
+profiles.</div>
+
+<h2 id="history">11 · What a run leaves behind</h2>
+
+<p>"Film" is not one undifferentiated object. Three artifacts are frozen
+distinct:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Artifact</th><th>Role</th></tr></thead>
+<tbody>
+<tr><td><b>WorldFrame</b></td><td>authoritative observable state, sufficient for future behaviour — the physical snapshot</td></tr>
+<tr><td><b>EventLedger</b></td><td>accepted events, receipts, effects, outcomes — the claim-aware layer</td></tr>
+<tr><td><b>BuildFilm</b></td><td>compiler and build provenance <span class="tier prop">proposed</span></td></tr>
+</tbody></table></div>
+
+<p>A replay package is frozen in this shape:</p>
+
+<pre class="code"><code>ReplayBundle {
+  initial_artifact,
+  initial_state,
+  event_ledger,
+  frames,
+  policy_ids
+}</code></pre>
+
+<p>The byte layouts are a backend concern and are not frozen. The three-way
+distinction and the bundle shape are.</p>
+
+<h2 id="canon">12 · Canonicalization and content identity</h2>
+
+<p>Meaning is <b>normalized before it is addressed</b>. Three rules follow:</p>
+
+<ul>
+<li>Comments, spacing, alignment, decorative route length and presentation colour
+<b>never</b> affect the semantic hash.</li>
+<li>Identity is content-addressed: the same normalized graph yields the same hash
+on every host.</li>
+<li>Builds and expansion are <b>hermetic and host-blind</b>: same source, same
+canonical bytes.</li>
+</ul>
+
+<p>Concretely, the compiler's first job is to produce a canonical graph:
+declarations sorted identity-first, edges sorted, configuration normalized to
+its typed form, empty port groups omitted rather than emitted as empty. That
+canonical graph is serialized to JSON with sorted keys and no incidental
+whitespace, and hashed with SHA-256. The result is the
+<code class="inline">SemanticArtifactID</code>.</p>
+
+<div class="idline">SemanticArtifactID &nbsp;<b>sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a</b></div>
+
+<p>The <a href="playground.html">playground</a> computes exactly that value in
+your browser, from a faithful port of the same canonicalizer — which is why you
+can watch an edit move the id, or fail to.</p>
+
+<h2 id="ladder">13 · The identity ladder</h2>
+
+<p>Six content-addressed prefixes, each naming a different question. They are
+deliberately distinct: conflating any two of them would let a change to one thing
+silently invalidate another.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Prefix</th><th>Names</th><th>Moves when…</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">sem-</code></td><td>SemanticArtifactID — the world's meaning</td><td>the canonical graph changes</td></tr>
+<tr><td><code class="inline">bknd-</code></td><td>BackendArtifactID — meaning + lowering profile</td><td>the semantic id moves, <i>or</i> the lowering profile does</td></tr>
+<tr><td><code class="inline">scen-</code></td><td>ScenarioDigest — the run inputs</td><td>periods or claims change</td></tr>
+<tr><td><code class="inline">replay-</code></td><td>ReplayBundleID — a specific run of a specific world</td><td>either of the two above moves</td></tr>
+<tr><td><code class="inline">bundle-</code></td><td>ForgeBundleID — a self-contained exported project</td><td>the exported bytes change</td></tr>
+<tr><td><code class="inline">env-</code></td><td>an evaluation environment</td><td>its splits change</td></tr>
+</tbody></table></div>
+
+<div class="note"><b>The split that matters most.</b> A world and a run of that
+world have separate identities. Two backends can lower the same
+<code class="inline">sem-</code> to two different <code class="inline">bknd-</code>
+values and still produce byte-identical films — which is the whole point of
+having a semantic layer at all.</div>
+
+<!-- ===================================================== PART III -->
+<div class="part">Part III · The surface you can write today</div>
+
+<h2 id="surface">14 · The world document</h2>
+
+<p>A world document is one profile line, then declarations, then edges. Comments
+start with <code class="inline">;</code> and run to end of line.</p>
+
+<pre class="code"><code><span class="cm">; every world names the profile it conforms to</span>
+<span class="kw">profile</span> forge.world.core.v1
+
+<span class="cm">; declarations: [role:id](config){ports}</span>
+[<span class="kw">pulser</span>:<span class="id">p0</span>](<span class="lit">every 2</span>){<span class="rt">sig_out</span>}
+[<span class="kw">relay</span>:<span class="id">r0</span>]{<span class="rt">sig_in, sig_out</span>}
+[<span class="kw">spinner</span>:<span class="id">sp</span>](<span class="lit">w=16, n=8, rotor=quarter_turn_z, configurable</span>){<span class="rt">sig_in, socket</span>}
+[<span class="kw">orb</span>:<span class="id">ob</span>]{<span class="rt">pose</span>}
+
+<span class="cm">; edges: [src] --kind--&gt; [dst]</span>
+[<span class="id">p0</span>] <span class="rt">--sig--&gt;</span> [<span class="id">r0</span>]
+[<span class="id">r0</span>] <span class="rt">--sig--&gt;</span> [<span class="id">sp</span>]
+[<span class="id">sp</span>] <span class="rt">--socket--&gt;</span> [<span class="id">ob</span>]</code></pre>
+
+<p>That is the entire grammar of the current core surface. There is one profile,
+five roles, two edge kinds, one configuration group per role, and one port group
+per declaration. The restraint is deliberate: every construct in that list is
+surface-grounded, meaning it round-trips through the canonical bytes and its
+identity behaviour is covered by a battery.</p>
+
+<div class="note"><b><code class="inline">#</code> is not a comment.</b> In the
+core surface the comment marker is <code class="inline">;</code> only.
+<code class="inline">#</code> belongs to the identity family and is preserved.
+Writing <code class="inline"># note</code> where you meant a comment is a parse
+error, not a silently-ignored line.</div>
+
+<h2 id="roles">15 · The five roles</h2>
+
+<div class="tbl"><table>
+<thead><tr><th>Role</th><th>Does</th><th>Ports (out / in)</th><th>Config</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">pulser</code></td><td>emits a signal on a clock</td><td><code class="inline">sig_out</code> / —</td><td>a clock</td></tr>
+<tr><td><code class="inline">relay</code></td><td>forwards a signal</td><td><code class="inline">sig_out</code> / <code class="inline">sig_in</code></td><td>none</td></tr>
+<tr><td><code class="inline">door</code></td><td>consumes a signal</td><td>— / <code class="inline">sig_in</code></td><td>none</td></tr>
+<tr><td><code class="inline">spinner</code></td><td>holds a rotor; drives a socket</td><td><code class="inline">socket</code> / <code class="inline">sig_in</code></td><td><code class="inline">w</code>, <code class="inline">n</code>, <code class="inline">rotor</code>, <code class="inline">configurable</code></td></tr>
+<tr><td><code class="inline">orb</code></td><td>carries a pose</td><td>— / <code class="inline">pose</code></td><td>none</td></tr>
+</tbody></table></div>
+
+<p>A role's ports are <b>derived from the registry, not from what you type</b>.
+The <code class="inline">{…}</code> group on a declaration is checked against the
+frozen signature for that role: name the wrong ports, or name a subset, and you
+get <code class="inline">WRL_PORT_SIGNATURE</code>. The braces are an assertion
+about structure, not a definition of it.</p>
+
+<p>In the canonical artifact, empty port groups are <b>omitted entirely</b>. A
+door carries <code class="inline">{"in":["sig_in"]}</code> with no
+<code class="inline">"out"</code> key at all — not an empty array. This is the
+kind of detail that a re-implementation gets wrong and a content hash catches
+immediately.</p>
+
+<h3>Clocks</h3>
+
+<div class="tbl"><table>
+<thead><tr><th>You write</th><th>Canonical form</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">every 2</code></td><td><code class="inline">["periodic", 2, 0]</code></td><td>fires every 2 periods, no phase offset</td></tr>
+<tr><td><code class="inline">every 3, phase 1</code></td><td><code class="inline">["periodic", 3, 1]</code></td><td>fires every 3 periods, offset by 1</td></tr>
+<tr><td><code class="inline">once at 1</code></td><td><code class="inline">["once", 1]</code></td><td>fires exactly once, at period 1</td></tr>
+</tbody></table></div>
+
+<h2 id="wiring">16 · Edges, ports and wiring</h2>
+
+<p>Two edge kinds exist. Each one is a fixed pair of ports, and the pair is what
+makes the edge legal or illegal.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>You write</th><th>Canonical kind</th><th>Source port</th><th>Destination port</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">--sig--&gt;</code></td><td><code class="inline">SignalWire</code></td><td><code class="inline">sig_out</code></td><td><code class="inline">sig_in</code></td></tr>
+<tr><td><code class="inline">--socket--&gt;</code></td><td><code class="inline">SocketControl</code></td><td><code class="inline">socket</code></td><td><code class="inline">pose</code></td></tr>
+</tbody></table></div>
+
+<p>Validation is therefore purely mechanical. An edge is legal when the source
+role owns the source port and the destination role owns the destination port.
+Wire a pulser into a pulser and the destination has no
+<code class="inline">sig_in</code>, so you get
+<code class="inline">WRL_ILLEGAL_PORT_PAIR</code>. Wire a spinner's socket into a
+relay and the relay has no <code class="inline">pose</code>, same error.</p>
+
+<div class="note warn"><b>One controller per input port.</b> Two edges landing on
+the same input port is <code class="inline">WRL_CONTROLLER_CONFLICT</code>. This
+is the single-owner invariant from <a href="#memory">§8</a> showing up as a
+topology rule: an input port is an owned cell, and owned cells have exactly one
+writer. Fan-<i>out</i> is fine and common; fan-<i>in</i> is a structural
+error.</div>
+
+<h3>Where the error is caught</h3>
+
+<p>A useful mental model, because it explains error messages that otherwise look
+misplaced: <b>an operation enforces only its own precondition; the seal judges
+structural legality.</b> Removing an object does not cascade to its edges,
+because removal's precondition is only that the object exists. The dangling edge
+it leaves behind is caught when the world is sealed, as
+<code class="inline">WRL_UNKNOWN_ENDPOINT</code>. An honest delete is therefore
+two operations — unwire, then remove — and the design prefers making you say that
+to silently doing more than you asked.</p>
+
+<h2 id="numbers">17 · Numbers</h2>
+
+<div class="note stop"><b>There is no floating point anywhere in WRL.</b> Not in
+rotors, not in poses, not in configuration. A float's result depends on
+evaluation order and hardware, and a language whose entire premise is
+byte-identical films cannot contain one.</div>
+
+<p>A spinner's rotor is four integer quaternion lanes in a fixed-point Q-format
+that the spinner itself declares:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Field</th><th>Means</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">w</code></td><td>total bit width of a lane</td></tr>
+<tr><td><code class="inline">n</code></td><td>number of fractional bits; the unit value is <code class="inline">1 &lt;&lt; n</code></td></tr>
+<tr><td><code class="inline">rotor</code></td><td>four integer lanes, written <code class="inline">a.b.c.d</code>, or a named rotor</td></tr>
+<tr><td><code class="inline">configurable</code></td><td>whether the rotor may be rewritten at run time</td></tr>
+</tbody></table></div>
+
+<p>So at <code class="inline">n=8</code> the unit is 256 and the identity rotor is
+<code class="inline">256.0.0.0</code>. A quarter turn about z needs
+<code class="inline">u/√2</code> in two lanes, which is not an integer — so the
+language does not compute it in floating point and round. It computes the exactly
+rounded integer with integer arithmetic only:</p>
+
+<pre class="code"><code><span class="cm">; round(u / sqrt2) with integers only</span>
+u       = 1 &lt;&lt; n
+two_uu  = 2 * u * u
+q0      = isqrt(two_uu) / 2
+result  = q0 + 1  <span class="cm">if</span>  two_uu &gt; 4*q0*q0 + 4*q0 + 1  <span class="cm">else</span>  q0</code></pre>
+
+<div class="tbl"><table>
+<thead><tr><th>n</th><th>unit</th><th>quarter-turn lane</th></tr></thead>
+<tbody>
+<tr><td>4</td><td>16</td><td>11</td></tr>
+<tr><td>8</td><td>256</td><td>181</td></tr>
+<tr><td>16</td><td>65536</td><td>46341</td></tr>
+</tbody></table></div>
+
+<p>Those values are reproducible on any host with integer arithmetic, which is
+exactly the requirement. Named rotors that involve rounding carry a
+<b>provenance policy id</b> recording <i>how</i> they were rounded — provenance
+only; it never enters the artifact bytes.</p>
+
+<h2 id="sugar">18 · Sugar</h2>
+
+<p>Sugar is a <b>source-to-source pre-pass</b> that runs in front of the
+untouched canonical parser. It is not a second compiler, and it has no path to
+the seal of its own.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Sugared</th><th>Expands to</th><th>Kind</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">every 2</code></td><td><code class="inline">mode=periodic, period=2, phase=0</code></td><td>value</td></tr>
+<tr><td><code class="inline">once at 1</code></td><td><code class="inline">mode=once, epoch=1</code></td><td>value</td></tr>
+<tr><td><code class="inline">rotor=quarter_turn_z</code></td><td><code class="inline">rotor=181.0.0.181</code> at n=8</td><td>value</td></tr>
+<tr><td><code class="inline">[relay:r*3]</code></td><td><code class="inline">r0</code>, <code class="inline">r1</code>, <code class="inline">r2</code></td><td>structural</td></tr>
+<tr><td><code class="inline">[p0] --sig--&gt; {r0, r1}</code></td><td>two separate edges</td><td>structural</td></tr>
+</tbody></table></div>
+
+<div class="note"><b>The law is: no sugar-specific identity.</b> A sugared
+spelling and its explicit twin desugar to the same canonical bytes and therefore
+seal to the same <code class="inline">sem-</code> id. Sugar introduces no identity
+of its own and no privileged path to the seal.</div>
+
+<div class="note warn"><b>That is not the claim that editing sugar cannot move an
+id.</b> <code class="inline">sp*3</code> → <code class="inline">sp*4</code> is a
+<i>different program</i> and moves the identity, exactly as the explicit spelling
+would. The looser phrasing is false and the spec is careful to say so.</div>
+
+<p>Two properties are required of any sugar, and both are gated by battery:</p>
+
+<ol>
+<li><b>Bounded expansion.</b> A one-to-many form must reject an absurd count with
+a typed diagnostic <i>before</i> allocating the expansion.
+<code class="inline">sp*1000000000</code> is a diagnostic, not an
+out-of-memory event. Replication and fan-out are bounded at 1024, total
+expansion at 65536 lines, and a count may not exceed 9 digits.</li>
+<li><b>Original-source mapping.</b> An expansion must preserve the <i>authored
+spans</i>, so diagnostics, completion, semantic diff and editor operations all
+refer to what you wrote rather than to generated text.</li>
+</ol>
+
+<p>Generated names are judged by the ordinary seal. A collision between a
+generated name and an explicit one is a normal
+<code class="inline">WRL_DUPLICATE_ID</code>, not a special sugar rule.</p>
+
+<p><b>Status:</b> implemented, battery green, identity-equivalent —
+<span class="tier partial">not closure-proven, not frozen</span>.</p>
+
+<h2 id="boundary">19 · Worlds versus runs</h2>
+
+<p>A world and a run of that world are <b>different documents</b>. This is
+normative.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Document</th><th>Carries</th><th>Enters <code class="inline">sem-</code>?</th></tr></thead>
+<tbody>
+<tr><td><b>World document</b></td><td>profile, objects, edges, static config, wiring</td><td><b>yes</b></td></tr>
+<tr><td><b>ScenarioV1</b></td><td><code class="inline">periods</code>, <code class="inline">[epoch:N]</code> claims, run inputs</td><td><b>no</b></td></tr>
+</tbody></table></div>
+
+<p>Three consequences are frozen:</p>
+
+<ol>
+<li><b>Run inputs are not world content.</b> Changing how long you run a world,
+or what claims you feed it, does not move the
+<code class="inline">SemanticArtifactID</code>. One world, many scenarios.</li>
+<li><b>A world formatter emits a world document</b> — and must exclude scenario
+syntax both <i>semantically</i> (reparsing yields no run inputs) <i>and</i>
+<i>lexically</i> (the emitted text does not contain scenario syntax at all). The
+lexical half is load-bearing: a formatter emitting a literal
+<code class="inline">periods 0</code> would satisfy the semantic half while still
+writing scenario syntax into a world document.</li>
+<li><b>Round-trip laws split in two.</b> The <b>world</b> round-trip preserves the
+complete canonical world projection; the <b>identity</b> round-trip preserves the
+canonical bytes and the <code class="inline">sem-</code> id. Neither subsumes the
+other.</li>
+</ol>
+
+<div class="note"><b>The world projection is defined by exclusion</b> — every
+canonical field <i>except</i> the run inputs — and never as a fixed tuple such as
+<code class="inline">(profile, nodes, edges)</code>. A fixed tuple silently stops
+covering any field a later slice adds.</div>
+
+<h3>The two parser mouths</h3>
+
+<div class="tbl"><table>
+<thead><tr><th>Entry point</th><th>Accepts</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">parse_wrl_core(text)</code></td><td>world source <b>only</b>; rejects run inputs with a typed <code class="inline">WRL_WORLD_SOURCE_HAS_SCENARIO</code></td><td><b>normative</b></td></tr>
+<tr><td><code class="inline">parse_wrl_legacy_document(text)</code></td><td>a pre-boundary <i>combined</i> document</td><td>explicit compatibility path</td></tr>
+</tbody></table></div>
+
+<p>Parameterizing the parser is sanctioned only as a migration bridge, and only
+through an unmistakable API — never a boolean flag on one function. The legacy
+path's destination is to <b>split</b> a combined document into a world plus a
+scenario, not to keep parsing it forever.</p>
+
+<h2 id="diagnostics">20 · Diagnostics</h2>
+
+<p>Every rejection is a <b>typed code</b>, never a raw exception and never a
+free-text string. A tool downstream can branch on the code; a human reads the
+detail. The full catalogue lives in the
+<a href="reference.html#codes">reference</a>; the ones you will meet first:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Code</th><th>Means</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">WRL_DUPLICATE_ID</code></td><td>a second object claims an id already declared</td></tr>
+<tr><td><code class="inline">WRL_UNKNOWN_ENDPOINT</code></td><td>an edge names an object that was never declared</td></tr>
+<tr><td><code class="inline">WRL_ILLEGAL_PORT_PAIR</code></td><td>an edge asks for a port the role does not have</td></tr>
+<tr><td><code class="inline">WRL_CONTROLLER_CONFLICT</code></td><td>two controllers reach the same input port</td></tr>
+<tr><td><code class="inline">WRL_PORT_SIGNATURE</code></td><td>a <code class="inline">{ports}</code> group does not match the frozen signature</td></tr>
+<tr><td><code class="inline">WRL_WORLD_SOURCE_HAS_SCENARIO</code></td><td>run inputs appeared in world source</td></tr>
+<tr><td><code class="inline">WRL_SUGAR_MALFORMED</code></td><td>a sugared spelling could not be expanded</td></tr>
+<tr><td><code class="inline">WRL_UNSUPPORTED_FEATURE</code></td><td>the construct is outside frozen Semantic IR v1</td></tr>
+</tbody></table></div>
+
+<p>Two disciplines make these worth relying on. First, a rejected draft stays
+<b>editable</b> — an invalid candidate never commits, but it also never destroys
+what you were editing. Second, a failure to parse leaves the previous sealed
+world <b>runnable</b>. You cannot break a working world by typing badly into
+an editor.</p>
+
+<!-- ===================================================== PART IV -->
+<div class="part">Part IV · Status</div>
+
+<h2 id="conformance">21 · Conformance families</h2>
+
+<p>These observable properties are frozen as families of guarantee. Their exact
+test matrices remain draft.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Family</th><th>Guarantee</th></tr></thead>
+<tbody>
+<tr><td>Formatting invariance</td><td>presentation never changes the hash</td></tr>
+<tr><td>Replay exactness</td><td>a live run and its replay share all observables</td></tr>
+<tr><td>Build invariance</td><td>same inputs → identical film and hashes across hosts</td></tr>
+<tr><td>Merge laws</td><td>fact union is commutative, associative, idempotent</td></tr>
+<tr><td>Boundary safety</td><td>undeclared effects cannot cross walls</td></tr>
+<tr><td>Scheduler invariance</td><td>worker ordering never changes the committed film</td></tr>
+<tr><td>World round-trip</td><td>a format→parse cycle preserves the complete canonical world projection</td></tr>
+<tr><td>Identity round-trip</td><td>a format→parse cycle preserves the canonical bytes and the <code class="inline">sem-</code> id</td></tr>
+<tr><td>Document separation</td><td>a world document excludes run inputs both semantically and lexically</td></tr>
+</tbody></table></div>
+
+<p>The determinism property, stated precisely:</p>
+
+<div class="note"><b>Given the same initial configuration and the same sequence
+of external observations — the signed facts crossing effect walls — the committed
+film is byte-identical across any hardware scheduling.</b></div>
+
+<h2 id="road">22 · The road to Core 0.2</h2>
+
+<p>The promotion order below is <b>steered, not merely preferred</b>. Each step
+supplies something the next one needs, so reordering them produces constructs
+that cannot be grounded honestly.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>#</th><th>Step</th><th>Gate it must pass</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>L-0 closure</td><td>round-trip and document-boundary laws restated and green — <b>complete</b></td></tr>
+<tr><td>2</td><td><code class="inline">~~</code> async route</td><td>needs a canonical logical route declaration <i>distinct from</i> the structural edge declaration</td></tr>
+<tr><td>3</td><td><code class="inline">==</code> verified route</td><td>see below — it is not almost free</td></tr>
+<tr><td>4</td><td><code class="inline">#</code> references and <code class="inline">&amp;</code> composition</td><td>—</td></tr>
+<tr><td>5</td><td><code class="inline">//commit</code> and <code class="inline">///seal</code></td><td>—</td></tr>
+<tr><td>6</td><td><code class="inline">!!</code> fault route</td><td>may only follow a minimal supervision floor actually existing</td></tr>
+<tr><td>7</td><td><code class="inline">/gate</code> capability gate</td><td>last</td></tr>
+</tbody></table></div>
+
+<h3><code class="inline">==</code> is not "almost free"</h3>
+
+<p>It is tempting to read the verified route as nearly grounded, because the
+acceptance core already accepts claims. That confuses two different things: the
+<b>declaration</b> <code class="inline">==</code> would introduce is
+<i>authorization structure</i>, while the <b>frozen texture</b>
+<code class="inline">==</code> denotes an <i>evidence-backed transition</i>.</p>
+
+<div class="note stop"><code class="inline">==</code> is grounded <b>only</b> when
+acceptance enforces all four of: the <b>claimant</b>, the <b>target</b>, the
+<b>operation family</b>, and a <b>named policy</b>. Anything less is a route that
+looks verified and is not.</div>
+
+<p>The layering that comes with it is approved: the <b>world document</b> declares
+a verified channel and its schema; the <b>scenario</b> carries the claim
+instances; <b>receipts</b> prove acceptance through that channel. One explicit
+constraint attaches — a principal-shaped role such as
+<code class="inline">[worker:w1]</code> must <i>not</i> be introduced as part of
+that work. How principals exist in the role system is a separate question
+requiring its own sanction, and smuggling one in would freeze a role-system
+decision nobody ruled on.</p>
+
+<div class="btnrow" style="margin-top:44px">
+  <a class="btn" href="reference.html">Reference tables →</a>
+  <a class="btn ghost" href="spec.html">Read the frozen spec</a>
+  <a class="btn ghost" href="playground.html">Open the playground</a>
+</div>
+
+</div>
+</main>
+
+<footer class="site">
+  <div class="inner">
+    <div>
+      <strong>WallRiderLang</strong>
+      <a href="learn.html">Tutorial</a><br>
+      <a href="guide.html">Language guide</a><br>
+      <a href="reference.html">Reference</a><br>
+      <a href="spec.html">Core 0.1.2 spec</a>
+    </div>
+    <div>
+      <strong>Tools</strong>
+      <a href="playground.html">Browser playground</a><br>
+      <a href="https://github.com/c-u-l8er/WRL">Source on GitHub</a>
+    </div>
+    <div>
+      <strong>Status</strong>
+      Core 0.1.2 — frozen<br>
+      Semantic IR v1 — frozen<br>
+      Sugar — sugar.v2
+    </div>
+    <div style="max-width:32ch">
+      <strong>Colophon</strong>
+      WRL is the authoring language of TRVM Forge. Riders move, walls
+      authorize, films prove.
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

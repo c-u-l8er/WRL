@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Playground — WallRiderLang</title>
+<meta name="description" content="Parse, desugar, validate, canonicalize and seal a WallRiderLang world in your browser. The real identity spine, ported to JavaScript — it computes actual SemanticArtifactIDs, not fakes.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="wrl.css">
+<style>
+  .pg{max-width:1240px;margin:0 auto;padding:34px 5vw 90px}
+  .pgrid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);
+         gap:18px;margin-top:20px}
+  .panel{background:#fff;border:1px solid var(--paper-2);border-radius:9px;
+         overflow:hidden;display:flex;flex-direction:column}
+  .panel>header{font-family:var(--mono);font-size:11px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--ink-faint);padding:11px 15px;
+    border-bottom:1px solid var(--paper-2);display:flex;align-items:center;gap:10px}
+  .panel>header .sp{margin-left:auto;display:flex;gap:8px}
+  textarea#src{font-family:var(--mono);font-size:13.5px;line-height:1.75;
+    border:0;resize:vertical;padding:16px;min-height:330px;width:100%;
+    background:var(--machine);color:#CFE3DA;outline:0;tab-size:2}
+  .out{font-family:var(--mono);font-size:12.5px;line-height:1.7;padding:15px;
+       overflow-x:auto;white-space:pre-wrap;word-break:break-all;margin:0;
+       background:var(--machine);color:#9FB8AE;flex:1;min-height:120px}
+  .idbar{font-family:var(--mono);font-size:13px;padding:14px 16px;border-radius:9px;
+    border:1px solid var(--paper-2);background:#fff;display:flex;gap:14px;
+    align-items:center;flex-wrap:wrap;margin-top:18px}
+  .idbar .tag{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--ink-faint);font-weight:600}
+  .idbar .val{color:var(--wire);font-weight:600;word-break:break-all}
+  .idbar.err{border-color:var(--rust)}
+  .idbar.err .val{color:var(--rust)}
+  .minibtn{font-family:var(--mono);font-size:11px;letter-spacing:.04em;cursor:pointer;
+    background:var(--paper-2);border:0;border-radius:5px;padding:5px 11px;
+    color:var(--ink-soft);font-weight:600}
+  .minibtn:hover{background:var(--wire);color:#EAF6F1}
+  .exrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+  .stack{display:flex;flex-direction:column;gap:18px;min-width:0}
+  .diag{border-left:2px solid var(--rust);padding:12px 0 12px 16px;
+    font-family:var(--mono);font-size:12.5px;line-height:1.7}
+  .diag b{color:var(--rust)}
+  .ok{color:var(--wire);font-weight:600}
+  #selfcheck{font-family:var(--mono);font-size:11.5px;color:var(--ink-faint)}
+  #selfcheck.good{color:var(--wire)}
+  #selfcheck.bad{color:var(--rust)}
+  @media (max-width:940px){.pgrid{grid-template-columns:minmax(0,1fr)}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site">
+  <a class="mark" href="./">WallRiderLang<small>WRL CORE 0.1.2 · FROZEN</small></a>
+  <nav>
+    <a href="learn.html">Learn</a>
+    <a href="guide.html">Guide</a>
+    <a href="reference.html">Reference</a>
+    <a href="spec.html">Spec</a>
+    <a href="playground.html" aria-current="page">Playground</a>
+    <a href="https://github.com/c-u-l8er/WRL">GitHub</a>
+  </nav>
+</header>
+
+<main id="main" class="pg">
+  <div class="slot">THE REAL IDENTITY SPINE, IN YOUR BROWSER</div>
+  <h2>Seal a world.</h2>
+  <p style="color:var(--ink-soft);max-width:74ch">Type WRL Core world source on
+  the left. It is desugared, parsed, validated, canonicalized and hashed as you
+  type — by a faithful JavaScript port of the same spine that runs inside TRVM
+  Forge. The <code class="inline">sem-</code> ids below are <b>real</b>: the
+  pinned demo world seals here to the exact id every Forge battery folds
+  against. Nothing is sent anywhere.</p>
+
+  <p id="selfcheck">self-check: running…</p>
+
+  <div class="exrow">
+    <button class="minibtn" data-ex="demo">The pinned demo world</button>
+    <button class="minibtn" data-ex="twin">Its explicit numeric twin</button>
+    <button class="minibtn" data-ex="shuffled">The same world, shuffled</button>
+    <button class="minibtn" data-ex="repl">Replication &amp; fan-out sugar</button>
+    <button class="minibtn" data-ex="conflict">An illegal rewire</button>
+    <button class="minibtn" data-ex="scenario">Run inputs in world source</button>
+    <button class="minibtn" data-ex="empty">Empty world</button>
+  </div>
+
+  <div class="pgrid">
+    <div class="stack">
+      <div class="panel">
+        <header>World source
+          <span class="sp">
+            <button class="minibtn" id="btn-format">Format</button>
+            <button class="minibtn" id="btn-desugar">Show desugared</button>
+          </span>
+        </header>
+        <textarea id="src" spellcheck="false" aria-label="WRL world source"></textarea>
+      </div>
+      <div class="panel">
+        <header>Canonical graph</header>
+        <pre class="out" id="out-graph"></pre>
+      </div>
+    </div>
+
+    <div class="stack">
+      <div class="panel">
+        <header>Canonical artifact bytes
+          <span class="sp"><button class="minibtn" id="btn-copy">Copy</button></span>
+        </header>
+        <pre class="out" id="out-bytes"></pre>
+      </div>
+      <div class="panel">
+        <header>Desugared source <span class="sp" id="sugar-note"></span></header>
+        <pre class="out" id="out-desugar"></pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="idbar" id="idbar">
+    <span class="tag">SemanticArtifactID</span>
+    <span class="val" id="semid">—</span>
+  </div>
+
+  <div id="diag"></div>
+
+  <hr>
+
+  <h3>What this page is doing</h3>
+  <div class="pipe">
+    <span><b>desugar</b> sugar.v2</span>
+    <span><b>parse</b> strict world mouth</span>
+    <span><b>validate</b> typed codes</span>
+    <span><b>canonicalize</b> order-independent</span>
+    <span><b>serialize</b> sorted-key JSON</span>
+    <span><b>sha-256</b> → sem-</span>
+  </div>
+  <p>The reference implementation's canonical bytes are
+  <code class="inline">json.dumps(artifact, sort_keys=True, separators=(",",":"))</code>.
+  Every value in a sealed artifact is an ASCII string, an integer, a boolean, or
+  a container of those — so a recursive key-sorted
+  <code class="inline">JSON.stringify</code> reproduces those bytes exactly, and
+  WebCrypto SHA-256 reproduces the id. That is why this playground can be honest
+  rather than illustrative.</p>
+
+  <p>What it deliberately does <b>not</b> do: lower to a backend, compile to
+  interaction-calculus terms, or reduce to a Film. Those live in TRVM and are not
+  a browser's job. This page covers the <i>semantic</i> half of the pipeline —
+  everything up to and including identity.</p>
+
+  <h3>Things worth trying</h3>
+  <ul>
+    <li>Load the demo world, then load its explicit twin. <b>Same id.</b> Sugar
+    has no identity of its own.</li>
+    <li>Load the shuffled world. <b>Same id.</b> Declaration order is inert.</li>
+    <li>Add a comment, or spaces, or a blank line. <b>Same id.</b></li>
+    <li>Change <code class="inline">rotor=quarter_turn_z</code> to
+    <code class="inline">rotor=identity</code>. <b>Different id</b> — the meaning
+    moved.</li>
+    <li>Change the spinner's <code class="inline">n=8</code> to
+    <code class="inline">n=4</code> while keeping
+    <code class="inline">quarter_turn_z</code>. <b>Different id</b> — an
+    irrational rotor's integer projection depends on the geometry it lands
+    in.</li>
+    <li>Wire a second pulser into <code class="inline">r0</code>. A typed
+    <code class="inline">WRL_CONTROLLER_CONFLICT</code>, with the line.</li>
+  </ul>
+</main>
+
+<footer class="site">
+  <div class="inner">
+    <div><strong>WallRiderLang</strong>
+      <a href="learn.html">Tutorial</a><br><a href="guide.html">Language guide</a><br>
+      <a href="reference.html">Reference</a><br><a href="spec.html">Core 0.1.2 spec</a></div>
+    <div><strong>Tools</strong>
+      <a href="playground.html">Browser playground</a><br>
+      <a href="https://github.com/c-u-l8er/WRL">Source on GitHub</a></div>
+    <div><strong>Status</strong>Core 0.1.2 — frozen<br>Semantic IR v1 — frozen<br>Sugar — sugar.v2</div>
+  </div>
+</footer>
+
+<script type="module">
+import * as W from "./wrl.js";
+
+const $ = (id) => document.getElementById(id);
+const src = $("src");
+
+const EXAMPLES = {
+  demo: W.DEMO_WORLD,
+
+  twin: `profile forge.world.core.v1
+
+; the same world with every sugar spelled out.
+; quarter_turn_z at n=8 projects to 181.0.0.181.
+
+[pulser:p0](mode=periodic, period=2, phase=0){sig_out}
+[relay:r0]{sig_in, sig_out}
+[spinner:sp](w=16, n=8, rotor=181.0.0.181, configurable){sig_in, socket}
+[orb:ob]{pose}
+[pulser:p1](mode=once, epoch=1){sig_out}
+[door:d0]{sig_in}
+
+[pulser:p0] --sig--> [relay:r0]
+[relay:r0] --sig--> [spinner:sp]
+[spinner:sp] --socket--> [orb:ob]
+[pulser:p1] --sig--> [door:d0]
+`,
+
+  shuffled: `profile forge.world.core.v1
+
+; edges before nodes, nodes in a different order,
+; ragged spacing, extra comments. all inert.
+
+[spinner:sp] --socket--> [orb:ob]
+[pulser:p1] --sig--> [door:d0]
+[relay:r0]    --sig-->   [spinner:sp]
+[pulser:p0] --sig--> [relay:r0]
+
+[door:d0]{sig_in}
+[pulser:p1](once at 1){sig_out}      ; fires exactly once
+[orb:ob]{pose}
+[spinner:sp](w=16, n=8, rotor=quarter_turn_z, configurable){sig_in, socket}
+[relay:r0]{sig_in, sig_out}
+[pulser:p0](every 2){sig_out}
+`,
+
+  repl: `profile forge.world.core.v1
+
+; \`*\` mints a group by position (zero-based).
+; \`{...}\` on an edge line fans out to each member.
+; both are pure source-to-source expansions.
+
+[pulser:p*3](every 2){sig_out}
+[door:d*3]{sig_in}
+
+[p*3] --sig--> [d*3]
+`,
+
+  conflict: `profile forge.world.core.v1
+
+; a relay admits ONE signal-wire input.
+; two controllers reaching the same port is a
+; typed rejection at the seal, not a warning.
+
+[pulser:p0](every 2){sig_out}
+[pulser:p1](every 3){sig_out}
+[relay:r0]{sig_in, sig_out}
+
+[pulser:p0] --sig--> [relay:r0]
+[pulser:p1] --sig--> [relay:r0]
+`,
+
+  scenario: `profile forge.world.core.v1
+
+; \`periods\` and \`[epoch:N]\` are RUN INPUTS.
+; they belong to a ScenarioV1 document, and they
+; never enter a SemanticArtifactID. writing them
+; here is a typed rejection, not a silent accept.
+
+[spinner:sp](w=16, n=8, rotor=identity, configurable){sig_in, socket}
+[orb:ob]{pose}
+[spinner:sp] --socket--> [orb:ob]
+
+periods 7
+[epoch:3] SetRotor sp 181.0.0.181
+`,
+
+  empty: `profile forge.world.core.v1
+
+; a world with no objects is still a world,
+; and it still has an identity.
+`,
+};
+
+/* ------------------------------------------------------------- rendering */
+function renderGraph(g) {
+  const lines = [`profile   ${g.profile}`, `objects   ${g.nodes.length}`,
+                 `edges     ${g.edges.length}`, ""];
+  for (const [role, name, cfg] of g.nodes) {
+    const keys = Object.keys(cfg).sort();
+    const body = keys.length
+      ? keys.map((k) => `${k}=${JSON.stringify(cfg[k])}`).join(" ")
+      : "—";
+    lines.push(`${role.padEnd(8)} ${name.padEnd(6)} ${body}`);
+  }
+  if (g.edges.length) lines.push("");
+  for (const [kind, s, d] of g.edges) {
+    lines.push(`${kind.padEnd(14)} ${s} -> ${d}`);
+  }
+  return lines.join("\n");
+}
+
+function renderDiag(r) {
+  const hint = W.CODES[r.code] ? `\n${W.CODES[r.code]}` : "";
+  const where = r.line ? ` · line ${r.line}` : "";
+  const loc = r.locator ? ` · ${r.locator}` : "";
+  const path = r.fieldPath ? ` · ${r.fieldPath}` : "";
+  return `<div class="diag"><b>${r.code}</b>${where}${loc}${path}\n${
+    escapeHtml(r.message)}${escapeHtml(hint)}</div>`;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+}
+
+let last = null;
+
+async function run() {
+  const text = src.value;
+  const r = await W.sealWorld(text);
+  last = r;
+  if (r.ok) {
+    $("idbar").classList.remove("err");
+    $("semid").textContent = r.semanticId;
+    $("out-bytes").textContent = r.bytes;
+    $("out-graph").textContent = renderGraph(r.graph);
+    $("out-desugar").textContent = r.desugared;
+    $("sugar-note").textContent = r.sugared ? "sugar expanded" : "no sugar";
+    $("diag").innerHTML = "";
+  } else {
+    $("idbar").classList.add("err");
+    $("semid").textContent = r.code;
+    $("out-bytes").textContent = "";
+    $("out-graph").textContent = "";
+    /* the desugared text may still exist even when the parse failed */
+    try {
+      $("out-desugar").textContent = W.desugarCore(text);
+      $("sugar-note").textContent = "";
+    } catch { $("out-desugar").textContent = ""; }
+    $("diag").innerHTML = renderDiag(r);
+  }
+}
+
+let timer = null;
+src.addEventListener("input", () => {
+  clearTimeout(timer);
+  timer = setTimeout(run, 140);
+});
+
+for (const b of document.querySelectorAll("[data-ex]")) {
+  b.addEventListener("click", () => { src.value = EXAMPLES[b.dataset.ex]; run(); });
+}
+
+$("btn-format").addEventListener("click", () => {
+  if (last && last.ok) { src.value = W.formatCore(last.graph); run(); }
+});
+
+$("btn-desugar").addEventListener("click", () => {
+  try { src.value = W.desugarCore(src.value); run(); } catch { /* leave as-is */ }
+});
+
+$("btn-copy").addEventListener("click", async () => {
+  if (!last || !last.ok) return;
+  await navigator.clipboard.writeText(last.bytes);
+  $("btn-copy").textContent = "copied";
+  setTimeout(() => { $("btn-copy").textContent = "Copy"; }, 1200);
+});
+
+/* the self-check: re-seal the pinned demo world and confirm it reproduces the
+   frozen id. If this ever goes red, the port has drifted from the spine. */
+(async () => {
+  const sc = await W.selfCheck();
+  const el = $("selfcheck");
+  el.className = sc.ok ? "good" : "bad";
+  el.textContent = sc.ok
+    ? `self-check ok — the pinned demo world seals to ${sc.expected}`
+    : `self-check FAILED — got ${sc.semanticId}, expected ${sc.expected}`;
+})();
+
+src.value = EXAMPLES.demo;
+run();
+</script>
+</body>
+</html>
