@@ -1,0 +1,23 @@
+name: conformance
+
+# The published documentation makes checkable claims: this world seals to this
+# id, that spelling is rejected with that code. This workflow checks them. It
+# exists because a wrong SemanticArtifactID sat on four pages while a green
+# single-fixture self-check said everything was fine.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Seal the corpus and sweep the docs
+        run: npm test

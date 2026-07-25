@@ -80,13 +80,28 @@ config-item  ::= key <span class="rt">"="</span> value | clock-sugar | <span cla
 
 role         ::= <span class="kw">"pulser"</span> | <span class="kw">"relay"</span> | <span class="kw">"door"</span> | <span class="kw">"spinner"</span> | <span class="kw">"orb"</span>
 edge-tag     ::= <span class="kw">"sig"</span> | <span class="kw">"socket"</span>
-id           ::= WORD                       <span class="cm">; [A-Za-z0-9_]+</span>
+id           ::= WORD  <span class="cm">; [A-Za-z0-9_]+, and MUST NOT contain "__"</span>
 comment      ::= <span class="rt">";"</span> ANY*</code></pre>
 
 <div class="note"><b><code class="inline">#</code> is not a comment marker.</b>
 In the core surface the only comment marker is <code class="inline">;</code>.
 <code class="inline">#</code> belongs to the identity family and is preserved by
 the parser rather than discarded.</div>
+
+<div class="note"><b>A double underscore is reserved.</b> An id matching
+<code class="inline">[A-Za-z0-9_]+</code> is still rejected if it contains
+<code class="inline">__</code> — <code class="inline">[relay:a__b]</code> fails
+with <code class="inline">WRL_UNSUPPORTED_FEATURE</code>. The sequence is
+reserved for compiler-generated names, so that a lowered identifier can never
+collide with one you wrote.</div>
+
+<div class="note"><b>Every group is a set, and a set has no repeats.</b> A
+<code class="inline">{ports}</code> group naming the same port twice is a typed
+rejection (<code class="inline">WRL_PORT_SIGNATURE</code>), and a
+<code class="inline">(config)</code> group setting the same key twice is
+<code class="inline">WRL_DUPLICATE_CONFIG_KEY</code>. Neither is last-one-wins,
+because a repeated key is far more often a mistake than an intention, and
+silently keeping one of them would make the id depend on which.</div>
 
 <h3>Line regexes, as implemented</h3>
 
@@ -100,7 +115,23 @@ the parser rather than discarded.</div>
 
 <p>The role prefix is <b>optional on an edge endpoint</b> and, when present, is
 not part of the identity — <code class="inline">[relay:r0]</code> and
-<code class="inline">[r0]</code> refer to the same object on an edge line.</p>
+<code class="inline">[r0]</code> refer to the same object on an edge line, and
+seal identically.</p>
+
+<div class="note"><b>Optional is not unchecked.</b> A role prefix you do write
+is a <i>checked assertion</i>. Writing <code class="inline">[door:r0]</code>
+when <code class="inline">r0</code> was declared a relay is
+<code class="inline">WRL_ROLE_PREFIX_MISMATCH</code>, not a shrug. The prefix
+never affects the id; it exists so that a reader can see the shape of an edge
+without scrolling, and it would be worth nothing if it could lie.</div>
+
+<div class="note"><b>The profile line is required, singular, and first.</b> A
+world document must open with exactly <code class="inline">profile &lt;id&gt;</code>
+— comments and blank lines may precede it, nothing else may. Omitting it is
+<code class="inline">WRL_MISSING_PROFILE</code>, repeating it is
+<code class="inline">WRL_DUPLICATE_PROFILE</code>, and writing it with trailing
+tokens or no id at all is <code class="inline">WRL_MALFORMED_PROFILE</code>.
+A profile-only document is legal: it is the <b>empty world</b>, and it seals.</div>
 
 <h2 id="roles">Role registry</h2>
 
@@ -169,6 +200,18 @@ is unrestricted; fan-in is <code class="inline">WRL_CONTROLLER_CONFLICT</code>.<
 
 <h2 id="config">Configuration schema</h2>
 
+<div class="note"><b><code class="inline">static_config</code> is
+construction-time, not run-time.</b> Everything in this section is read once,
+when the world is built, and is part of the
+<code class="inline">SemanticArtifactID</code>. It <i>seeds</i> runtime cells —
+a Spinner's declared <code class="inline">rotor</code> is the initial value of
+the cell the runtime later writes — but it is not those cells, and it does not
+track them. The name is exact: the configuration is static <b>because a running
+world never writes back into its own document</b>. Runtime values live in state
+(addressed by <code class="inline">state_schema_ref</code>, whose contents are
+outside the document) and are observable in the film; the two are related only
+at period zero, by seeding.</div>
+
 <div class="tbl"><table>
 <thead><tr><th>Role</th><th>Surface keys</th><th>Canonical <code class="inline">static_config</code> keys</th></tr></thead>
 <tbody>
@@ -190,14 +233,30 @@ tuple.</p>
 <thead><tr><th>Field</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
 <tr><td><code class="inline">w</code></td><td>integer</td><td>total bit width of one rotor lane</td></tr>
-<tr><td><code class="inline">n</code></td><td>integer, <code class="inline">n &lt; w</code></td><td>fractional bits; unit = <code class="inline">1 &lt;&lt; n</code></td></tr>
-<tr><td><code class="inline">rotor</code></td><td>4 integers</td><td>quaternion lanes, written <code class="inline">a.b.c.d</code> or a name</td></tr>
+<tr><td><code class="inline">n</code></td><td>integer, <code class="inline">0 ≤ n ≤ w</code></td><td>fractional bits; unit = <code class="inline">1 &lt;&lt; n</code></td></tr>
+<tr><td><code class="inline">rotor</code></td><td>exactly 4 integers, each <code class="inline">0 ≤ lane &lt; 1&lt;&lt;w</code></td><td>quaternion lanes, written <code class="inline">a.b.c.d</code> or a name</td></tr>
 <tr><td><code class="inline">configurable</code></td><td>boolean</td><td>whether the rotor may be rewritten at run time</td></tr>
 </tbody></table></div>
 
+<div class="note"><b>The bound on <code class="inline">n</code> is
+<code class="inline">≤</code>, not <code class="inline">&lt;</code>.</b> The
+validator accepts <code class="inline">n = w</code>, and this table said
+<code class="inline">n &lt; w</code> until it was checked against the frozen
+implementation. The looser bound is worth understanding rather than tightening:
+at <code class="inline">n = w</code> the geometry is still well-formed, but the
+unit <code class="inline">1 &lt;&lt; n</code> equals
+<code class="inline">2<sup>w</sup></code> and so falls outside the legal lane
+range — every lane is representable, and the value <b>one</b> is not. Such a
+world seals fine and is arithmetically degenerate. If you want a rotor of unit
+magnitude you need <code class="inline">n &lt; w</code>; the validator enforces
+well-formedness, not usefulness.</div>
+
 <p>Rotor lanes are written with <b>dots</b> in the core surface
-(<code class="inline">181.0.0.181</code>). The bootstrap surface used commas; that
-spelling is a legacy path.</p>
+(<code class="inline">181.0.0.181</code>). Because the dot is the lane
+separator, a rotor cannot carry a decimal fraction —
+<code class="inline">rotor=181.5.0.0</code> is the four-lane rotor
+<i>(181, 5, 0, 0)</i>, not a fractional value. The bootstrap surface used
+commas; that spelling is a legacy path.</p>
 
 <h2 id="clocks">Clock vocabulary</h2>
 
@@ -279,7 +338,7 @@ in front of the untouched canonical parser.</p>
 <tr><td>replication count max</td><td>1024</td><td><code class="inline">WRL_NUMERIC_RANGE</code></td></tr>
 <tr><td>fan-out count max</td><td>1024</td><td><code class="inline">WRL_NUMERIC_RANGE</code></td></tr>
 <tr><td>total expansion max</td><td>65536 lines</td><td><code class="inline">WRL_NUMERIC_RANGE</code></td></tr>
-<tr><td>count literal digits max</td><td>9</td><td><code class="inline">WRL_SUGAR_MALFORMED</code></td></tr>
+<tr><td>count literal digits max</td><td>9</td><td><code class="inline">WRL_NUMERIC_RANGE</code></td></tr>
 </tbody></table></div>
 
 <p>Three decisions worth knowing: replication members are <b>zero-based</b>;
@@ -369,11 +428,22 @@ the same value.</div>
 <tr><td><code class="inline">env-</code></td><td>evaluation environment</td><td>its splits, canonicalized as sorted sets</td></tr>
 </tbody></table></div>
 
-<div class="idline">example &nbsp;<b>sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a</b></div>
-
 <p>Every id is <code class="inline">&lt;prefix&gt;-&lt;64 lowercase hex&gt;</code>,
 SHA-256 over the canonical bytes of the thing named. Nothing else may occupy
 those namespaces.</p>
+
+<p>The two <code class="inline">sem-</code> values used across this site — both
+asserted by <code class="inline">test/conformance.mjs</code>, so a build that
+disagrees with either is a failing build:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>World</th><th>SemanticArtifactID</th></tr></thead>
+<tbody>
+<tr><td>the <b>starter world</b><br><span class="dim">pulser, relay, spinner, orb — the teaching example</span></td>
+    <td><code class="inline">sem-67e954cfe3115166b49388366df3f062a46572ba2baf53380f1520f4050b60ae</code></td></tr>
+<tr><td>the <b>pinned conformance fixture</b><br><span class="dim">six objects; what the test batteries assert against</span></td>
+    <td><code class="inline">sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a</code></td></tr>
+</tbody></table></div>
 
 <h3>What moves an id, and what does not</h3>
 
@@ -398,30 +468,54 @@ those namespaces.</p>
 <p>Every rejection is one of these typed codes. Downstream tools branch on the
 code; the detail string is for humans.</p>
 
+<p>This is the <b>full Forge toolchain catalog</b>, not the list a single stage
+emits. The <b>Browser</b> column says whether
+<a href="playground.html">the playground</a> can raise the code at all: the
+browser spine stops at the seal, so codes belonging to backend lowering or to
+sealed-record round-tripping are listed for completeness and will never appear
+there. The subset is available programmatically as
+<code class="inline">W.BROWSER_CODE_IDS</code>, and
+<code class="inline">test/conformance.mjs</code> checks that every code in it
+has a description and that the two lists have not drifted apart.</p>
+
 <div class="tbl"><table>
-<thead><tr><th>Code</th><th>Means</th></tr></thead>
+<thead><tr><th>Code</th><th>Means</th><th>Browser</th></tr></thead>
 <tbody>
-<tr><td><code class="inline">WRL_DUPLICATE_ID</code></td><td>a second object claims an id already declared</td></tr>
-<tr><td><code class="inline">WRL_UNKNOWN_ENDPOINT</code></td><td>an edge names an object that was never declared</td></tr>
-<tr><td><code class="inline">WRL_ILLEGAL_PORT_PAIR</code></td><td>an edge asks for a port the role does not have</td></tr>
-<tr><td><code class="inline">WRL_CONTROLLER_CONFLICT</code></td><td>two controllers reach the same input port</td></tr>
-<tr><td><code class="inline">WRL_CLOCK_RANGE</code></td><td>a pulser clock is outside its legal range</td></tr>
-<tr><td><code class="inline">WRL_NUMERIC_RANGE</code></td><td>a numeric field is outside its legal range</td></tr>
-<tr><td><code class="inline">WRL_EPOCH_RANGE</code></td><td>an epoch index is outside the declared run</td></tr>
-<tr><td><code class="inline">WRL_UNSUPPORTED_FEATURE</code></td><td>the construct is outside frozen Semantic IR v1</td></tr>
-<tr><td><code class="inline">WRL_UNSEALED_POLICY</code></td><td>a semantic policy id is null or empty</td></tr>
-<tr><td><code class="inline">WRL_MALFORMED_ARTIFACT</code></td><td>the artifact record has the wrong shape</td></tr>
-<tr><td><code class="inline">WRL_PORT_SIGNATURE</code></td><td>a <code class="inline">{ports}</code> group does not match the frozen signature</td></tr>
-<tr><td><code class="inline">WRL_BAD_LOWERING_PROFILE</code></td><td>a backend lowering profile is half-specified</td></tr>
-<tr><td><code class="inline">WRL_SEALED_IMMUTABLE</code></td><td>something tried to write to a sealed object</td></tr>
-<tr><td><code class="inline">WRL_UNKNOWN_ARTIFACT_FIELD</code></td><td>a sealed record carries an unknown field</td></tr>
-<tr><td><code class="inline">WRL_WORLD_SOURCE_HAS_SCENARIO</code></td><td>run inputs appeared in world source</td></tr>
-<tr><td><code class="inline">WRL_SUGAR_MALFORMED</code></td><td>a sugared spelling could not be expanded</td></tr>
+<tr><td><code class="inline">WRL_DUPLICATE_ID</code></td><td>a second object claims an id already declared</td><td>yes</td></tr>
+<tr><td><code class="inline">WRL_UNKNOWN_ENDPOINT</code></td><td>an edge names an object that was never declared</td><td>yes</td></tr>
+<tr><td><code class="inline">WRL_ILLEGAL_PORT_PAIR</code></td><td>an edge asks for a port the role does not have</td><td>yes</td></tr>
+<tr><td><code class="inline">WRL_CONTROLLER_CONFLICT</code></td><td>two controllers reach the same input port</td><td>yes</td></tr>
+<tr><td><code class="inline">WRL_CLOCK_RANGE</code></td><td>a pulser clock is outside its legal range</td><td>yes</td></tr>
+<tr><td><code class="inline">WRL_NUMERIC_RANGE</code></td><td>a numeric field is outside its legal range, or is not a complete integer literal</td><td>yes</td></tr>
+<tr><td><code class="inline">WRL_EPOCH_RANGE</code></td><td>an epoch index is outside the declared run</td><td>yes</td></tr>
+<tr><td><code class="inline">WRL_UNSUPPORTED_FEATURE</code></td><td>the construct is outside frozen Semantic IR v1</td><td>yes</td></tr>
+<tr><td><code class="inline">WRL_MALFORMED_ARTIFACT</code></td><td>the artifact record has the wrong shape</td><td>yes</td></tr>
+<tr><td><code class="inline">WRL_PORT_SIGNATURE</code></td><td>a <code class="inline">{ports}</code> group does not match the frozen signature, or repeats a port</td><td>yes</td></tr>
+<tr><td><code class="inline">WRL_WORLD_SOURCE_HAS_SCENARIO</code></td><td>run inputs appeared in world source</td><td>yes</td></tr>
+<tr><td><code class="inline">WRL_SUGAR_MALFORMED</code></td><td>a sugared spelling could not be expanded</td><td>yes</td></tr>
+<tr><td><code class="inline">WRL_MISSING_PROFILE</code></td><td>world source did not open with a profile line</td><td>yes</td></tr>
+<tr><td><code class="inline">WRL_DUPLICATE_PROFILE</code></td><td>world source declares the profile more than once</td><td>yes</td></tr>
+<tr><td><code class="inline">WRL_MALFORMED_PROFILE</code></td><td>the profile line is not exactly <code class="inline">profile &lt;id&gt;</code></td><td>yes</td></tr>
+<tr><td><code class="inline">WRL_UNKNOWN_CONFIG_KEY</code></td><td>a declaration carries a key the role does not define</td><td>yes</td></tr>
+<tr><td><code class="inline">WRL_DUPLICATE_CONFIG_KEY</code></td><td>a declaration sets the same key twice</td><td>yes</td></tr>
+<tr><td><code class="inline">WRL_ROLE_PREFIX_MISMATCH</code></td><td>an edge asserts a role the object does not have</td><td>yes</td></tr>
+<tr><td><code class="inline">WRL_UNSEALED_POLICY</code></td><td>a semantic policy id is null or empty</td><td><span class="dim">no — sealing wrapper</span></td></tr>
+<tr><td><code class="inline">WRL_BAD_LOWERING_PROFILE</code></td><td>a backend lowering profile is half-specified</td><td><span class="dim">no — backend lowering</span></td></tr>
+<tr><td><code class="inline">WRL_SEALED_IMMUTABLE</code></td><td>something tried to write to a sealed object</td><td><span class="dim">no — sealed records</span></td></tr>
+<tr><td><code class="inline">WRL_UNKNOWN_ARTIFACT_FIELD</code></td><td>a sealed record carries an unknown field</td><td><span class="dim">no — sealed records</span></td></tr>
 </tbody></table></div>
 
 <p>A diagnostic carries a code, a human detail, and — where the failure is
 lexical — a <b>line number in the authored source</b>, mapped back through any
-sugar expansion so it refers to what you wrote rather than to generated text.</p>
+sugar expansion so it refers to what you wrote rather than to generated text.
+When the fault lies inside an expansion, the diagnostic also reports which
+member of the expansion it was.</p>
+
+<div class="note"><b>Lines, not spans.</b> The origin sidecar that carries a
+generated line back to an authored one is <b>line-granular</b>. A diagnostic
+therefore locates a <i>line</i>; it does not carry a column range, and this
+site does not claim underlined spans. Column resolution would need the mapping
+to record token offsets, which it deliberately does not yet do.</div>
 
 <h2 id="parsers">Parser entry points</h2>
 
@@ -437,67 +531,94 @@ sugar expansion so it refers to what you wrote rather than to generated text.</p
 beginning <code class="inline">periods&nbsp;</code>, and a line containing
 <code class="inline">[epoch:</code>.</p>
 
-<h2 id="tiers">Stability tiers</h2>
+<h2 id="tiers">Status: three axes, not one tier</h2>
 
-<p>Four tiers. The badge next to a construct anywhere on this site refers to this
-table.</p>
+<p>An earlier revision of this site described every construct with a single
+"tier". That word was doing three unrelated jobs at once, and it hid the exact
+thing a reader most needs to know. <b>Frozen meaning and writable syntax are
+independent.</b> The period cycle is completely settled and you cannot type it;
+surface sugar is fully writable and deliberately not frozen. A single scale
+cannot say both, so this site uses three.</p>
 
 <div class="tbl"><table>
-<thead><tr><th>Tier</th><th>Means</th><th>May I build on it?</th></tr></thead>
+<thead><tr><th>Axis</th><th>Question it answers</th><th>Values</th></tr></thead>
 <tbody>
-<tr><td><span class="tier core">core</span></td><td>frozen in Core 0.1.2: the family's members are closed and each member's meaning-role is settled</td><td>Yes. The meaning will not change under you.</td></tr>
-<tr><td><span class="tier partial">partial</span></td><td>the notation is frozen, the machinery beneath it exists, but the surface construct is not writable or not complete</td><td>Read it, plan for it, do not depend on the spelling.</td></tr>
-<tr><td><span class="tier exp">experimental</span></td><td>designed in the draft, not frozen; may change shape entirely</td><td>No.</td></tr>
-<tr><td><span class="tier prop">proposed</span></td><td>sketched only; no grounding and no lowering</td><td>No.</td></tr>
+<tr><td><b>Meaning status</b></td>
+    <td>Is what this <i>means</i> settled, and may it change under me?</td>
+    <td><span class="tier core">settled</span> frozen in Core 0.1.2 ·
+        <span class="tier exp">drafted</span> designed, may change shape ·
+        <span class="tier prop">sketched</span> named only</td></tr>
+<tr><td><b>Grounding</b></td>
+    <td>Is there something underneath that actually executes it?</td>
+    <td><span class="tier core">runtime</span> lowers and runs ·
+        <span class="tier partial">IR-only</span> exists in the IR, no surface ·
+        <span class="tier prop">none</span> nothing lowers it</td></tr>
+<tr><td><b>Writable now</b></td>
+    <td>Can I type this into a world document today and have it parse?</td>
+    <td><span class="tier core">yes</span> ·
+        <span class="tier prop">no</span></td></tr>
 </tbody></table></div>
 
 <div class="note"><b>Freezing a family</b> means the set of members is closed and
 each member's meaning-role is settled. It does <b>not</b> freeze exact glyphs,
 argument grammars, sugar, or edge-case rules — those remain draft until a later
-revision promotes them.</div>
+revision promotes them. So <span class="tier core">settled</span> on the meaning
+axis is a promise about <i>semantics</i>, never about spelling.</div>
+
+<div class="note warn"><b>The one column to read.</b> If you are deciding what
+you can build with this afternoon, read <b>Writable now</b> and ignore the other
+two. Exactly the rows marked <span class="tier core">yes</span> are the language
+that exists as a thing you can type.</div>
 
 <h3>Where each construct sits today</h3>
 
 <div class="tbl"><table>
-<thead><tr><th>Construct</th><th>Tier</th><th>Note</th></tr></thead>
+<thead><tr><th>Construct</th><th>Meaning</th><th>Grounding</th><th>Writable now</th><th>Note</th></tr></thead>
 <tbody>
-<tr><td>Ten construct kinds (closed set)</td><td><span class="tier core">core</span></td><td>frozen §1</td></tr>
-<tr><td>Four reading laws</td><td><span class="tier core">core</span></td><td>frozen §2</td></tr>
-<tr><td>Containers <code class="inline">[ ] ( ) { }</code></td><td><span class="tier core">core</span></td><td>frozen §3</td></tr>
-<tr><td><code class="inline">#</code> <code class="inline">@</code> <code class="inline">?</code></td><td><span class="tier core">core</span></td><td>frozen §4</td></tr>
-<tr><td><code class="inline">*</code> replication-by-position</td><td><span class="tier partial">implemented</span></td><td>bounded surface sugar</td></tr>
-<tr><td><code class="inline">*</code> wildcard match</td><td><span class="tier prop">reserved</span></td><td>no lowering exists</td></tr>
-<tr><td>Route texture <code class="inline">--</code></td><td><span class="tier core">surface-grounded</span></td><td>declarable, emittable, round-trips</td></tr>
-<tr><td>Route texture <code class="inline">~~</code></td><td><span class="tier partial">partial</span></td><td>IR/runtime-grounded; no surface form, no structural edge declaration</td></tr>
-<tr><td>Route texture <code class="inline">==</code></td><td><span class="tier partial">partial</span></td><td>acceptance machinery exists; the construct does not</td></tr>
-<tr><td>Route texture <code class="inline">!!</code></td><td><span class="tier partial">partial</span></td><td>fault <i>state</i> exists; route and supervision do not</td></tr>
-<tr><td>Periods and superdense time</td><td><span class="tier core">core</span></td><td>frozen §6</td></tr>
-<tr><td>Five memory kinds</td><td><span class="tier core">core</span></td><td>frozen §7</td></tr>
-<tr><td>Period cycle, six phases</td><td><span class="tier core">core</span></td><td>frozen §8</td></tr>
-<tr><td>WorldFrame / EventLedger</td><td><span class="tier core">core</span></td><td>frozen §8b</td></tr>
-<tr><td>BuildFilm</td><td><span class="tier prop">proposed</span></td><td>build provenance</td></tr>
-<tr><td>Fact union</td><td><span class="tier core">core</span></td><td>union law only; settlement above it is proposed</td></tr>
-<tr><td><code class="inline">//commit</code></td><td><span class="tier core">grounded</span></td><td>—</td></tr>
-<tr><td><code class="inline">///seal</code></td><td><span class="tier partial">partial</span></td><td>commit grounded; the artifact registry is proposed</td></tr>
-<tr><td><code class="inline">/gate</code></td><td><span class="tier prop">reserved</span></td><td>no capability-gate node kind yet</td></tr>
-<tr><td>Canonicalization &amp; content identity</td><td><span class="tier core">core</span></td><td>frozen §11</td></tr>
-<tr><td>Document boundary</td><td><span class="tier core">normative</span></td><td>§15, new in 0.1.2</td></tr>
-<tr><td>Surface sugar</td><td><span class="tier partial">implemented</span></td><td>battery green, identity-equivalent, not frozen</td></tr>
-<tr><td>Mailbox role</td><td><span class="tier partial">IR-only</span></td><td>not a sixth surface role</td></tr>
-<tr><td>Expression notation, types, generics, numerics</td><td><span class="tier exp">experimental</span></td><td>—</td></tr>
-<tr><td>Effects, capabilities, entropy</td><td><span class="tier exp">experimental</span></td><td>—</td></tr>
-<tr><td>Supervision error ladder</td><td><span class="tier exp">experimental</span></td><td>—</td></tr>
-<tr><td>Streams and backpressure</td><td><span class="tier exp">experimental</span></td><td>—</td></tr>
-<tr><td>Actor behavior blocks</td><td><span class="tier exp">experimental</span></td><td>—</td></tr>
-<tr><td>Evolution and migration</td><td><span class="tier exp">experimental</span></td><td>—</td></tr>
-<tr><td>Podium / ranking</td><td><span class="tier exp">experimental</span></td><td>—</td></tr>
-<tr><td>Static-check catalog</td><td><span class="tier exp">experimental</span></td><td>—</td></tr>
-<tr><td>Execution profiles</td><td><span class="tier exp">experimental</span></td><td>—</td></tr>
-<tr><td>Fragments, stencils, derives, reflection</td><td><span class="tier prop">proposed</span></td><td>frozen as <i>kinds</i> only</td></tr>
-<tr><td>Modules and builds</td><td><span class="tier prop">proposed</span></td><td>—</td></tr>
-<tr><td>Foreign functions</td><td><span class="tier prop">proposed</span></td><td>—</td></tr>
-<tr><td>Distributed settlement above fact-union</td><td><span class="tier prop">proposed</span></td><td>receipts are recognized evidence, never blindly merged</td></tr>
+<tr><td>Ten construct kinds (closed set)</td><td><span class="tier core">settled</span></td><td>—</td><td>—</td><td>§1 — a taxonomy, not a syntax</td></tr>
+<tr><td>Four reading laws</td><td><span class="tier core">settled</span></td><td>—</td><td>—</td><td>§2</td></tr>
+<tr><td>Containers <code class="inline">[ ] ( ) { }</code></td><td><span class="tier core">settled</span></td><td><span class="tier core">runtime</span></td><td><span class="tier core">yes</span></td><td>§3</td></tr>
+<tr><td><code class="inline">#</code> <code class="inline">@</code> <code class="inline">?</code></td><td><span class="tier core">settled</span></td><td><span class="tier partial">IR-only</span></td><td><span class="tier prop">no</span></td><td>§4 — meaning fixed, no world-source spelling</td></tr>
+<tr><td><code class="inline">*</code> replication-by-position</td><td><span class="tier exp">drafted</span></td><td><span class="tier core">runtime</span></td><td><span class="tier core">yes</span></td><td>bounded surface sugar; expands before parsing</td></tr>
+<tr><td><code class="inline">*</code> wildcard match</td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td>reserved; no lowering exists</td></tr>
+<tr><td>Route texture <code class="inline">--</code> solid</td><td><span class="tier core">settled</span></td><td><span class="tier core">runtime</span></td><td><span class="tier core">yes</span></td><td>the only surface-grounded texture: declarable, emittable, round-trips</td></tr>
+<tr><td>Route texture <code class="inline">~~</code> async</td><td><span class="tier core">settled</span></td><td><span class="tier partial">IR-only</span></td><td><span class="tier prop">no</span></td><td>needs a logical route declaration distinct from the structural edge</td></tr>
+<tr><td>Route texture <code class="inline">==</code> verified</td><td><span class="tier core">settled</span></td><td><span class="tier partial">IR-only</span></td><td><span class="tier prop">no</span></td><td>acceptance machinery exists; the construct does not</td></tr>
+<tr><td>Route texture <code class="inline">!!</code> fault</td><td><span class="tier core">settled</span></td><td><span class="tier partial">IR-only</span></td><td><span class="tier prop">no</span></td><td>fault <i>state</i> exists; route and supervision do not</td></tr>
+<tr><td>Periods and superdense time</td><td><span class="tier core">settled</span></td><td><span class="tier core">runtime</span></td><td><span class="tier prop">no</span></td><td>§6 — the model runs; you do not spell it</td></tr>
+<tr><td>Five memory kinds</td><td><span class="tier core">settled</span></td><td><span class="tier core">runtime</span></td><td><span class="tier prop">no</span></td><td>§7</td></tr>
+<tr><td>Period cycle, six phases</td><td><span class="tier core">settled</span></td><td><span class="tier core">runtime</span></td><td><span class="tier prop">no</span></td><td>§8 — the clearest case of settled-but-unwritable</td></tr>
+<tr><td>WorldFrame / EventLedger</td><td><span class="tier core">settled</span></td><td><span class="tier core">runtime</span></td><td><span class="tier prop">no</span></td><td>§8b</td></tr>
+<tr><td>BuildFilm</td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td>build provenance</td></tr>
+<tr><td>Fact union</td><td><span class="tier core">settled</span></td><td><span class="tier core">runtime</span></td><td><span class="tier prop">no</span></td><td>union law only; settlement above it is sketched</td></tr>
+<tr><td><code class="inline">//commit</code></td><td><span class="tier core">settled</span></td><td><span class="tier core">runtime</span></td><td><span class="tier prop">no</span></td><td>the COMMIT phase is real; the marker is not world syntax</td></tr>
+<tr><td><code class="inline">///seal</code></td><td><span class="tier core">settled</span></td><td><span class="tier partial">IR-only</span></td><td><span class="tier prop">no</span></td><td>sealing is grounded; the artifact registry is sketched</td></tr>
+<tr><td><code class="inline">/gate</code></td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td>no capability-gate node kind yet</td></tr>
+<tr><td>Canonicalization &amp; content identity</td><td><span class="tier core">settled</span></td><td><span class="tier core">runtime</span></td><td><span class="tier core">yes</span></td><td>§11 — you invoke it by writing any world</td></tr>
+<tr><td>Document boundary</td><td><span class="tier core">settled</span></td><td><span class="tier core">runtime</span></td><td><span class="tier core">yes</span></td><td>§15, new in 0.1.2 — enforced as a typed rejection</td></tr>
+<tr><td>Five surface roles</td><td><span class="tier core">settled</span></td><td><span class="tier core">runtime</span></td><td><span class="tier core">yes</span></td><td>Pulser · Relay · Door · Spinner · Orb</td></tr>
+<tr><td>Surface sugar (<code class="inline">sugar.v2</code>)</td><td><span class="tier exp">drafted</span></td><td><span class="tier core">runtime</span></td><td><span class="tier core">yes</span></td><td>battery green and identity-equivalent, deliberately <b>not</b> frozen</td></tr>
+<tr><td>Mailbox role</td><td><span class="tier core">settled</span></td><td><span class="tier partial">IR-only</span></td><td><span class="tier prop">no</span></td><td>not a sixth surface role; the formatter refuses to emit it</td></tr>
+<tr><td>Expression notation, types, generics, numerics</td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td>—</td></tr>
+<tr><td>Effects, capabilities, entropy</td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td>—</td></tr>
+<tr><td>Supervision error ladder</td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td>—</td></tr>
+<tr><td>Streams and backpressure</td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td>—</td></tr>
+<tr><td>Actor behavior blocks</td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td>—</td></tr>
+<tr><td>Evolution and migration</td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td>—</td></tr>
+<tr><td>Podium / ranking</td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td>—</td></tr>
+<tr><td>Static-check catalog</td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td>—</td></tr>
+<tr><td>Execution profiles</td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td>—</td></tr>
+<tr><td>Fragments, stencils, derives, reflection</td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td>settled as <i>kinds</i> only</td></tr>
+<tr><td>Modules and builds</td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td>—</td></tr>
+<tr><td>Foreign functions</td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td>—</td></tr>
+<tr><td>Distributed settlement above fact-union</td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td>receipts are recognized evidence, never blindly merged</td></tr>
 </tbody></table></div>
+
+<p>Counting the <span class="tier core">yes</span> rows is the honest summary of
+the language as a writable artifact: containers, five roles, two edge kinds, the
+solid route texture, the sugar layer, the document boundary and the
+canonicalization that gives you an id. Everything else on this site is meaning
+you can rely on and syntax you cannot yet write.</p>
 
 <h2 id="api">Browser API</h2>
 

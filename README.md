@@ -27,10 +27,16 @@ profile forge.world.core.v1
 seals to
 
 ```
-sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a
+sem-67e954cfe3115166b49388366df3f062a46572ba2baf53380f1520f4050b60ae
 ```
 
 on every host, forever.
+
+That four-object world is the **starter world**, and it is what the tutorial
+builds. A second, larger world — the **pinned conformance fixture**,
+`sem-8ae91fe9…fe4a` — carries six objects and is what the toolchain's test
+batteries assert against. Both are example buttons in the playground, and both
+are checked on every change by [`test/conformance.mjs`](test/conformance.mjs).
 
 ## The pages
 

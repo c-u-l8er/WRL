@@ -38,10 +38,19 @@
     along routes — and <b>walls</b> — the boundaries that gate, commit, and seal
     what they do.</p>
 
+    <div class="note" style="margin-top:26px"><b>Read this first.</b> WRL is a
+    <b>frozen small core inside a large design draft</b>. What you can write
+    today is five surface roles, two edge kinds, one profile, one route texture
+    (<code class="inline">--</code>) and the six-phase period cycle — that much
+    is implemented, property-tested and shipping inside TRVM Forge. Most of the
+    notation on the rest of this site describes <b>settled meaning that has no
+    writable surface yet</b>. Every page marks which is which, on three separate
+    axes. <a href="reference.html#tiers">See how to read the badges →</a></div>
+
     <div class="dual" style="margin-top:38px">
       <div>
-        <div class="pane-cap">You write this</div>
-<pre class="code"><code><span class="cm">; a signal, a rotation, a pose</span>
+        <div class="pane-cap">You write this — the starter world</div>
+<pre class="code" data-seal="sem-67e954cfe3115166b49388366df3f062a46572ba2baf53380f1520f4050b60ae"><code><span class="cm">; a signal, a rotation, a pose</span>
 <span class="kw">profile</span> forge.world.core.v1
 
 [<span class="kw">pulser</span>:<span class="id">p0</span>](<span class="lit">every 2</span>){<span class="rt">sig_out</span>}
@@ -56,7 +65,7 @@
       <div>
         <div class="pane-cap">It means exactly this</div>
 <pre class="code" style="line-height:1.7"><code>SemanticArtifactID
-  <span class="kw">sem-8ae91fe9cbc5fd08…67429ecfe4a</span>
+  <span class="kw">sem-67e954cfe311…4050b60ae</span>
 
 <span class="cm">; a content hash of the canonical graph.
 ; whitespace, comment, declaration order
@@ -114,10 +123,11 @@
         typed graph. Metaprogramming with a type discipline, not string
         splicing.</p></div>
       <div class="card"><span class="n">09</span>
-        <h3>Films prove what occurred.</h3>
+        <h3>Films record what occurred, replayably.</h3>
         <p>A <code class="inline">film</code> is the committed record of a run —
-        an ordered, schema-versioned event ledger. It is not a log you enable
-        for debugging; it is the output.</p></div>
+        an ordered, schema-versioned event ledger sufficient to <b>replay</b>
+        the run and get the same bytes. It is not a log you enable for
+        debugging; it is the output.</p></div>
       <div class="card"><span class="n">10</span>
         <h3>Hashes identify what was built.</h3>
         <p>A <code class="inline">hash</code> names a thing by its content.
@@ -195,8 +205,19 @@
     <p>Because the canonical graph sits in the middle, two things become true
     that are normally very hard. First, <b>a drawing and a document are the same
     program</b> — moving a box on a canvas cannot change what a world means,
-    because position never reaches the graph. Second, <b>identity is decidable</b>
-    — the graph canonicalizes to bytes, and the bytes hash.</p>
+    because position never reaches the graph. Second, <b>canonical artifact
+    identity is computable</b> — the graph canonicalizes to bytes, and the bytes
+    hash, in bounded time, on any host.</p>
+
+    <div class="note"><b>Say that precisely.</b> Computing the id is a total,
+    terminating function of the source: that is what "computable" claims. It is
+    <i>not</i> a claim that program equivalence is decidable, which for anything
+    Turing-complete it is not. Two worlds with the same id have the same
+    canonical bytes and therefore the same meaning. Two worlds with different
+    ids have different canonical bytes — which usually means different meaning,
+    but may simply mean you spelled the same behaviour two ways the
+    canonicalizer is not obliged to unify. <b>Equal id proves sameness;
+    different id does not prove difference of behaviour.</b></div>
 
     <div class="note"><b>The determinism property.</b> Given the same initial
     configuration and the same sequence of external observations, the committed
@@ -214,7 +235,11 @@
       <i>Semantic</i>ArtifactID untouched. The split makes the claim checkable
       rather than aspirational.</li>
       <li><b>Verification without trust.</b> A run ships its film and its ids.
-      Anyone can re-derive both from the source.</li>
+      Anyone holding the world source can re-derive the
+      <code class="inline">sem-</code> id from the source alone; re-deriving the
+      <b>film</b> additionally needs the scenario it was run against and a
+      conforming runtime, which is exactly what the
+      <code class="inline">replay-</code> rung of the ladder names.</li>
     </ul>
   </div>
 </section>
@@ -225,8 +250,9 @@
     <div class="slot">THE PERIOD CYCLE · FROZEN</div>
     <h2>Six phases, in this order, forever.</h2>
     <p class="lede">Time in WRL is not a wall clock. It is a <b>period</b>: one
-    complete turn of a six-phase cycle. Every period runs all six, in the same
-    order, and nothing may run out of phase.</p>
+    complete turn of a six-phase cycle. The order is frozen, and the phases are
+    <b>ordered stages of a single period</b> — not six things that happen to
+    six different periods.</p>
 
     <div class="pipe" style="margin-top:30px">
       <span><b>OBSERVE</b></span><span><b>ACCEPT</b></span><span><b>MAP</b></span>
@@ -235,15 +261,24 @@
 
     <div class="tbl">
       <table>
-        <tr><th>Phase</th><th>What happens</th><th>Why it is separate</th></tr>
-        <tr><td><b>OBSERVE</b></td><td>Signed facts cross the effect walls into the world frame.</td><td>The only point where the outside gets in — so the input sequence is a nameable thing.</td></tr>
-        <tr><td><b>ACCEPT</b></td><td>Claims are admitted or refused under the pinned admit policy.</td><td>Admission is a policy decision, not an accident of arrival order.</td></tr>
-        <tr><td><b>MAP</b></td><td>Accepted facts are merged into the fact lattice.</td><td>Merge is total and order-independent, so concurrent writers cannot diverge.</td></tr>
-        <tr><td><b>COMMIT</b></td><td>The frame is sealed; receipts are minted.</td><td>After this point the period's truth cannot change.</td></tr>
-        <tr><td><b>REACT</b></td><td>Actors run and emit for the next period.</td><td>Reaction reads committed state only — never a half-built frame.</td></tr>
-        <tr><td><b>FILM</b></td><td>The event ledger for the period is written.</td><td>The proof is produced by the cycle, not bolted on afterwards.</td></tr>
+        <tr><th>Phase</th><th>What happens <span class="dim">(§8, normative)</span></th><th>Why it is separate</th></tr>
+        <tr><td><b>OBSERVE</b></td><td>Canonicalize and insert distinct claims.</td><td>The only point where the outside gets in — so the input sequence is a nameable, canonical thing.</td></tr>
+        <tr><td><b>ACCEPT</b></td><td>Create missing receipts under the pinned acceptance policy.</td><td>Admission is a policy decision, not an accident of arrival order. Receipts are minted <em>here</em>, and are immutable once minted.</td></tr>
+        <tr><td><b>MAP</b></td><td>Turn newly-accepted successful operations into controls.</td><td>Separating "this was accepted" from "this therefore writes" is what makes a retransmission not re-run an effect.</td></tr>
+        <tr><td><b>COMMIT</b></td><td>Apply control writes and fault resets to owned cells.</td><td>Every write to owned state happens in one phase, before anything reacts to it.</td></tr>
+        <tr><td><b>REACT</b></td><td>Deterministic <b>within-period</b> token cascade to fixpoint; latch current overflow.</td><td>The period settles before it ends. Reaction reads committed cells, so a configuration committed this period is visible to this period's reaction.</td></tr>
+        <tr><td><b>FILM</b></td><td>Record the entries needed to replay the epoch.</td><td>The proof is produced by the cycle, not bolted on afterwards.</td></tr>
       </table>
     </div>
+
+    <div class="note"><b>COMMIT runs before REACT, and that is load-bearing.</b>
+    It is the reason a same-period configuration change affects the same
+    period's reaction. In the reduced profile the first three phases
+    (OBSERVE / ACCEPT / MAP) <b>degenerate to identity but do not disappear</b>
+    from the semantic model — they are what determines which claims were seen,
+    which candidate was accepted, whether a retransmission retries an effect,
+    and which controls were committed.
+    <a href="spec.html#s8">The normative statement is §8 →</a></div>
   </div>
 </section>
 

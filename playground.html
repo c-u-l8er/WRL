@@ -69,20 +69,23 @@
   <h2>Seal a world.</h2>
   <p style="color:var(--ink-soft);max-width:74ch">Type WRL Core world source on
   the left. It is desugared, parsed, validated, canonicalized and hashed as you
-  type — by a faithful JavaScript port of the same spine that runs inside TRVM
-  Forge. The <code class="inline">sem-</code> ids below are <b>real</b>: the
-  pinned demo world seals here to the exact id every Forge battery folds
+  type — by a JavaScript port of the same spine that runs inside TRVM Forge. The
+  <code class="inline">sem-</code> ids below are <b>real</b>: the pinned
+  conformance fixture seals here to the exact id every Forge battery folds
   against. Nothing is sent anywhere.</p>
 
   <p id="selfcheck">self-check: running…</p>
 
   <div class="exrow">
-    <button class="minibtn" data-ex="demo">The pinned demo world</button>
+    <button class="minibtn" data-ex="starter">The starter world</button>
+    <button class="minibtn" data-ex="demo">The pinned fixture</button>
     <button class="minibtn" data-ex="twin">Its explicit numeric twin</button>
     <button class="minibtn" data-ex="shuffled">The same world, shuffled</button>
     <button class="minibtn" data-ex="repl">Replication &amp; fan-out sugar</button>
     <button class="minibtn" data-ex="conflict">An illegal rewire</button>
     <button class="minibtn" data-ex="scenario">Run inputs in world source</button>
+    <button class="minibtn" data-ex="typo">A silently-ignored typo</button>
+    <button class="minibtn" data-ex="remap">A fault inside an expansion</button>
     <button class="minibtn" data-ex="empty">Empty world</button>
   </div>
 
@@ -138,20 +141,56 @@
   <p>The reference implementation's canonical bytes are
   <code class="inline">json.dumps(artifact, sort_keys=True, separators=(",",":"))</code>.
   Every value in a sealed artifact is an ASCII string, an integer, a boolean, or
-  a container of those — so a recursive key-sorted
-  <code class="inline">JSON.stringify</code> reproduces those bytes exactly, and
-  WebCrypto SHA-256 reproduces the id. That is why this playground can be honest
-  rather than illustrative.</p>
+  a container of those — so a recursive key-sorted serializer reproduces those
+  bytes exactly, and WebCrypto SHA-256 reproduces the id. That is why this
+  playground can be honest rather than illustrative.</p>
+
+  <p>The serializer is hand-rolled rather than
+  <code class="inline">JSON.stringify</code> for one reason: <b>rotor lanes are
+  <code class="inline">BigInt</code></b>. At <code class="inline">w=64</code> a
+  lane may legally reach 2<sup>64</sup>−1, and a JS number cannot hold it —
+  an authored <code class="inline">9223372036854775807</code> would serialize as
+  <code class="inline">9223372036854776000</code> and quietly mint a
+  <i>different</i> id from the arbitrary-precision reference. Lanes are exact
+  here at any width. Every other artifact scalar is bounded to ±(2<sup>53</sup>−1)
+  and refused — never rounded — outside it.</p>
 
   <p>What it deliberately does <b>not</b> do: lower to a backend, compile to
   interaction-calculus terms, or reduce to a Film. Those live in TRVM and are not
   a browser's job. This page covers the <i>semantic</i> half of the pipeline —
   everything up to and including identity.</p>
 
+  <h3>Where this is stricter than the current Forge parser</h3>
+  <p>Two mouths, one identity function. Every difference below is a
+  <b>rejection</b>, so for every world both accept the canonical bytes are
+  identical — no id can move across the gap. This is the intended Core 0.1.3
+  tightening, implemented in the browser first because this is the surface an
+  author actually touches.</p>
+  <ul>
+    <li>The <code class="inline">profile</code> line is <b>required</b>, singular,
+    and first. The Python parser starts with the only profile pre-installed, so
+    an empty document sealed successfully.</li>
+    <li>Unknown config keys and bare flags are refused
+    (<code class="inline">WRL_UNKNOWN_CONFIG_KEY</code>), not dropped.</li>
+    <li>A key set twice is refused
+    (<code class="inline">WRL_DUPLICATE_CONFIG_KEY</code>), not last-one-wins.</li>
+    <li>An edge's optional role prefix is a <b>checked assertion</b>
+    (<code class="inline">WRL_ROLE_PREFIX_MISMATCH</code>), not decoration.</li>
+    <li>A repeated port name is a typo, not a set operation.</li>
+    <li>Integers must be <b>complete</b> literals.
+    <code class="inline">period=2x</code> is a rejection here; a first cut of
+    this port used <code class="inline">parseInt</code> and read it as
+    <code class="inline">2</code>, which was <i>looser</i> than Python's
+    <code class="inline">int()</code>. That one is a fidelity fix, not a
+    tightening.</li>
+  </ul>
+
   <h3>Things worth trying</h3>
   <ul>
-    <li>Load the demo world, then load its explicit twin. <b>Same id.</b> Sugar
-    has no identity of its own.</li>
+    <li>Load the starter world, then the pinned fixture. <b>Different ids</b> —
+    they are different worlds, and neither may be shown wearing the other's.</li>
+    <li>Load the pinned fixture, then load its explicit twin. <b>Same id.</b>
+    Sugar has no identity of its own.</li>
     <li>Load the shuffled world. <b>Same id.</b> Declaration order is inert.</li>
     <li>Add a comment, or spaces, or a blank line. <b>Same id.</b></li>
     <li>Change <code class="inline">rotor=quarter_turn_z</code> to
@@ -164,6 +203,12 @@
     in.</li>
     <li>Wire a second pulser into <code class="inline">r0</code>. A typed
     <code class="inline">WRL_CONTROLLER_CONFLICT</code>, with the line.</li>
+    <li>Delete the <code class="inline">profile</code> line.
+    <code class="inline">WRL_MISSING_PROFILE</code> — a world without a stated
+    dialect is not a world.</li>
+    <li>Load <i>a fault inside an expansion</i>. The duplicate is reported at
+    <b>line 8, the line you typed</b>, not at the generated line the collision
+    actually landed on.</li>
   </ul>
 </main>
 
@@ -186,6 +231,7 @@ const $ = (id) => document.getElementById(id);
 const src = $("src");
 
 const EXAMPLES = {
+  starter: W.STARTER_WORLD,
   demo: W.DEMO_WORLD,
 
   twin: `profile forge.world.core.v1
@@ -265,21 +311,57 @@ periods 7
 [epoch:3] SetRotor sp 181.0.0.181
 `,
 
+  typo: `profile forge.world.core.v1
+
+; every one of these used to seal. a parser that
+; drops what it does not recognize does not read
+; your source — it reads a source you did not write.
+;
+; you get ONE fault at a time, the topmost. delete the
+; line it names and seal again: there are four here,
+; and they are four different codes.
+
+[pulser:p2](every 2 garbage phase 1 nonsense){sig_out}
+[relay:r0](banana=7){sig_in, sig_out}
+[pulser:p0](mode=periodic, period=2x, phase=0){sig_out}
+[pulser:p1](mode=periodic, period=2, period=3, phase=0){sig_out}
+`,
+
+  remap: `profile forge.world.core.v1
+
+; \`r*3\` mints r0, r1, r2 — so the id below collides.
+; the fault is reported at THIS line, the one you
+; typed, not at the generated line it landed on.
+
+[relay:r*3]{sig_in, sig_out}
+[relay:r2]{sig_in, sig_out}
+`,
+
   empty: `profile forge.world.core.v1
 
 ; a world with no objects is still a world,
-; and it still has an identity.
+; and it still has an identity. delete the profile
+; line, though, and there is no world at all.
 `,
 };
 
 /* ------------------------------------------------------------- rendering */
+/* rotor lanes are BigInt (exact at any width), and JSON.stringify throws on
+   BigInt — so config values are shown through the same rule the canonical
+   serializer uses: a BigInt prints as its own decimal digits. */
+function showVal(v) {
+  if (typeof v === "bigint") return v.toString();
+  if (Array.isArray(v)) return "[" + v.map(showVal).join(",") + "]";
+  return JSON.stringify(v);
+}
+
 function renderGraph(g) {
   const lines = [`profile   ${g.profile}`, `objects   ${g.nodes.length}`,
                  `edges     ${g.edges.length}`, ""];
   for (const [role, name, cfg] of g.nodes) {
     const keys = Object.keys(cfg).sort();
     const body = keys.length
-      ? keys.map((k) => `${k}=${JSON.stringify(cfg[k])}`).join(" ")
+      ? keys.map((k) => `${k}=${showVal(cfg[k])}`).join(" ")
       : "—";
     lines.push(`${role.padEnd(8)} ${name.padEnd(6)} ${body}`);
   }
@@ -295,8 +377,14 @@ function renderDiag(r) {
   const where = r.line ? ` · line ${r.line}` : "";
   const loc = r.locator ? ` · ${r.locator}` : "";
   const path = r.fieldPath ? ` · ${r.fieldPath}` : "";
+  /* when sugar expanded the authored line, say BOTH coordinates: the one you
+     can see, and the generated one it became. */
+  const via = r.fromExpansion
+    ? `\nauthored line ${r.authoredLine} expanded to line ${r.generatedLine} ` +
+      `(member ${r.memberIndex + 1} of ${r.memberCount}): ${r.generatedText}`
+    : "";
   return `<div class="diag"><b>${r.code}</b>${where}${loc}${path}\n${
-    escapeHtml(r.message)}${escapeHtml(hint)}</div>`;
+    escapeHtml(r.message)}${escapeHtml(hint)}${escapeHtml(via)}</div>`;
 }
 
 function escapeHtml(s) {
@@ -356,18 +444,26 @@ $("btn-copy").addEventListener("click", async () => {
   setTimeout(() => { $("btn-copy").textContent = "Copy"; }, 1200);
 });
 
-/* the self-check: re-seal the pinned demo world and confirm it reproduces the
-   frozen id. If this ever goes red, the port has drifted from the spine. */
+/* the self-check: re-seal BOTH pinned fixtures and confirm each reproduces its
+   own frozen id. If this ever goes red, the port has drifted from the spine.
+   (A one-fixture check was green while the docs printed the starter world
+   wearing the fixture's id — nothing ever sealed the starter world.) */
 (async () => {
   const sc = await W.selfCheck();
   const el = $("selfcheck");
   el.className = sc.ok ? "good" : "bad";
-  el.textContent = sc.ok
-    ? `self-check ok — the pinned demo world seals to ${sc.expected}`
-    : `self-check FAILED — got ${sc.semanticId}, expected ${sc.expected}`;
+  if (sc.ok) {
+    el.textContent =
+      `self-check ok — starter ${sc.fixtures.starter.expected} · ` +
+      `pinned fixture ${sc.fixtures.demo.expected}`;
+  } else {
+    const bad = Object.entries(sc.fixtures).filter(([, f]) => !f.ok)
+      .map(([n, f]) => `${n}: got ${f.semanticId || f.error.code}, expected ${f.expected}`);
+    el.textContent = `self-check FAILED — ${bad.join(" · ")}`;
+  }
 })();
 
-src.value = EXAMPLES.demo;
+src.value = EXAMPLES.starter;
 run();
 </script>
 </body>

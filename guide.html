@@ -89,11 +89,20 @@ identities in motion along routes. <b>Walls</b> are the boundaries that gate,
 commit and seal what crosses them.</p>
 
 <p>The reason for that shape is a single design goal: <b>a run must be
-provable</b>. Not logged — proven. Executing a WRL world produces a <b>film</b>,
-an ordered schema-versioned record of what occurred, and that film is
-byte-identical regardless of which machine produced it or how the work was
-scheduled. Everything strange-looking about the language falls out of that
+checkable by re-execution</b>. Not merely logged. Executing a WRL world produces
+a <b>film</b>, an ordered schema-versioned record of what occurred, and that
+film is byte-identical regardless of which machine produced it or how the work
+was scheduled. Everything strange-looking about the language falls out of that
 requirement.</p>
+
+<div class="note"><b>What a film does and does not establish.</b> Given the same
+world, the same scenario and a conforming runtime, a film lets anyone re-run
+the world and compare bytes. That makes a claimed run <i>reproducible</i>, and
+it makes tampering with the record detectable. It is <b>not</b> a proof that the
+world is correct, that the observations fed into it were truthful, or that the
+runtime that produced it was honest — a film says "this is what this world does
+with these inputs", which is a smaller and much more defensible claim than
+"this is what happened in the world".</div>
 
 <div class="note"><b>The architectural rule (frozen).</b> WRL denotes the
 canonical Forge semantic graph. It is never lowered by compiling surface syntax
@@ -146,7 +155,7 @@ eleventh kind.</p>
 <tbody>
 <tr><td>Function</td><td>calculates — pure local computation</td><td><span class="tier exp">experimental</span></td></tr>
 <tr><td>Actor</td><td>persists — durable identity + owned state</td><td><span class="tier core">core</span></td></tr>
-<tr><td>Route</td><td>communicates — a directed, textured transition edge</td><td><span class="tier core">core</span></td></tr>
+<tr><td>Route</td><td>communicates — a directed, textured transition relation or channel</td><td><span class="tier core">core</span></td></tr>
 <tr><td>Wall</td><td>authorizes — gate / commit / seal on propagation</td><td><span class="tier core">core</span></td></tr>
 <tr><td>Period</td><td>orders — the logical-time step under which events settle</td><td><span class="tier core">core</span></td></tr>
 <tr><td>Fragment</td><td>carries code — a quoted graph as movable data</td><td><span class="tier prop">proposed</span></td></tr>
@@ -166,6 +175,21 @@ was built.</b></div>
 <p>Six of the ten — Actor, Route, Wall, Period, Film, Hash — are grounded by a
 running implementation today. The other four are frozen <i>as kinds</i>; their
 detailed semantics are still draft.</p>
+
+<div class="note"><b>A route is not the same thing as a structural edge.</b>
+This is worth pinning down early, because the two are easy to conflate and the
+whole roadmap depends on the difference. A <b>structural edge</b> is what you
+declare with <code class="inline">--sig--&gt;</code>: it is part of the semantic
+graph, it enters the <code class="inline">sem-</code> id, and it settles
+<i>within</i> the period. A <b>route</b> is the broader family — a directed,
+textured transition relation between identities. The solid texture
+<code class="inline">--</code> happens to be realised as a structural edge,
+which is exactly why it is the only one you can write today. The async texture
+<code class="inline">~~</code> <i>cannot</i> be a structural edge: an async
+message does not settle within the period, so it needs a canonical logical
+route declaration distinct from the edge declaration. Reading "route" as
+"edge" makes that requirement look like an oversight rather than the
+consequence it is.</div>
 
 <h2 id="containers">3 · Containers: <code class="inline">[x]</code>, <code class="inline">(x)</code>, <code class="inline">{x}</code></h2>
 
@@ -302,6 +326,35 @@ If your world reads a clock, that reading becomes an input fact that the film
 carries, so the replay observes the same value the live run did. A world that
 could reach out and ask the host what time it is would not be replayable, so it
 cannot.</div>
+
+<h3 id="period-epoch">Period, epoch, microstep</h3>
+
+<p>Three words for time appear across this site and they are not synonyms.
+Because <code class="inline">once at 3</code> is spelled with an
+<i>epoch</i> while the cycle is described in <i>periods</i>, it is worth
+saying plainly which is which.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Word</th><th>What it counts</th><th>Where you meet it</th></tr></thead>
+<tbody>
+<tr><td><b>period</b></td><td>one full turn of the six-phase cycle — the settle-and-commit unit</td><td>the execution model: §8, the phase table</td></tr>
+<tr><td><b>epoch</b></td><td>the <b>index</b> of a period within a particular run</td><td>run inputs and clocks: <code class="inline">once at 3</code>, <code class="inline">[epoch:3]</code>, <code class="inline">periods 7</code></td></tr>
+<tr><td><b>microstep</b></td><td>ordering <i>within</i> one period, during the REACT cascade</td><td>superdense pairs <code class="inline">(period t, microstep m)</code></td></tr>
+</tbody></table></div>
+
+<p>So a period is a <i>kind</i> of step and an epoch is a <i>number</i> naming
+one. "Run this world for 7 periods" and "run it for epochs 0…6" describe the
+same run.</p>
+
+<div class="note"><b>Two counters start in different places, and the difference
+is not arbitrary.</b> Epochs of a run are numbered from <b>0</b>: epoch 0 is
+the first turn of the cycle, before any external claim has been admitted, which
+is why a world with no scenario at all still has one. Claim batches, however,
+are addressed from <b>1</b> — <code class="inline">[epoch:1]</code> is the
+earliest epoch at which you may inject a claim. The gap is epoch 0 itself: it
+is reserved for the world settling from its declared initial configuration, so
+that "what this world does on its own" and "what this world does when something
+is done to it" are never mixed into the same frame.</div>
 
 <h2 id="memory">8 · The five memory kinds</h2>
 
@@ -442,11 +495,26 @@ canonical graph is serialized to JSON with sorted keys and no incidental
 whitespace, and hashed with SHA-256. The result is the
 <code class="inline">SemanticArtifactID</code>.</p>
 
-<div class="idline">SemanticArtifactID &nbsp;<b>sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a</b></div>
+<p>For the <b>starter world</b> shown at the top of this guide, that value is:</p>
+
+<div class="idline">SemanticArtifactID &nbsp;<b>sem-67e954cfe3115166b49388366df3f062a46572ba2baf53380f1520f4050b60ae</b></div>
 
 <p>The <a href="playground.html">playground</a> computes exactly that value in
 your browser, from a faithful port of the same canonicalizer — which is why you
 can watch an edit move the id, or fail to.</p>
+
+<p>Two worlds are used throughout this site, and it is worth keeping them
+apart. The <b>starter world</b> above — one pulser, one relay, one spinner, one
+orb — is the teaching example, and the world the
+<a href="learn.html">tutorial</a> builds. The <b>pinned conformance fixture</b>
+is a larger six-object world carrying a second pulser and a door; it is what
+the toolchain's test batteries assert against, so its id is frozen across every
+implementation:</p>
+
+<div class="idline">the pinned fixture &nbsp;<b>sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a</b></div>
+
+<p>Both are loadable from the playground's example buttons, and both are
+asserted by <code class="inline">test/conformance.mjs</code> on every change.</p>
 
 <h2 id="ladder">13 · The identity ladder</h2>
 
@@ -479,7 +547,7 @@ having a semantic layer at all.</div>
 <p>A world document is one profile line, then declarations, then edges. Comments
 start with <code class="inline">;</code> and run to end of line.</p>
 
-<pre class="code"><code><span class="cm">; every world names the profile it conforms to</span>
+<pre class="code" data-seal="sem-67e954cfe3115166b49388366df3f062a46572ba2baf53380f1520f4050b60ae"><code><span class="cm">; every world names the profile it conforms to</span>
 <span class="kw">profile</span> forge.world.core.v1
 
 <span class="cm">; declarations: [role:id](config){ports}</span>

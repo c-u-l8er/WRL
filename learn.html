@@ -91,7 +91,7 @@ and a document can be the same program.</div>
 notice that you can already tell which parts are things, which are settings, and
 which are connections.</p>
 
-<pre class="code"><code><span class="kw">profile</span> forge.world.core.v1
+<pre class="code" data-seal="sem-67e954cfe3115166b49388366df3f062a46572ba2baf53380f1520f4050b60ae"><code><span class="kw">profile</span> forge.world.core.v1
 
 [<span class="kw">pulser</span>:<span class="id">p0</span>](<span class="lit">every 2</span>){<span class="rt">sig_out</span>}
 [<span class="kw">relay</span>:<span class="id">r0</span>]{<span class="rt">sig_in, sig_out</span>}
@@ -109,7 +109,7 @@ already doing work here:</p>
 <table>
   <tr><th>You see</th><th>Law</th><th>It means</th></tr>
   <tr><td><b>[ ]</b> square brackets</td><td>shape says what a thing is</td><td>a <b>durable identity</b> — something that persists across periods</td></tr>
-  <tr><td><b>( )</b> parentheses</td><td>shape says what a thing is</td><td><b>state</b> — the configuration this identity carries</td></tr>
+  <tr><td><b>( )</b> parentheses</td><td>shape says what a thing is</td><td><b>static configuration</b> — how this identity is built, fixed when it is declared</td></tr>
   <tr><td><b>{ }</b> braces</td><td>shape says what a thing is</td><td><b>wiring</b> — which ports the identity exposes</td></tr>
   <tr><td><b>--sig--&gt;</b></td><td>line texture says how it moves</td><td>a <b>solid route</b>: synchronous, in-period, cannot silently drop</td></tr>
   <tr><td><b>role:name</b></td><td>the colon introduces</td><td>this is a <code class="inline">pulser</code>, and it is called <code class="inline">p0</code></td></tr>
@@ -120,10 +120,20 @@ already doing work here:</p>
 those brackets and arrows are punctuation rather than keywords. Structure is
 drawn; work is named.</p>
 
+<div class="note"><b>Parentheses hold configuration, not running state.</b>
+<code class="inline">(w=16, n=8, rotor=quarter_turn_z)</code> is read once, when
+the world is built: it says how that spinner is <i>made</i> — its lane geometry,
+and the rotation it starts holding. What the spinner is holding on period 40 is
+<b>runtime state</b>, and runtime state is nowhere in the document. It lives in
+cells the world writes as it runs, and those cells are seeded from this
+declaration and then left alone by it. That separation is what makes the
+document hashable at all: the same source always describes the same world,
+because it describes the machine and not the machine's history.</div>
+
 <h2 id="profile">1 · Declare the profile</h2>
 <p>Start with an empty file and one line.</p>
 
-<pre class="code"><code><span class="kw">profile</span> forge.world.core.v1</code></pre>
+<pre class="code" data-seal="sem-b5bdc908d2ce549a46fc8ae95d39c34e1deb245e282075730e5436097433fae6"><code><span class="kw">profile</span> forge.world.core.v1</code></pre>
 
 <p>A <b>profile</b> declares which frozen registry of roles, edges, policies and
 schemas this world is written against. It is the first thing validated and the
@@ -137,14 +147,14 @@ world, and it still has an id.</p>
 <h2 id="pulser">2 · A thing that ticks</h2>
 <p>Add a source of signal.</p>
 
-<pre class="code"><code><span class="kw">profile</span> forge.world.core.v1
+<pre class="code" data-seal="sem-b92893ff304c6272f0626e18d0e4bd5ab23e4a9c6093ab31738ff166d9efa1b2"><code><span class="kw">profile</span> forge.world.core.v1
 
 [<span class="kw">pulser</span>:<span class="id">p0</span>](<span class="lit">every 2</span>){<span class="rt">sig_out</span>}</code></pre>
 
 <p>Read it left to right. <span class="k">[pulser:p0]</span> — a durable identity
 named <code class="inline">p0</code>, playing the <b>Pulser</b> role.
-<span class="k">(every 2)</span> — its state: a clock that fires every second
-period. <span class="k">{sig_out}</span> — its wiring: it exposes one output port
+<span class="k">(every 2)</span> — its configuration: a clock that fires every
+second period. <span class="k">{sig_out}</span> — its wiring: it exposes one output port
 called <code class="inline">sig_out</code>.</p>
 
 <p>Three things about that brace group are worth knowing now, because they will
@@ -188,7 +198,7 @@ Core 0.1.2 — you cannot type it — so we will leave it until the
 <h2 id="wire">3 · Wire it to something</h2>
 <p>A pulser on its own does nothing observable. Give it somewhere to go.</p>
 
-<pre class="code"><code><span class="kw">profile</span> forge.world.core.v1
+<pre class="code" data-seal="sem-c36f172c0b12f8b54642ef57e9da4f4b54f5ea7f1d1979b2ba25d815f3ed1fa9"><code><span class="kw">profile</span> forge.world.core.v1
 
 [<span class="kw">pulser</span>:<span class="id">p0</span>](<span class="lit">every 2</span>){<span class="rt">sig_out</span>}
 [<span class="kw">door</span>:<span class="id">d0</span>]{<span class="rt">sig_in</span>}
@@ -224,7 +234,7 @@ order — and it is the one beginners hit first.</div>
 <p>Now the interesting pair. A <b>Spinner</b> converts arriving signal into
 rotation; an <b>Orb</b> holds the pose that results.</p>
 
-<pre class="code"><code><span class="kw">profile</span> forge.world.core.v1
+<pre class="code" data-seal="sem-67e954cfe3115166b49388366df3f062a46572ba2baf53380f1520f4050b60ae"><code><span class="kw">profile</span> forge.world.core.v1
 
 [<span class="kw">pulser</span>:<span class="id">p0</span>](<span class="lit">every 2</span>){<span class="rt">sig_out</span>}
 [<span class="kw">relay</span>:<span class="id">r0</span>]{<span class="rt">sig_in, sig_out</span>}
@@ -235,8 +245,8 @@ rotation; an <b>Orb</b> holds the pose that results.</p>
 [<span class="id">r0</span>] <span class="rt">--sig--&gt;</span> [<span class="id">sp</span>]
 [<span class="id">sp</span>] <span class="rt">--socket--&gt;</span> [<span class="id">ob</span>]</code></pre>
 
-<p>The spinner's state has four fields, and they are the first place where WRL's
-insistence on exactness becomes visible.</p>
+<p>The spinner's configuration has four fields, and they are the first place
+where WRL's insistence on exactness becomes visible.</p>
 
 <div class="tbl">
 <table>
@@ -247,6 +257,18 @@ insistence on exactness becomes visible.</p>
   <tr><td><b>configurable</b></td><td>whether a claim may re-rotor it at runtime</td><td>a bare flag</td></tr>
 </table>
 </div>
+
+<div class="note"><b><code class="inline">configurable</code> is where the
+configuration/state distinction earns its keep.</b> The declared rotor is the
+<i>initial</i> value of a runtime cell; <code class="inline">configurable</code>
+says whether the running world is permitted to overwrite that cell when a claim
+asks it to. So on period 40 the spinner may well be holding a rotation nobody
+wrote down. The document still says
+<code class="inline">rotor=quarter_turn_z</code>, and the world's id has not
+moved a bit — because the id describes what was <b>declared</b>, and the
+rotation is what <b>happened</b>. Those are different questions, and WRL keeps
+them in different places: declarations in the world document, happenings in the
+film.</div>
 
 <p>There are <b>no floating-point numbers anywhere in WRL</b>. A rotor is four
 integers in a fixed-point format the spinner itself declares:
@@ -296,7 +318,7 @@ makes you see that in the id.</p>
 <h2 id="seal">5 · Seal it</h2>
 <p>Paste the world from step 4 into the playground. You get:</p>
 
-<div class="idline"><b>sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a</b></div>
+<div class="idline"><b>sem-67e954cfe3115166b49388366df3f062a46572ba2baf53380f1520f4050b60ae</b></div>
 
 <p>That is a real <b>SemanticArtifactID</b>. It is produced by a five-step
 pipeline you can follow exactly:</p>
