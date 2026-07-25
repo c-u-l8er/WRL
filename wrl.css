@@ -42,6 +42,9 @@ header.site nav a{font-family:var(--mono);font-size:12px;letter-spacing:.05em;
                   text-decoration:none;color:var(--ink-soft)}
 header.site nav a:hover,header.site nav a[aria-current]{color:var(--wire)}
 header.site nav a[aria-current]{font-weight:600}
+/* outbound links to the sibling sites — set apart from in-site pages */
+header.site nav a.ext{color:var(--wire)}
+header.site nav a:not(.ext)+a.ext{padding-left:19px;border-left:1px solid var(--paper-2)}
 
 /* ---------------------------------------------------------------- layout */
 section{padding:80px 5vw}
