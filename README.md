@@ -46,6 +46,7 @@ are checked on every change by [`test/conformance.mjs`](test/conformance.mjs).
 | `index.html` | The landing page — what the language is and why it has this shape |
 | `learn.html` | **WRL in 20 minutes** — build one world from an empty file, then watch its identity move |
 | `guide.html` | The complete language guide, in the order the language was designed |
+| `draft.html` | **The Complete Design Draft** — everything the language is designed to be, Parts II–VI, each section marked Core / Experimental / Proposed |
 | `reference.html` | Every table: grammar, roles, ports, edges, clocks, rotors, sugar bounds, diagnostic codes, pinned policy ids, stability tiers |
 | `spec.html` | **WRL Core 0.1.2** — Part I the normative frozen family extract, Part II a non-normative design draft |
 | `direction.html` | What the language is *for*, the honest scorecard, and the dependency-ordered list of what is missing |
@@ -59,9 +60,19 @@ imitating Erlang/OTP. It has no runtime-spawnable process, no user-written
 behaviour, no supervision floor, and no writable mailbox. The spec says so
 (§14, §14b); the site says so on every page.
 
-What it is actually good at is describing a **network of identities** precisely
-enough that the description is a hash and the run is a film. The direction that
-follows from taking *that* seriously:
+None of that is an accident of an unfinished design. The language *has* a design
+for expressions, effects, capabilities, supervision, streams, metaprogramming,
+modules and foreign functions — forty-six sections of it — and it is published
+in full at [`draft.html`](draft.html) with the author's own three-tier marking
+(**Core** committed by the frozen extract, **Experimental** designed but not
+grounded, **Proposed** speculative). Read that page to learn what WRL is
+*designed* to be; read [`reference.html#tiers`](reference.html#tiers) to see how
+little of it you can type today. The gap is the point, and it is stated rather
+than hidden.
+
+What the language is actually good at today is describing a **network of
+identities** precisely enough that the description is a hash and the run is a
+film. The direction that follows from taking *that* seriously:
 
 > WallRiderLang is an **executable topology language**: a notation in which
 > physical, computational, communication, authority, fault and economic networks

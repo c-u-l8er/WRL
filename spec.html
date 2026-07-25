@@ -53,6 +53,7 @@
   <nav>
     <a href="learn.html">Learn</a>
     <a href="guide.html">Guide</a>
+    <a href="draft.html">Draft</a>
     <a href="reference.html">Reference</a>
     <a href="spec.html" aria-current="page">Spec</a>
     <a href="direction.html">Direction</a>
@@ -87,7 +88,7 @@
   <a href="#s15">15 · The document boundary</a>
   <a href="#s16">16 · Core 0.2 promotion order</a>
   <a href="#s17">17 · Surface sugar tier</a>
-  <span class="part-label">Part II · Design draft</span>
+  <span class="part-label">Part II · Topology extrapolation</span>
   <a href="#part2">Status of Part II</a>
   <a href="#d1">D1 · Multilayer topology</a>
   <a href="#d2">D2 · Three connection kinds</a>
@@ -119,6 +120,16 @@ frozen, nothing in it is implemented, and every construct it sketches is
 direction is stated in the spec's own language and can be argued with, rather
 than living only in somebody's head. Where the two parts appear to disagree,
 <b>Part I wins</b>.</div>
+
+<div class="note warn"><b>Part II is not the language's design draft.</b> The
+authored <b>Complete Design Draft</b> — forty-six sections covering the
+expression notation, boundaries, effects, supervision, metaprogramming and the
+seven worked examples — is a separate and much larger document, published in
+full at <a href="draft.html">Design draft</a>. That is the primary forward map
+and the one whose section numbers the tier table cites. Part II below is a
+<i>later, narrower extrapolation</i>: seven sections on one specific question
+the authored draft does not settle — how many topologies one identity set may
+carry at once. Read <a href="draft.html">the draft</a> first.</div>
 
 <h2 id="status">Status and errata</h2>
 
@@ -760,7 +771,7 @@ which requires a canonical logical route declaration distinct from the structura
 edge declaration.</p>
 
 <hr class="partrule">
-<p class="partmark">Part II · Design draft — non-normative</p>
+<p class="partmark">Part II · Topology extrapolation — non-normative</p>
 
 <h2 id="part2"><span class="secnum">§D0</span>Status of Part II<span class="draft">non-normative · new in 0.1.2</span></h2>
 
@@ -777,6 +788,17 @@ suite asserts that rejection on every run. When one of these constructs ships,
 the corresponding assertion goes red and this section must be rewritten. That is
 the intended failure mode: the draft cannot quietly drift out of date, because
 the build stops.</div>
+
+<div class="note warn"><b>And this is not the whole forward map.</b> The authored
+Complete Design Draft already specifies most of what WRL intends to become —
+§10–§17 the expression notation, §18–§27 the process semantics, §28–§34
+metaprogramming, §35–§38 programs at scale, §39–§46 the reference. All of it is
+on the <a href="draft.html">Design draft</a> page, marked with the author's own
+Core / Experimental / Proposed tiers. Part II here adds <b>one</b> thing that
+document leaves open: whether a world's identities may carry several distinct
+topologies at once, and what that would do to the identity ladder. If you want
+the language's designed feature set, read the draft; if you want this one
+architectural argument, read on.</div>
 
 <h3>D0.1 · The reframe that produced Part II</h3>
 
@@ -1121,6 +1143,7 @@ with — see <a href="direction.html">Direction</a> for the case in prose.</p>
       <strong>WallRiderLang</strong>
       <a href="learn.html">Tutorial</a><br>
       <a href="guide.html">Language guide</a><br>
+      <a href="draft.html">Design draft</a><br>
       <a href="reference.html">Reference</a><br>
       <a href="spec.html">Core 0.1.2 spec</a><br>
       <a href="direction.html">Direction</a>

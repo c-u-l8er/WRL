@@ -1,0 +1,1583 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The WallRiderLang design draft — the whole language, tier by tier</title>
+<meta name="description" content="The complete WallRiderLang design draft: the expression notation, effects and capabilities, supervision and the error ladder, mailboxes and backpressure, behavior blocks, fragments, stencils, derives, sealed tools, modules, build films, testing, FFI — each marked Core, Experimental or Proposed.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="wrl.css">
+<style>
+  .part{font-family:var(--mono);font-size:11px;letter-spacing:.16em;
+        text-transform:uppercase;color:var(--wire);font-weight:600;
+        border-top:1px solid var(--paper-2);padding-top:26px;margin-top:64px}
+  .toc .part-label{display:block;font-family:var(--mono);font-size:10px;
+        letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);
+        margin:16px 0 6px}
+  h2 .tier{vertical-align:.30em;margin-left:12px}
+  h3 .tier{vertical-align:.24em;margin-left:10px}
+  .toc a .t{font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+        color:var(--ink-faint);margin-left:6px}
+  .legend{display:grid;gap:10px;margin:26px 0;max-width:72ch}
+  .legend div{display:grid;grid-template-columns:118px minmax(0,1fr);gap:14px;
+        align-items:baseline;font-size:16.5px;color:var(--ink-soft)}
+  .legend b{color:var(--ink)}
+  .src{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;
+        color:var(--ink-faint);margin:-8px 0 0}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site">
+  <a class="mark" href="./">WallRiderLang<small>WRL CORE 0.1.2 · FROZEN</small></a>
+  <nav>
+    <a href="learn.html">Learn</a>
+    <a href="guide.html">Guide</a>
+    <a href="draft.html" aria-current="page">Draft</a>
+    <a href="reference.html">Reference</a>
+    <a href="spec.html">Spec</a>
+    <a href="direction.html">Direction</a>
+    <a href="playground.html">Playground</a>
+    <a href="https://github.com/c-u-l8er/WRL">GitHub</a>
+  </nav>
+</header>
+
+<main id="main" class="doclayout">
+
+<aside class="toc">
+  <strong>Design draft</strong>
+  <a href="#about">What this page is</a>
+  <a href="#tiers">The three tiers</a>
+  <a href="#reality">The reality check</a>
+  <span class="part-label">II · The expression notation</span>
+  <a href="#punctuation">10 · The punctuation rule</a>
+  <a href="#values">11 · Values and data types</a>
+  <a href="#functions">12 · Functions and effect rows</a>
+  <a href="#matching">13 · Pattern matching</a>
+  <a href="#traits">14 · Generics and traits</a>
+  <a href="#numerics">15 · Numerics</a>
+  <a href="#collections">16 · Collections and symbols</a>
+  <a href="#resources">17 · Resources and ownership</a>
+  <span class="part-label">III · Process semantics</span>
+  <a href="#entities">19 · Runtime entities</a>
+  <a href="#boundaries">20.6 · Boundaries as operators</a>
+  <a href="#podium">20.7 · The podium</a>
+  <a href="#messages">20.8 · Messages and schedules</a>
+  <a href="#effects">21 · Effects and entropy</a>
+  <a href="#merge">22 · Merging replicated facts</a>
+  <a href="#verify">23 · Verification and sealing</a>
+  <a href="#supervision">24 · Supervision and the ladder</a>
+  <a href="#mailboxes">25 · Mailboxes and backpressure</a>
+  <a href="#behavior">26 · Behavior blocks</a>
+  <a href="#evolution">27 · Evolution and migration</a>
+  <span class="part-label">IV · Metaprogramming</span>
+  <a href="#phases">28 · The three phases</a>
+  <a href="#laws">29 · The six laws</a>
+  <a href="#fragments">30 · Fragments</a>
+  <a href="#stencils">31 · Stencils</a>
+  <a href="#derives">32 · Derives</a>
+  <a href="#tools">33 · Sealed tools</a>
+  <a href="#reflection">34 · Reflection</a>
+  <span class="part-label">V · Programs at scale</span>
+  <a href="#modules">35 · Modules and no-build</a>
+  <a href="#buildfilms">36 · Build films</a>
+  <a href="#testing">37 · Testing</a>
+  <a href="#ffi">38 · Foreign functions</a>
+  <span class="part-label">VI · Reference</span>
+  <a href="#checks">40 · Static checks</a>
+  <a href="#profiles">41 · Execution profiles</a>
+  <a href="#examples">43 · Seven worked examples</a>
+  <a href="#exclusions">44 · Exclusions</a>
+  <a href="#reserved">45 · Reserved</a>
+  <a href="#conformance">46 · Conformance matrix</a>
+</aside>
+
+<div class="docbody">
+
+<div class="slot">THE COMPLETE DESIGN DRAFT</div>
+<h1 style="font-size:clamp(30px,4.4vw,46px);max-width:24ch">Everything the language is designed to be, and what is actually built.</h1>
+
+<p class="lede">The <a href="spec.html">spec</a> is the small frozen part. This page
+is the <b>whole authored design draft</b> — the expression notation,
+capabilities, supervision, mailboxes, behavior blocks, fragments, stencils,
+derives, sealed tools, modules, build films, tests, FFI — with every section
+carrying the tier its author assigned it, so you can read the entire language
+and see exactly where the implementation stops.</p>
+
+<h2 id="about">What this page is</h2>
+
+<p>WallRiderLang exists as two documents. <b>The design draft</b> is the
+complete, deliberately ambitious statement of the language: 46 sections across
+six parts, written as one argument. <b>The frozen core extract</b> is the small
+subset the TRVM Forge toolchain has actually grounded, and it is what
+<a href="spec.html">Part I of the spec</a> publishes.</p>
+
+<div class="note stop"><b>Precedence, stated once.</b> Where this page and the
+frozen extract disagree, <b>the frozen extract wins</b>. The draft is the design
+rationale and the forward map, not a ratified standard. Nothing here should be
+implemented verbatim as though it were settled, and no part of it should be
+announced as shipped until it has been extracted into a frozen core. The draft
+says this about itself, and this page repeats it because readers arrive here
+first.</div>
+
+<p>The reason to publish the draft rather than only the frozen part is that
+<b>a language you cannot see whole cannot be criticized</b>. The frozen extract
+tells you the four objects you can wire together today. It does not tell you
+what the four route textures are <i>for</i>, why the podium needs a stable
+tie-breaker, why coherence has to be hash-pinned, or why derives are stratified.
+Those decisions are the language. They are also the part most likely to be
+wrong, so they are the part most worth exposing.</p>
+
+<p>Part I of the draft — the four reading laws, containers, identity, routes,
+walls, time — is already published in full as the
+<a href="guide.html">language guide</a>. This page picks up at Part II and runs
+to the end.</p>
+
+<h2 id="tiers">The three tiers</h2>
+
+<p>Every section of the draft carries one of three status marks. They are the
+author's own classification, not a retrospective guess.</p>
+
+<div class="legend">
+  <div><span class="tier core">Core</span>
+    <span>Grounded. The <b>family</b> is committed by the frozen extract:
+    the set of members is closed and each member's meaning-role is settled.
+    Freezing a family does <i>not</i> freeze exact glyphs, argument grammars,
+    sugar, or edge-case rules.</span></div>
+  <div><span class="tier exp">Experimental</span>
+    <span>Designed and internally coherent, but <b>not grounded in a running
+    implementation</b>. Expect the details to move. Nothing in this tier is
+    writable in the toolchain today.</span></div>
+  <div><span class="tier prop">Proposed</span>
+    <span>Speculative or deliberately deferred. Expect <b>substantial change or
+    removal</b>. Read this tier as a statement of intent, not a promise.</span></div>
+</div>
+
+<p>Three sections are split, because the split is real:</p>
+
+<ul>
+  <li>§22 <b>fact union</b> is Core; §22's <b>distributed trust settlement</b> is Proposed.</li>
+  <li>§20's <b>deterministic floor</b> is Core; §20.7's <b>podium</b> is Experimental.</li>
+  <li>§44 <b>exclusions</b> apply across all three tiers — they are permanent regardless of status.</li>
+</ul>
+
+<h2 id="reality">The reality check</h2>
+
+<p>Four corrections the draft makes about itself, because a status word alone
+hides the interesting distinctions.</p>
+
+<h3>1 · "Grounded" splits in two</h3>
+<p>A construct can be <b>IR-grounded</b> — the intermediate representation and
+runtime handle it — while being <b>surface-ungrounded</b>: there is no way to
+write it in source, and no round trip through the text form. Most of the
+Core-tier process machinery is in exactly that position. The frozen extract is a
+statement about <i>families</i>, not about what you can type.</p>
+
+<h3>2 · The mailbox is not a sixth role</h3>
+<p><code class="inline">MailboxDecl</code> is IR-grounded. The async texture
+<code class="inline">~~</code> has no structural edge declaration, because an
+async message does not settle within the period and therefore cannot be an
+ordinary edge. The playground rejects
+<code class="inline">[mailbox:m]</code> as source for that reason, and
+<code class="inline">formatCore</code> refuses to emit a role its own parser
+would reject.</p>
+
+<h3>3 · A world and a run of a world are different documents</h3>
+<p>Periods and <code class="inline">[epoch:N]</code> claims are run inputs. They
+belong to a scenario document, are outside the
+<code class="inline">SemanticArtifactID</code>, and are rejected inside world
+source with <code class="inline">WRL_WORLD_SOURCE_HAS_SCENARIO</code>. Editing
+the world moves the id; editing the scenario does not.</p>
+
+<h3>4 · Of the four textures, only one is surface-grounded</h3>
+<p><code class="inline">--</code> can be written, sealed and round-tripped.
+<code class="inline">~~</code>, <code class="inline">==</code> and
+<code class="inline">!!</code> have frozen <i>notation</i> and frozen
+<i>guarantees</i>, and no writable surface construct. In particular
+<code class="inline">==</code> is <b>not</b> nearly done — a verified route needs
+a checker identity, a policy version and an evidence hash, none of which have a
+surface form.</p>
+
+<p class="src">Source: WallRiderLang — Complete Design Draft, status note and
+reality check, revised for Core 0.1.2.</p>
+
+<!-- ============================================================ PART II -->
+<div class="part">Part II — The expression notation</div>
+
+<h2 id="punctuation">10 · The punctuation rule <span class="tier exp">Experimental</span></h2>
+
+<p>The expression notation is where ordinary computation lives: values, records,
+arithmetic, functions, pattern matching, collections. It appears inside state
+cells, route arguments, guards, behavior blocks, derives and tests. It is
+deliberately conventional — <b>the visual symbols describe the architecture of
+computation, not arithmetic</b>.</p>
+
+<div class="note"><b>The rule.</b> The process alphabet owns punctuation
+globally. The expression notation defaults to <b>words</b>, and may claim a
+punctuation token only after passing a collision audit against every process
+glyph — in both the lexer <i>and</i> the eye.</div>
+
+<p>That is why WRL writes <code class="inline">mul</code> rather than
+<code class="inline">*</code>, and <code class="inline">and</code> rather than
+<code class="inline">&amp;&amp;</code>. Not aesthetics: <code class="inline">*</code>
+is already the wildcard and replication mark, and <code class="inline">&amp;</code>
+is already graph composition. The sanctioned set is closed, and each entry
+records what it was audited against.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Purpose</th><th>Token</th><th>Audit note</th></tr></thead>
+<tbody>
+<tr><td>arithmetic</td><td><b>+ -</b></td><td><code>+</code> is graph union in process position; split by grammar, not by guessing</td></tr>
+<tr><td>multiply / divide / remainder</td><td><b>mul div rem</b></td><td>words — <code>*</code> is wildcard/replication, <code>/</code> is a boundary</td></tr>
+<tr><td>comparison</td><td><b>= &lt; &gt; &lt;= &gt;=</b></td><td>never <code>==</code> (verified route) or <code>!=</code> (<code>!</code> is the fault family)</td></tr>
+<tr><td>logic</td><td><b>and or not</b></td><td>never <code>&amp;&amp;</code> (composition), <code>||</code> (parallel lanes), <code>!</code> (faults)</td></tr>
+<tr><td>error propagation</td><td><b>try expr</b></td><td>a word — postfix <code>?</code> would collide with <code>?x</code> pattern variables</td></tr>
+<tr><td>paths / field access</td><td><b>.</b></td><td><code>state.status</code> — never <code>::</code>, which opens a fragment</td></tr>
+<tr><td>match arms</td><td><b>=&gt;</b></td><td>permitted; the formatter must never let an arm resemble a <code>==&gt;</code> route</td></tr>
+<tr><td>return type</td><td><b>-&gt;</b></td><td>permitted; one dash versus two is the learnable distinction from <code>--&gt;</code></td></tr>
+<tr><td>generics</td><td><b>&lt;T&gt;</b> attached to a name</td><td><code>Mailbox&lt;T&gt;</code>, <code>Fixed&lt;16&gt;</code>; standalone <code>&lt;</code> <code>&gt;</code> stay reserved</td></tr>
+<tr><td>binding</td><td><b>let var &lt;-</b></td><td><code>&lt;-</code> binds a pattern to a result</td></tr>
+<tr><td>record update</td><td><b>with</b></td><td><code>rider with { energy=e }</code></td></tr>
+<tr><td>closures</td><td><b>fn(x) expr</b></td><td>never <code>|x|</code> — the bar is a lane</td></tr>
+</tbody></table></div>
+
+<p>Nothing else. Operator overloading of punctuation does not exist, and is
+<a href="#exclusions">permanently excluded</a> rather than deferred.</p>
+
+<h2 id="values">11 · Values and data types <span class="tier exp">Experimental</span></h2>
+
+<p>Algebraic data types: records, variants, tuples, recursive data. <b>There is
+no <code class="inline">null</code>.</b></p>
+
+<pre class="code"><code><span class="kw">type</span> Rider = {
+  name: Name,
+  watts: Watts,
+  energy: Energy,
+  status: RiderStatus
+}
+
+<span class="kw">enum</span> RiderStatus {
+  staged,
+  riding(lap: Int32),
+  dropped(reason: DropReason),
+  finished(time: Period)
+}
+
+<span class="kw">enum</span> Option&lt;T&gt; { some(T), none }
+<span class="kw">enum</span> Result&lt;T, E&gt; { ok(T), err(E) }</code></pre>
+
+<p>These are the foundation of messages, actor state, boundary responses, films
+and evidence. <b>Absence is <code class="inline">Option</code>. Expected failure
+is <code class="inline">Result</code>. A genuine fault travels on
+<code class="inline">!!</code></b> — that three-way split is enforced statically
+and is the subject of <a href="#supervision">§24.3</a>.</p>
+
+<p>Values are immutable; updating produces a new value:</p>
+
+<pre class="code"><code><span class="kw">let</span> next = rider <span class="kw">with</span> { energy = rider.energy - cost }</code></pre>
+
+<h2 id="functions">12 · Bindings, functions, effect rows <span class="tier exp">Experimental</span></h2>
+
+<h3>12.1 · Bindings</h3>
+<p><code class="inline">let</code> introduces an immutable binding.
+<code class="inline">var</code> permits local mutation as sugar; it lowers to
+immutable SSA form, so <b>shared mutable variables are impossible by
+construction</b>, not by convention.</p>
+
+<pre class="code"><code><span class="kw">let</span> cost = grade_cost(course.grade)
+<span class="kw">var</span> total = <span class="lit">0</span>        <span class="cm">; local only; lowers to SSA</span></code></pre>
+
+<h3>12.2 · Actors do not replace functions</h3>
+<p>Actors are for identity, concurrency, persistence and fault domains. Pure
+functions are for local calculation. A function declares its effect row with
+<code class="inline">uses</code>; an empty row means pure.</p>
+
+<pre class="code"><code><span class="kw">fn</span> drain(rider: Rider, cost: Energy) -&gt; Result&lt;Rider, Exhausted&gt;
+  <span class="kw">uses</span> {} {
+  <span class="kw">let</span> remaining = rider.energy - cost
+  <span class="kw">match</span> remaining {
+    e <span class="kw">when</span> e &gt;= <span class="lit">0</span> =&gt; ok(rider <span class="kw">with</span> { energy = e })
+    _             =&gt; err(exhausted(required=cost, available=rider.energy))
+  }
+}</code></pre>
+
+<p>A pure function has no hidden effects, is deterministic, is callable from
+guards and from metaprograms, and never requires spawning an actor. This is the
+answer to "everything is an actor" bloat: most computation is not concurrency.</p>
+
+<h3>12.3 · Effect rows are the type face of capability walls</h3>
+
+<pre class="code"><code><span class="kw">fn</span> download_world(id: WorldId) -&gt; Result&lt;Bytes, NetError&gt;
+  <span class="kw">uses</span> { net.send, storage.write }</code></pre>
+
+<p>A call whose row is non-empty can only execute where an actor's ports grant
+those capabilities. The checker proves the row. <a href="#effects">§21</a> is the
+runtime half of the same statement.</p>
+
+<h3>12.4 · Portability is a type property, not ceremony</h3>
+
+<p>Closures exist:
+<code class="inline">riders.filter(fn(r) r.watts &gt; 350)</code>.</p>
+
+<p>A closure whose effect row is <b>empty</b> and whose captures are all
+content-addressed values has a canonical graph — <b>it <i>is</i> a fragment</b>,
+and may travel as a message, be stored, or be stamped. A closure capturing a
+live capability or an affine resource handle is not portable, and using it where
+a portable value is required is a compile error that names the offending
+capture.</p>
+
+<p>The <code class="inline">:: … //</code> syntax of
+<a href="#fragments">§30</a> is the <i>literal notation</i> for fragment values —
+the notation for the property, not its source. This is how "a copied fragment
+inherits no ambient authority" becomes a <b>theorem rather than a rule</b>.</p>
+
+<h2 id="matching">13 · Pattern matching <span class="tier exp">Experimental</span></h2>
+
+<pre class="code"><code><span class="kw">match</span> message {
+  Command.attack(at=<span class="id">?p</span>)                  =&gt; …
+  Command.recover(amount=<span class="id">?n</span>) <span class="kw">when</span> <span class="id">?n</span> &gt; <span class="lit">0</span> =&gt; …
+  _                                      =&gt; …
+}</code></pre>
+
+<p>Graph patterns use the same binding system, so one mental model covers data
+and topology:</p>
+
+<pre class="code"><code>[<span class="kw">rider</span>:<span class="id">?id</span>](energy=<span class="id">?e</span>, status=riding(<span class="id">?lap</span>))
+  <span class="rt">--when(?e &lt; 20)--&gt;</span>
+<span class="rt">/feed-zone</span></code></pre>
+
+<div class="note"><b>Matching is bounded and deterministic.</b> There is no
+implicit search anywhere in the ordinary language. <b>Rule patterns are
+anchored</b> — the left side of a solid rule may match its own subject actor's
+cell and mailbox head, which is tree matching and cheap by construction.
+Topology-wide relational patterns are legal only in <a href="#derives">derives</a>,
+which are offline, stratified and budgeted, or in explicitly
+<code class="inline">scored</code> search contexts on the expressive ceiling.</div>
+
+<p>Non-exhaustive matches over variants are static errors unless a
+<code class="inline">_</code> arm exists.</p>
+
+<h2 id="traits">14 · Generics and traits <span class="tier exp">Experimental</span></h2>
+
+<h3>14.1 · Generics are parametric</h3>
+<p>Never token templates. Const parameters where needed.</p>
+
+<pre class="code"><code><span class="kw">type</span> Mailbox&lt;T&gt;        <span class="kw">type</span> Port&lt;T&gt;        <span class="kw">type</span> Graph&lt;T&gt;
+<span class="kw">type</span> Fragment&lt;T&gt;       <span class="kw">type</span> Result&lt;T, E&gt;   <span class="kw">type</span> Vector&lt;T, N: Int32&gt;
+<span class="kw">fn</span> map&lt;T, U&gt;(items: List&lt;T&gt;, f: <span class="kw">fn</span>(T) -&gt; U) -&gt; List&lt;U&gt;</code></pre>
+
+<p>Stencil parameters and type parameters are related but distinct; a stencil may
+take both — <code class="inline">::: cache&lt;K, V&gt;(name, capacity: Int32) … ///</code>.</p>
+
+<h3>14.2 · Traits, and no class inheritance</h3>
+
+<pre class="code"><code><span class="kw">trait</span> Hashable {
+  <span class="kw">fn</span> hash(self) -&gt; Hash
+}
+
+<span class="kw">trait</span> Merge&lt;T&gt; {
+  <span class="kw">fn</span> join(left: T, right: T) -&gt; T
+}
+
+<span class="kw">trait</span> Verify&lt;Candidate, Evidence&gt; {
+  <span class="kw">fn</span> verify(candidate: Candidate, evidence: Evidence)
+    -&gt; Result&lt;Verified&lt;Candidate&gt;, Rejection&gt;
+}</code></pre>
+
+<p>Traits map directly onto runtime policies. <code class="inline">Merge</code>
+instances implement <code class="inline">&lt;~merge~&gt;</code>.
+<code class="inline">Verify</code> instances implement
+<code class="inline">==verified==&gt;</code> checkers. Boundary adapters are trait
+implementations. The abstraction mechanism of the expression notation and the
+policy mechanism of the process notation are <b>the same mechanism</b>.</p>
+
+<h3>14.3 · Coherence is hash-pinned <span class="tier exp">Experimental</span></h3>
+
+<p>Instance resolution is a <b>correctness</b> property here, not a style
+preference. <code class="inline">&lt;~merge~&gt;</code> converges <i>because</i>
+every replica applies the same commutative, associative, idempotent join. If two
+replicas resolved <code class="inline">Merge&lt;FactSet&lt;T&gt;&gt;</code> to
+different instances, they would diverge while each believed it had merged
+correctly.</p>
+
+<div class="note"><b>Therefore:</b> during canonicalization every trait-method
+call site is resolved to a concrete instance, and <b>the instance's content hash
+is baked into the canonical bytes</b>. Two replicas holding the same program
+hash hold the same join function, by construction. Instance selection can never
+vary by context, import order, or build.</div>
+
+<h2 id="numerics">15 · Numerics and determinism classes <span class="tier exp">Experimental</span></h2>
+
+<pre class="code"><code>Int8  Int16  Int32  Int64      UInt8 … UInt64
+Float32  Float64                Decimal
+Fixed&lt;Q&gt;                        Duration   Period</code></pre>
+
+<p><b>Integer semantics are fully defined and identical on every target.</b>
+Overflow is checked by default; <code class="inline">wrapping_add</code>,
+<code class="inline">saturating_add</code> and friends are explicit. Quotient
+truncates toward zero and remainder takes the dividend's sign, identically
+everywhere; <code class="inline">div_euclid</code> and
+<code class="inline">rem_euclid</code> variants exist. <b>No numeric behavior may
+depend on build mode or platform.</b></p>
+
+<p><b>Floating point is a determinism hazard and is treated as one.</b> Identical
+executables on identical hardware reproduce float results; across hardware,
+compilers or optimization settings they do not — fused multiply-add, SIMD
+variation and transcendental library differences all break bit-equality. The
+answer is determinism classes bound to <a href="#profiles">execution profiles</a>.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Profile</th><th>Simulation-state numerics</th><th>Floats</th></tr></thead>
+<tbody>
+<tr><td><b>world</b><br>lockstep console/desktop</td><td><code>Fixed&lt;Q&gt;</code>, integers</td><td>forbidden in state cells; permitted on the presentation/effect side only</td></tr>
+<tr><td><b>pure</b> / <b>replay</b></td><td><code>Fixed&lt;Q&gt;</code>, integers; <code>Float64</code> with <code>#[det=bitexact]</code></td><td>strict IEEE-754, no FMA, no fast-math, pinned softfloat transcendental artifact</td></tr>
+<tr><td>effect side of any wall</td><td>anything</td><td>float results are observations; their hashes enter the film like any effect</td></tr>
+</tbody></table></div>
+
+<p>The corresponding static check: <b>a <code class="inline">Float</code> may not
+appear in a state cell of a <code class="inline">world</code>-profile actor</b>.
+<code class="inline">Duration</code> is a wall-clock quantity and therefore
+effect-side; <code class="inline">Period</code> is logical time and replayable.</p>
+
+<h2 id="collections">16 · Collections, strings, symbols <span class="tier exp">Experimental</span></h2>
+
+<pre class="code"><code>List&lt;T&gt;   Vector&lt;T, N&gt;   Map&lt;K, V&gt;   Set&lt;T&gt;   Bytes   String
+Queue&lt;T&gt;  Mailbox&lt;T&gt;     FactSet&lt;T&gt;  Stream&lt;T&gt;</code></pre>
+
+<p>Every collection defines deterministic iteration order, canonical
+serialization, equality and hashing, and documented complexity.
+<b>Nondeterministic map iteration does not exist</b> — it is on the
+<a href="#exclusions">exclusion list</a>, not the roadmap.</p>
+
+<div class="note"><b><code class="inline">Set&lt;T&gt;</code> and
+<code class="inline">FactSet&lt;T&gt;</code> are different types on purpose.</b> A
+<code class="inline">Set</code> is a local collection. A
+<code class="inline">FactSet</code> is a monotonic join-semilattice — a
+<i>claim</i> that its merge obeys the lattice laws. Collections are never
+silently CRDT-mergeable; <b>replication is opt-in by type</b>.</div>
+
+<p>Data iteration is textual and never uses periods. The dot family means
+logical time and nothing else:</p>
+
+<pre class="code"><code><span class="kw">for</span> rider <span class="kw">in</span> riders { … }
+map(riders, score)
+fold(results, initial, combine)</code></pre>
+
+<p>Four things other languages conflate are four different things here:</p>
+
+<pre class="code"><code><span class="lit">"rider a"</span>      String — data
+rider_a        identifier — a name in source
+<span class="id">#rider-a</span>       tag / content identity
+<span class="id">@rider-a</span>       address / stamp</code></pre>
+
+<p>Interned symbols exist as <code class="inline">Symbol</code>; the intern table
+is bounded per sealed scope and cannot grow without limit at runtime.</p>
+
+<h2 id="resources">17 · Resources and ownership <span class="tier exp">Experimental</span></h2>
+
+<p>The ownership model is small and sufficient: values are immutable; actor state
+is singly owned; messages are immutable; large binaries use shared
+<i>immutable</i> storage; external resources are <b>affine handles</b>; and
+capabilities cannot be duplicated unless their type permits it.</p>
+
+<pre class="code"><code><span class="kw">resource</span> FileHandle
+<span class="kw">resource</span> GpuBuffer
+<span class="kw">resource</span> Socket
+
+<span class="kw">fn</span> upload(buffer: <span class="kw">borrow</span> GpuBuffer) -&gt; Result&lt;Receipt, GpuError&gt;
+<span class="kw">fn</span> close(socket: <span class="kw">move</span> Socket)</code></pre>
+
+<p>A resource is consumed, moved, or explicitly borrowed. <b>There are no shared
+mutable pointers anywhere in the language.</b></p>
+
+<!-- =========================================================== PART III -->
+<div class="part">Part III — Process semantics</div>
+
+<p>The <a href="guide.html#memory">five memory kinds</a> (§18), the
+<a href="guide.html#cycle">period cycle</a> (§20.1–20.5) and the
+<a href="guide.html#invariants">two invariants</a> are covered in the guide.
+This part picks up the machinery built on top of them.</p>
+
+<div class="note warn"><b>One place the draft is out of date.</b> The draft
+states the period cycle as <b>five</b> phases — Collect, Order, Reduce, Commit,
+Record. The frozen errata replaced it with <b>six</b>: OBSERVE, ACCEPT, MAP,
+COMMIT, REACT, FILM. The five-phase statement is superseded. The invariants it
+was there to justify — canonical event keys, within-period fixpoint, conflicts
+dissolving — are unchanged, and the <a href="guide.html#cycle">guide</a> states
+the frozen version.</div>
+
+<h2 id="entities">19 · Runtime entities <span class="tier core">Core</span></h2>
+
+<p>An implementation needs exactly six semantic entity types. Not five, not
+seven — this is the closed list.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Entity</th><th>What it carries</th></tr></thead>
+<tbody>
+<tr><td><b>Actor</b></td><td>a stable identity, a current state cell, a mailbox, a declared port/capability set, an optional supervisor, a deterministic behavior table (the solid rules whose source is this actor), resource counters and status</td></tr>
+<tr><td><b>Value</b></td><td>immutable. Updating state produces a new value at the same identity at the next logical step</td></tr>
+<tr><td><b>Edge</b></td><td>source, destination, label, texture, payload expression, policy, provenance. Decorative line length is not stored</td></tr>
+<tr><td><b>Boundary</b></td><td>mediates propagation: stop, filter, authorize, commit, snapshot, rank, externalize, or seal</td></tr>
+<tr><td><b>Fragment</b></td><td>quoted graph data with hygienic holes and explicitly captured identities; typed <code>Fragment&lt;T&gt;</code></td></tr>
+<tr><td><b>Stencil</b></td><td>a deterministic, hygienic, resource-bounded, canonicalizable map from parameters to a fragment; typed <code>Stencil&lt;Args, Fragment&lt;T&gt;&gt;</code></td></tr>
+</tbody></table></div>
+
+<h2 id="boundaries">20.6 · Boundaries are reduction operators <span class="tier core">Core</span></h2>
+
+<p>A wall is not decoration around a diagram. Each boundary <b>is a reduction
+operator</b> with a defined effect on memory.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Boundary</th><th>Reduction effect</th></tr></thead>
+<tbody>
+<tr><td><code>/gate</code></td><td>require the named capability in the crossing fragment's ports; emit an <b>effect-request node</b> rather than performing I/O</td></tr>
+<tr><td><code>//commit</code></td><td>canonicalize the fragment so far and assign it a content id; it becomes immutable</td></tr>
+<tr><td><code>//finish</code></td><td>a commit boundary that may also receive race or workflow arrivals</td></tr>
+<tr><td><code>///seal</code></td><td>perform <code>//commit</code>, then register the artifact under a content hash and an optional name</td></tr>
+</tbody></table></div>
+
+<p>A gate authorizes and externalizes; a commit freezes; a seal freezes and
+content-addresses. <b>The finish line is literal</b>: crossing
+<code class="inline">//finish</code> <i>is</i> the canonicalize-and-record
+reduction, which is why it can feed a podium directly.</p>
+
+<h2 id="podium">20.7 · The podium <span class="tier exp">Experimental</span></h2>
+
+<p><code class="inline">oN.</code> consumes an eligible result set that has
+crossed a boundary this run and reduces it to a provenance-carrying object with
+N named places.</p>
+
+<pre class="code"><code>Podium {
+  places: [r; N],        <span class="cm">; missing places are explicit _</span>
+  ranking_policy,
+  evidence,
+  source_boundary
+}</code></pre>
+
+<pre class="code"><code><span class="rt">//finish</span> <span class="rt">==rank(by=time, tie=#id)==&gt;</span> o3.
+[winner, second, third] &lt;- o3.</code></pre>
+
+<div class="note"><b>Ranking must name a stable tie-breaker.</b> Arrival order
+and scheduling are never acceptable implicit tie-breakers — a podium that
+depended on them would not survive replay, which defeats the point of having
+one. Omitting the tie-breaker is a <a href="#checks">static error</a>.</div>
+
+<p>The podium can rank anything, not only race results.
+<code class="inline">o0.</code> is accepted as sugar for
+<code class="inline">o3.</code> where the three-place reading is intended.</p>
+
+<h2 id="messages">20.8–20.11 · Messages, schedules, determinism, quiescence <span class="tier core">Core</span></h2>
+
+<h3>Messages are immutable facts</h3>
+<p>A <code class="inline">~~msg~~&gt;</code> in period <i>t</i> appends:</p>
+
+<pre class="code"><code>{ msg_id, sender, receiver, payload_hash,
+  send_tag=(t,m), delivery_policy, provenance }</code></pre>
+
+<p>Delivery is a <b>separate event</b>. Under the default policy a message sent
+at <code class="inline">(t, m)</code> becomes deliverable no earlier than
+<code class="inline">(t+1, 0)</code>. An actor cannot observe its own send within
+the same period, which keeps periods well-founded and forbids same-period causal
+loops. Exactly-once processing is not assumed; deduplication keys and
+acknowledgements are explicit.</p>
+
+<h3>Scheduled events</h3>
+<p><code class="inline">..after(periods=k)..&gt;</code> at period <i>t</i> creates
+an event due at <i>t+k</i>. <code class="inline">..after(5s)..&gt;</code>
+desugars through a <code class="inline">/time</code> wall that converts the
+duration into a period count; <b>the observed conversion is a signed fact</b>, so
+replay uses the recorded count and never a live clock.</p>
+
+<h3>The determinism property</h3>
+<div class="note"><b>Given the same initial configuration and the same sequence
+of external observations — the signed facts crossing effect walls — the
+committed film is byte-identical across any hardware scheduling.</b></div>
+
+<p>The argument is short. Collect and Order depend only on configuration
+content. The independent set commits order-independently because disjoint
+footprints commute, and the dependent cascade is serialized by microstep as a
+pure function of content. There is no destructive state conflict, only
+commutative appends and joins. Commit and Record are deterministic functions of
+Reduce. <b>The only entry point for nondeterminism is effect-wall observations,
+and those are captured in the film</b> — so replay is exact.</p>
+
+<p>Consequently "the same sealed film runs identically on desktop and console"
+is a testable property rather than a hope, <i>provided</i> the numeric rules of
+<a href="#numerics">§15</a> are respected.</p>
+
+<h3>Termination is not quiescence</h3>
+<p>A graph is locally <b>quiescent</b> when no solid transition is enabled, no
+message is deliverable this period, no scheduled event is due, no actor is
+runnable, and all required boundary commits are complete. A distributed run is
+<b>complete</b> only under an explicit termination detector or a sealed
+finite-horizon film. Importing state that marks actors runnable <b>invalidates a
+prior quiescence conclusion</b>; restored work must be rescheduled before
+termination is declared.</p>
+
+<h2 id="effects">21 · Effects, capabilities, entropy <span class="tier exp">Experimental</span></h2>
+
+<p>All non-deterministic or external action crosses a named wall.
+<b>No effect happens invisibly.</b></p>
+
+<pre class="code"><code>[request] <span class="rt">--&gt;</span> <span class="rt">/net</span>
+[frame]   <span class="rt">--&gt;</span> <span class="rt">/gpu</span>
+[sound]   <span class="rt">--&gt;</span> <span class="rt">/audio</span>
+[file]    <span class="rt">--&gt;</span> <span class="rt">/storage</span></code></pre>
+
+<p>An adapter returns a <b>signed observation</b>, and that is what enters the
+film — so a replay reproduces the run without repeating the call:</p>
+
+<pre class="code"><code><span class="rt">/net</span> <span class="rt">==observed(response=#hash)==&gt;</span> [requester]</code></pre>
+
+<p>Capabilities live at boundaries and ports and are typed as the effect rows of
+<a href="#functions">§12.3</a>. A copied fragment inherits no ambient authority;
+captured capabilities must be named:</p>
+
+<pre class="code"><code>[actor]{net.send}
+[request] <span class="rt">--&gt;</span> <span class="rt">/net</span> <span class="kw">requires</span> net.send</code></pre>
+
+<div class="note"><b>Randomness is an effect.</b> All of it — simulation noise,
+scored-branch exploration seeds, scheduler-fuzzing seeds — enters through
+<code class="inline">/entropy</code> as seeded streams whose seeds are recorded
+as facts. Any run, <i>including a randomized test exploration</i>, therefore
+replays exactly from its film. This is what makes
+<a href="#testing">§37.2</a> possible.</div>
+
+<p>Effect walls are the <b>only</b> source of nondeterminism in the language.
+Everything else is a pure function of configuration content.</p>
+
+<h2 id="merge">22 · Merging replicated facts <span class="tier core">Core (union law)</span> <span class="tier prop">Proposed (trust)</span></h2>
+
+<p>Monotonic knowledge merges as a CRDT join-semilattice. The merge is
+commutative, associative and idempotent; convergence follows from those laws
+alone.</p>
+
+<pre class="code"><code>[node:<span class="id">a</span>] <span class="rt">&lt;~merge(facts)~&gt;</span> [node:<span class="id">b</span>]
+[node:<span class="id">a</span>]{facts} + [node:<span class="id">b</span>]{facts} <span class="rt">--&gt;</span> [facts:joined]</code></pre>
+
+<p><code class="inline">&lt;~merge~&gt;</code> canonicalizes both fact sets,
+unions them, and deterministically reduces. <code class="inline">+</code> is
+monotonic union, not arithmetic addition. The join function is a
+<code class="inline">Merge&lt;T&gt;</code> instance whose content hash is pinned
+into the program's canonical identity (<a href="#traits">§14.3</a>) — so every
+replica of a given program hash <b>provably</b> applies the same join.</p>
+
+<p>Semantic convergence is a separate concern from work efficiency; an
+implementation reports duplicate work, verifier work and divergence cost
+independently.</p>
+
+<div class="note warn"><b>The split.</b> The union law is Core. The <b>trust and
+evidence policy for dishonest peers</b> is Proposed and deliberately left open —
+the CRDT laws guarantee convergence among honest replicas and say nothing
+whatever about Byzantine ones. See <a href="#reserved">§45</a>.</div>
+
+<h2 id="verify">23 · Verification and sealing <span class="tier core">Core</span></h2>
+
+<p>A verified route requires evidence satisfying a named policy. <b>The runtime
+does not infer what "verified" means.</b> Verification is a protocol with an
+explicit checker identity — a <code class="inline">Verify</code> instance from
+<a href="#traits">§14.2</a> — a policy version, inputs, a result and an evidence
+hash.</p>
+
+<pre class="code"><code>[candidate]
+  <span class="rt">==verified(by=proof, policy=forge.v1)==&gt;</span>
+[film:<span class="id">#hash</span>]</code></pre>
+
+<p>A failed verification travels on an explicit rejection route to a quarantine
+boundary — it does not silently vanish:</p>
+
+<pre class="code"><code>[candidate] <span class="rt">!!reject(reason=?r)!!&gt;</span> <span class="rt">/quarantine</span></code></pre>
+
+<p>Sealing (<code class="inline">///</code>) content-addresses the result, making
+it a reusable immutable artifact.</p>
+
+<p class="src">This is the section that explains why <code>==</code> is not
+nearly done. Four things have frozen meaning and no surface: the checker
+identity, the policy version, the evidence hash, and the rejection route.</p>
+
+<h2 id="supervision">24 · Supervision, faults, the error ladder <span class="tier exp">Experimental</span></h2>
+
+<h3>24.1 · Supervision</h3>
+<p>The caret denotes upward supervision or promotion:</p>
+
+<pre class="code"><code>[worker:<span class="id">a</span>] ^ [supervisor:<span class="id">pool</span>]</code></pre>
+
+<p>A supervisor <b>deterministically</b> chooses a policy in response to a
+fault — the response is a rule, not a callback:</p>
+
+<pre class="code"><code>[supervisor:<span class="id">pool</span>](policy=restart_one)
+  <span class="rt">--on(crash(worker=?w))--&gt;</span>
+<span class="id">@worker</span>(id=<span class="id">?w</span>, restored_from=last_checkpoint)</code></pre>
+
+<h3>24.2 · Rest and wake</h3>
+<p>The underscore is a parked or quiescent actor state — <b>observable</b>, and
+therefore usable to define termination, snapshot safety and scheduler
+economics:</p>
+
+<pre class="code"><code>[worker:<span class="id">a</span>] <span class="rt">--&gt;</span> _
+[queue] <span class="rt">~~job(?j)~~&gt;</span> [worker:<span class="id">a</span>] <span class="rt">_--&gt;</span> active(job=<span class="id">?j</span>)</code></pre>
+
+<h3>24.3 · The error ladder</h3>
+<p>Three levels, kept distinct, and <b>the distinction is statically
+checked</b> — this is the section most often skimmed and it is the one that does
+the work.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Level</th><th>Meaning</th><th>Form</th></tr></thead>
+<tbody>
+<tr><td>normal absence / alternative</td><td>not an error at all</td><td><code>Option&lt;T&gt;</code></td></tr>
+<tr><td>expected failure</td><td>an anticipated bad outcome; a value</td><td><code>Result&lt;T, E&gt;</code> — <code>err(file_not_found)</code></td></tr>
+<tr><td>fault</td><td>corrupted invariant, crashed adapter, genuine breakage</td><td><code>!!crash(reason)!!&gt;</code> — engages supervision</td></tr>
+</tbody></table></div>
+
+<p>A missing file is <code class="inline">err(file_not_found)</code>. A corrupted
+driver is
+<code class="inline">[storage] !!crash(reason=corrupt_driver)!!&gt; [supervisor]</code>.
+<b>A path that is a normal outcome must not silently become a fault</b>;
+<code class="inline">!!</code> is reserved for faults and the checker rejects the
+promotion — in both directions.</p>
+
+<h2 id="mailboxes">25 · Mailboxes, streams, backpressure <span class="tier exp">Experimental</span></h2>
+
+<p><b>Mailboxes are bounded by default.</b> An unbounded mailbox is rejected
+unless an explicit policy says otherwise.</p>
+
+<pre class="code"><code>Mailbox&lt;Job, capacity=<span class="lit">1024</span>, overflow=reject&gt;</code></pre>
+
+<div class="tbl"><table>
+<thead><tr><th>Overflow policy</th><th>Behaviour</th></tr></thead>
+<tbody>
+<tr><td><b>reject</b></td><td>the sender receives a normal <code>Result</code>-level refusal — not a fault</td></tr>
+<tr><td><b>shed_oldest</b></td><td>drop from the head; the shed is recorded as a fact</td></tr>
+<tr><td><b>shed_newest</b></td><td>drop the arrival; the shed is recorded as a fact</td></tr>
+<tr><td><b>backpressure</b></td><td>participate in demand signalling</td></tr>
+</tbody></table></div>
+
+<p><b>Backpressure is explicit demand signalling.</b> Producers send only what
+consumers have demanded — there is no implicit flow control to reason about:</p>
+
+<pre class="code"><code>[consumer] <span class="rt">~~demand(32)~~&gt;</span> [producer]
+[producer] <span class="rt">~~items(batch)~~&gt;</span> [consumer]</code></pre>
+
+<p>The stream vocabulary is <code class="inline">Stream&lt;T&gt;</code>,
+<code class="inline">Subscription&lt;T&gt;</code>,
+<code class="inline">CancelToken</code>, <code class="inline">Demand</code>.
+<b>Cancellation is a normal message</b>, observable in the film; a cancelled
+producer winds down through ordinary routes, not through faults.</p>
+
+<h2 id="behavior">26 · Actor behavior blocks <span class="tier exp">Experimental</span></h2>
+
+<p>Routes are excellent for diagrams; complex actors also need an organized
+textual home. A behavior block declares an actor's state shape, ports and
+handlers in one place.</p>
+
+<pre class="code"><code><span class="kw">actor</span> rider(name: Name, watts: Watts) {
+  <span class="kw">state</span> (name=name, watts=watts, energy=<span class="lit">100</span>, status=staged)
+
+  <span class="kw">ports</span> {
+    radio: Mailbox&lt;Command, capacity=<span class="lit">64</span>, overflow=reject&gt;,
+    road: Port&lt;RideEvent&gt;
+  }
+
+  <span class="kw">on</span> <span class="rt">~~Command.attack(at=?t)~~&gt;</span> {
+    [self] <span class="rt">--set(status=attacking(?t))--&gt;</span> (state)
+  }
+
+  <span class="kw">on</span> <span class="rt">--tick--&gt;</span> <span class="kw">when</span> state.status = riding(<span class="id">?lap</span>) {
+    (state) &lt;- <span class="kw">try</span> drain(state, <span class="lit">8</span>)
+  }
+
+  <span class="kw">on</span> <span class="rt">!!crash(?reason)!!&gt;</span> {
+    [self] <span class="rt">!!report(?reason)!!&gt;</span> [supervisor]
+  }
+}</code></pre>
+
+<div class="note"><b>A behavior block is a projection, not a second
+semantics.</b> It canonicalizes to exactly the same behavior table — and
+therefore <b>the same content hash</b> — as the equivalent drawn routes. This is
+a <a href="#conformance">conformance requirement</a>: for every construct with
+both a drawn and a textual form, the two forms produce identical canonical
+bytes. The language has two surfaces and one meaning, permanently.</div>
+
+<h2 id="evolution">27 · Evolution: migration and compatibility <span class="tier exp">Experimental</span></h2>
+
+<h3>27.1 · Live-state migration</h3>
+<p>Content-addressed modules evolve <i>code</i>: a new implementation is a new
+hash and names re-point. But a persistent actor in the
+<code class="inline">world</code> profile holds state typed by the old version,
+and <b>re-pointing a name transforms nothing</b>. Live state evolves through an
+explicit verified migration:</p>
+
+<pre class="code"><code>(state: Rider<span class="id">@#a91</span>) <span class="rt">==migrate(policy=rider.upgrade.v1v2, by=#m7)==&gt;</span> (state: Rider<span class="id">@#b12</span>)</code></pre>
+
+<p>A migration is a verified route: evidence-carrying, recorded in the film,
+orchestrated by supervisors (drain to <code class="inline">_</code>, migrate,
+wake), and replayable. <b>A world upgrade is a sequence of migrations, not an
+improvisation.</b></p>
+
+<h3>27.2 · Message compatibility</h3>
+<p>Message types are content-addressed like everything else. A mailbox accepts
+the message hashes its port type declares; <b>an unrecognized hash is a normal
+outcome, never a fault</b> — which is what leaves room for explicit adapter
+routes between versions:</p>
+
+<pre class="code"><code><span class="kw">on</span> <span class="rt">~~unknown(#msg)~~&gt;</span> {
+  [self] <span class="rt">--forward(#msg)--&gt;</span> <span class="rt">/adapter.v1v2</span>
+}</code></pre>
+
+<!-- ============================================================ PART IV -->
+<div class="part">Part IV — Metaprogramming</div>
+
+<p class="lede" style="margin-top:22px">Metaprogramming is a defining capability
+of the language, not an accessory — and it is <b>not textual substitution</b>.</p>
+
+<div class="note"><b>WRL is homoiconic over its canonical graph, not its surface
+text.</b> A metaprogram inspects and produces typed graph nodes, and can never
+distinguish <code class="inline">--go--&gt;</code> from
+<code class="inline">----go----&gt;</code>, because those are the same edge. Raw
+token arrays are not exposed. Every property in this part follows from that one
+decision.</div>
+
+<h2 id="phases">28 · The three phases <span class="tier prop">Proposed</span></h2>
+
+<p>The expression notation evaluates at three moments. It is the same language
+at each; the phase determines only what exists to be touched.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Phase</th><th>What runs</th><th>Capabilities available</th></tr></thead>
+<tbody>
+<tr><td><b>expansion time</b></td><td>stencil bodies; derives over <code>Graph&lt;T&gt;</code></td><td>pure only; no walls exist yet; fuel-bounded; host-blind</td></tr>
+<tr><td><b>verification time</b></td><td><code>Verify</code> policy checkers behind <code>==verified==&gt;</code></td><td>the checker's declared capabilities only</td></tr>
+<tr><td><b>run time</b></td><td>guards, cell updates, handlers, ordinary computation</td><td>whatever the actor's ports grant</td></tr>
+</tbody></table></div>
+
+<p>The build pipeline fixes when expansion happens: <b>stencils expand, then
+derives evaluate to fixpoint, before canonicalization and hashing</b> — and long
+before any reduction runs. Metaprograms cannot modify sealed artifacts; they
+produce new graphs, and therefore new hashes.</p>
+
+<h2 id="laws">29 · The six laws of metaprogramming <span class="tier prop">Proposed</span></h2>
+
+<div class="tbl"><table>
+<thead><tr><th>#</th><th>Law</th><th>What it buys</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><b>Hygiene by default.</b> Identities minted by an expansion never collide with identities at the expansion site. <code>@worker_pool(a)</code> and <code>@worker_pool(b)</code> produce distinct internal queues, clocks and supervisors unless a capture is explicitly shared</td><td>composition without name discipline</td></tr>
+<tr><td>2</td><td><b>Phase separation.</b> Every metaprogram knows which phase it runs in; expansion-time code cannot reach forward into run time, and sealed artifacts cannot be reached backward</td><td>no build/run confusion</td></tr>
+<tr><td>3</td><td><b>No ambient authority.</b> A metaprogram gains no network, filesystem, model, clock or package access from the compiler that runs it. Pure by default; anything else is a <a href="#tools">sealed tool</a></td><td>a build cannot phone home</td></tr>
+<tr><td>4</td><td><b>Resource-bounded expansion.</b> Stencil recursion must be structurally decreasing; general expansion carries explicit fuel. A build that exhausts fuel <b>fails</b> — it never silently emits a partially expanded program</td><td>expansion terminates</td></tr>
+<tr><td>5</td><td><b>Generated structure remains visible.</b> Tooling always offers the collapsed invocation, the expanded graph, per-node provenance, the canonical bytes actually hashed, and diffs between expansions</td><td>no invisible macro magic</td></tr>
+<tr><td>6</td><td><b>Expansion is hermetic and host-blind.</b> Expansion-time code has no I/O facilities at all and cannot observe the build machine — no host paths, clocks, endianness or environment</td><td>reproducible and cacheable everywhere</td></tr>
+</tbody></table></div>
+
+<pre class="code"><code><span class="cm">; law 4, spelled</span>
+<span class="id">#[meta_fuel=10_000, max_nodes=50_000]</span></code></pre>
+
+<p>Laws 3, 4 and 6 are not ergonomics. They are the premises of the
+<a href="#modules">no-build property</a> — without host-blindness there is no
+sound cache key, and without fuel there is no guarantee the key ever gets
+computed.</p>
+
+<h2 id="fragments">30 · Fragments <span class="tier prop">Proposed</span></h2>
+
+<p><code class="inline">::</code> opens a quoted graph fragment;
+<code class="inline">//</code> closes it. A fragment is a first-class value of
+type <code class="inline">Fragment&lt;T&gt;</code> — <b>data until stamped or
+explicitly executed</b>. It supports typed holes, explicit captures, hygienic
+local identities, copying, transport as a message, signing, storage, inspection
+and canonical hashing.</p>
+
+<pre class="code"><code>:: breakaway(leader=<span class="id">?l</span>, mate=<span class="id">?m</span>)
+  [rider:<span class="id">?l</span>] <span class="rt">~~signal~~&gt;</span> [rider:<span class="id">?m</span>]
+  [rider:<span class="id">?l</span>] <span class="rt">--accelerate--&gt;</span> [road]
+//</code></pre>
+
+<p>Free variables are illegal unless declared as holes; captured identities must
+be named:</p>
+
+<pre class="code"><code>:: with_clock(<span class="kw">capture</span> [shared:clock], <span class="kw">hole</span> <span class="id">?target</span>)
+  [shared:clock] <span class="rt">~~tick~~&gt;</span> <span class="id">?target</span>
+//</code></pre>
+
+<p>Copying a fragment mints fresh local identities unless an identity is
+explicitly marked shared. Because a fragment is a value, it travels as a message
+payload — <b>code as a message</b>:</p>
+
+<pre class="code"><code>[coach] <span class="rt">--plan(::breakaway//)--&gt;</span> [team]</code></pre>
+
+<p><b>A fragment does not run merely because it exists.</b> It must be stamped,
+executed, or crossed through an appropriate boundary. That is what makes
+"code can move" safe rather than alarming.</p>
+
+<h2 id="stencils">31 · Stencils <span class="tier prop">Proposed</span></h2>
+
+<h3>31.1 · The ordinary metaprogramming mechanism</h3>
+<p><code class="inline">:::</code> opens a typed, hygienic graph constructor;
+<code class="inline">///</code> seals it. <b>Most things that are classes,
+component definitions, declarative macros, annotations, or infrastructure
+templates elsewhere are stencils here.</b></p>
+
+<pre class="code"><code>::: rider(name: Name, watts: Watts)
+  : [<span class="kw">rider</span>:<span class="id">#name</span>](
+      watts=watts,
+      energy=<span class="lit">100</span>,
+      status=staged
+    ){
+      road: Port&lt;RideEvent&gt;,
+      radio: Mailbox&lt;Command, capacity=<span class="lit">64</span>, overflow=reject&gt;
+    }
+///</code></pre>
+
+<p>Stamping instantiates: <code class="inline">: @rider(a, 330)</code>. Idiomatic
+stencils scale from one actor to whole architectures —
+<code class="inline">@supervised_pool(workers=8)</code>,
+<code class="inline">@replicated_archive(nodes=3)</code>,
+<code class="inline">@forge_pipeline(policy=world.v1)</code>.</p>
+
+<h3>31.2 · Identity derivation</h3>
+<p>Hygiene demands fresh identities per site. Incremental builds and stable
+diffs demand the <i>same</i> identities on every rebuild. Both hold via one
+normative formula:</p>
+
+<pre class="code"><code><span class="id">#child</span> = H( stencil<span class="id">#</span>, canonical(args), path-within-expansion )</code></pre>
+
+<p>Same stencil, same arguments, same position ⇒ the same identity on every
+rebuild. Different site or arguments ⇒ a different identity. <b>Colliding
+identities are caught at expansion, never at run time.</b></p>
+
+<h3>31.3 · The expansion pipeline</h3>
+<p>Stamping performs, deterministically: normalize arguments → allocate derived
+identities by the formula → substitute parameters → alpha-rename locals →
+validate capabilities and budget → canonicalize → attach provenance.</p>
+
+<h2 id="derives">32 · Derives <span class="tier prop">Proposed</span></h2>
+
+<p>Some transformations are inconvenient as stencils — cross-cutting rules like
+"every faultable actor gets a supervisor". Those are <b>derives</b>:
+expression-notation functions over typed graphs, evaluated at expansion time.</p>
+
+<pre class="code"><code><span class="kw">derive</span> supervise_faulting(g: Graph&lt;Actor&gt;) -&gt; Graph&lt;Supervision&gt; {
+  <span class="kw">for</span> actor <span class="kw">in</span> g.actors
+  <span class="kw">where</span> actor.can_fault <span class="kw">and</span> actor.supervisor = none
+  <span class="kw">emit</span> actor ^ [supervisor:<span class="id">#actor.id</span>]
+}</code></pre>
+
+<p>Invocation stamps the derive over a fragment, like a stencil:
+<code class="inline">@supervise_faulting(::workers//)</code>.</p>
+
+<p>Three normative restrictions give derives their guarantees:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Restriction</th><th>What it guarantees</th></tr></thead>
+<tbody>
+<tr><td><b>1 · Intrinsically typed.</b> A <code>derive f(g: Graph&lt;A&gt;) -&gt; Graph&lt;B&gt;</code> is checked once at its definition; the type system guarantees every output is a well-formed <code>Graph&lt;B&gt;</code></td><td>derive output needs no re-checking, and the build pipeline never loops</td></tr>
+<tr><td><b>2 · Stratified and monotonic.</b> A derive may read, filter and <code>emit</code>; it may not delete or mutate emitted structure; negation only across strata</td><td><b>termination</b> (stratified evaluation reaches a fixpoint), <b>confluence</b> (monotonic rules commute, so derive order cannot change the result — the same law that makes fact merges safe), and <b>incrementality</b></td></tr>
+<tr><td><b>3 · Semantics, not spelling.</b> A derive sees typed canonical nodes; it cannot observe formatting, layout, comments, or anything else canonicalization removes</td><td>a reformat can never change what a derive emits</td></tr>
+</tbody></table></div>
+
+<p>Anything genuinely non-monotonic — deletion, rewriting, arbitrary recursion —
+belongs to sealed tools. <b>That is the principled boundary between the two
+levels</b>, and it is why the stratified system can be trusted without a budget
+on trust.</p>
+
+<h2 id="tools">33 · Sealed tools behind /compiler <span class="tier prop">Proposed</span></h2>
+
+<p>Parsers, schema generators, GPU layout generators, binding generators, asset
+importers — procedural power that cannot live in the stratified system — run as
+<b>sealed tools</b> behind an explicit compiler capability wall.</p>
+
+<pre class="code"><code>[schema:<span class="id">#game</span>] <span class="rt">--&gt;</span> <span class="rt">/compiler</span>
+<span class="rt">/compiler</span> <span class="rt">==generated(tool=#generator-hash)==&gt;</span> [bindings:<span class="id">#hash</span>]</code></pre>
+
+<p>A sealed tool requires: a pinned tool hash; explicit input hashes; declared
+capabilities; CPU and memory budgets; deterministic output where possible;
+recorded provenance; and a sealed generated artifact.</p>
+
+<div class="note">Because tools are content-addressed, capability-declared and
+budgeted, they can be published, signed and verified with the same
+<code class="inline">==verified==&gt;</code> machinery as everything else —
+<b>compiler extensibility without compiler trust</b>. Every tool invocation
+appears in the <a href="#buildfilms">build film</a>.</div>
+
+<h2 id="reflection">34 · Reflection <span class="tier prop">Proposed</span></h2>
+
+<p>Compile-time reflection over canonical structure is rich and free:</p>
+
+<pre class="code"><code>graph.actors      graph.routes       graph.boundaries
+type.fields       fragment.holes     fragment.capabilities</code></pre>
+
+<p><b>Runtime reflection is capability-controlled.</b> A mirror over an actor is
+a capability — <code class="inline">{reflect: Capability&lt;Mirror&lt;Pool&gt;&gt;}</code>
+— that must be granted like any other port. Unrestricted runtime reflection over
+private actor state does not exist.</p>
+
+<!-- ============================================================= PART V -->
+<div class="part">Part V — Programs at scale</div>
+
+<h2 id="modules">35 · Modules and the no-build property <span class="tier prop">Proposed</span></h2>
+
+<h3>35.1 · Content-addressed modules</h3>
+
+<pre class="code"><code><span class="kw">module</span> race.timing<span class="id">@#a184</span>
+
+<span class="kw">export</span> { Time, FinishResult, rank_finish }
+
+<span class="kw">import</span> trvm.facts<span class="id">@#91bc</span> <span class="kw">as</span> facts
+<span class="kw">import</span> forge.world<span class="id">@#33ae</span> <span class="kw">as</span> world</code></pre>
+
+<p>Human-readable names and versions are <b>metadata that point to immutable
+hashes</b>:</p>
+
+<pre class="code"><code>race.timing@1.4 -&gt; <span class="id">#a184</span></code></pre>
+
+<p>A locked build stores the hashes, not only the human versions. Upgrading
+never mutates a sealed artifact; it produces a <i>new</i> artifact with a
+<i>new</i> hash, and names re-point. Because downstream references are to
+hashes, <b>nothing silently changes underneath a consumer</b> — a consumer opts
+into a new version by re-pointing a name. Live actor state evolves separately,
+by <a href="#evolution">migration</a>.</p>
+
+<h3>35.2 · The no-build property</h3>
+
+<div class="note"><b>Property.</b> Given pure, host-blind, fuel-bounded
+expansion — <a href="#laws">Laws 3, 4 and 6</a> — over content-addressed inputs,
+build caching by <code class="inline">memo[(transform#, input#)] = output#</code>
+is sound with <b>no invalidation logic</b>. A hash either matches or it does
+not.</div>
+
+<p>Incremental compilation, distributed build caches and perfect reuse across
+machines follow immediately. <b>The hard problem of incremental build systems —
+knowing when a cached result is still valid — does not exist here, because
+validity <i>is</i> hash equality.</b> This is the single strongest argument for
+paying the canonicalization cost.</p>
+
+<h2 id="buildfilms">36 · Build films <span class="tier prop">Proposed</span></h2>
+
+<p>The build pipeline is itself a deterministic process with effects only at
+declared walls — so it is recorded as one. Every build emits a <b>build
+film</b>: which stencils expanded with which arguments, which derives fired,
+which trait instances were resolved and pinned, which sealed tools ran against
+which input hashes, and what was hashed.</p>
+
+<pre class="code"><code>wrl replay build.film</code></pre>
+
+<p>Consequences: any build reproduces bit-for-bit; provenance views
+(<a href="#laws">Law 5</a>) are film queries; and <b>"why does this node exist?"
+has the same kind of answer at compile time as at run time</b>. One mechanism,
+both worlds.</p>
+
+<h2 id="testing">37 · Testing and conformance monitoring <span class="tier exp">Experimental</span></h2>
+
+<h3>37.1 · Tests are first-class graph specifications</h3>
+
+<pre class="code"><code><span class="kw">test</span> <span class="lit">"formatting does not affect identity"</span> {
+  hash(program_a) = hash(program_b)
+}
+
+<span class="kw">property</span> <span class="lit">"fact join is commutative"</span> {
+  <span class="kw">for all</span> a, b: join(a, b) = join(b, a)
+}
+
+<span class="kw">film_test</span> <span class="lit">"worker restart"</span> {
+  <span class="kw">run</span> scenario
+  <span class="kw">restore</span> checkpoint
+  <span class="kw">expect</span> same observables
+}</code></pre>
+
+<h3>37.2 · The language is simulation-native</h3>
+
+<p>Every prerequisite of deterministic simulation testing — a deterministic
+scheduler, virtualized time, randomness funnelled through recorded seeds,
+effects behind mockable walls — is a <b>construction property of the language,
+not a retrofit</b>. So the test runner explores adversity as ordinary
+execution:</p>
+
+<pre class="code"><code><span class="kw">check</span> schedules=<span class="lit">10_000</span>
+<span class="kw">check</span> partitions=<span class="lit">100</span>
+<span class="kw">check</span> restores=<span class="lit">100</span>
+<span class="kw">check</span> scores=<span class="lit">all</span>          <span class="cm">; systematically enumerate scored-branch choices</span></code></pre>
+
+<p>Exploration randomness enters through <code class="inline">/entropy</code>, so
+<b>every failing exploration replays exactly from its film</b>. Scheduler
+randomization, fault injection, partition simulation and restore testing are
+modes of the one deterministic machine rather than four separate tools.</p>
+
+<h3>37.3 · Film conformance monitoring</h3>
+<p>A film is a total record and a sealed specification is executable — so
+<b>conformance is a diff</b>. An implementation may continuously validate
+production films against a sealed specification film's invariants, closing the
+gap between the verified design and the running system: the model and the
+implementation are the same graph.</p>
+
+<h2 id="ffi">38 · Foreign functions <span class="tier prop">Proposed</span></h2>
+
+<p>The FFI is boundary-based. Impure native calls cross a named wall and return
+observations:</p>
+
+<pre class="code"><code>[physics_request] <span class="rt">--&gt;</span> <span class="rt">/native.physics</span>
+<span class="rt">/native.physics</span> <span class="rt">==observed(result=#hash)==&gt;</span> [world]</code></pre>
+
+<p>Pure native functions may be imported as verified deterministic modules:</p>
+
+<pre class="code"><code><span class="kw">extern pure fn</span> vec_dot(a: Vec3, b: Vec3) -&gt; Fixed&lt;16&gt;
+  <span class="kw">from artifact</span> <span class="id">#native-math-v3</span></code></pre>
+
+<p>Every extern pins the target ABI, the compiler/toolchain hash, the native
+artifact hash, the declared effects and the
+<a href="#numerics">determinism class</a>. An
+<code class="inline">extern pure</code> claiming bit-exact determinism <b>is
+testable against that claim</b>, and is rejected if the artifact's outputs vary
+across supported targets.</p>
+
+<!-- ============================================================ PART VI -->
+<div class="part">Part VI — Reference</div>
+
+<p>Canonicalization (§39) and the grammar (§42) are published in the
+<a href="reference.html">reference tables</a> and the
+<a href="guide.html#canon">guide</a>. What follows are the four reference
+sections that state what a conforming implementation must <i>refuse</i>,
+<i>offer</i>, <i>never</i> and <i>prove</i>.</p>
+
+<h2 id="checks">40 · Static checks <span class="tier exp">Experimental</span></h2>
+
+<p>A conforming checker rejects all of the following. Each is a load-bearing
+invariant of some earlier section, restated as a refusal.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>A conforming checker rejects…</th><th>Because</th></tr></thead>
+<tbody>
+<tr><td>duplicate durable identities in one sealed scope</td><td>identity is the whole point</td></tr>
+<tr><td>unbound pattern variables; free variables in quoted fragments</td><td><a href="#fragments">§30</a> hygiene</td></tr>
+<tr><td>overlapping deterministic branch guards</td><td>the second invariant of the execution model</td></tr>
+<tr><td>shared mutable cells</td><td>the first invariant; conflicts must dissolve</td></tr>
+<tr><td>routes crossing undeclared capability walls; direct effects outside named boundaries</td><td><a href="#effects">§21</a></td></tr>
+<tr><td>a <code>Float</code> in a state cell of a <code>world</code>-profile actor</td><td><a href="#numerics">§15</a> determinism classes</td></tr>
+<tr><td>an unbounded mailbox without an explicit overflow policy</td><td><a href="#mailboxes">§25</a></td></tr>
+<tr><td>a non-anchored multi-node pattern on a rule's left side</td><td><a href="#matching">§13</a> — no implicit search</td></tr>
+<tr><td>a capability or affine-resource capture in a value used where portability is required</td><td><a href="#functions">§12.4</a></td></tr>
+<tr><td>expression-layer punctuation outside the sanctioned set</td><td><a href="#punctuation">§10.1</a></td></tr>
+<tr><td>a derive that deletes or mutates emitted structure</td><td><a href="#derives">§32</a> monotonicity</td></tr>
+<tr><td>a normal-outcome path promoted to a fault, or a fault demoted to a value</td><td><a href="#supervision">§24.3</a> — the ladder is checked in both directions</td></tr>
+<tr><td>non-exhaustive matches over variants without a <code>_</code> arm</td><td><a href="#matching">§13</a></td></tr>
+<tr><td>missing stable tie-breakers for <code>oN.</code></td><td><a href="#podium">§20.7</a></td></tr>
+<tr><td>recursive stencil expansion without a decreasing budget; expansion exceeding declared fuel</td><td><a href="#laws">Law 4</a></td></tr>
+<tr><td>mutation of content-addressed sealed artifacts</td><td>sealing means sealed</td></tr>
+<tr><td>scheduler arrival order used as semantic data</td><td>replay exactness</td></tr>
+<tr><td>mismatched <code>:: //</code> or <code>::: ///</code> scopes</td><td>the only paired scopes in the language</td></tr>
+</tbody></table></div>
+
+<h2 id="profiles">41 · Execution profiles <span class="tier exp">Experimental</span></h2>
+
+<p>An implementation may offer restricted profiles that trade expressiveness for
+guarantees. A profile is not a compiler flag — it changes what the
+<a href="#checks">checker</a> accepts.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Profile</th><th>Characteristics</th><th>Simulation-state numerics</th></tr></thead>
+<tbody>
+<tr><td><b>pure</b></td><td>no effect walls; finite fuel</td><td>integers, <code>Fixed&lt;Q&gt;</code>; <code>Float64</code> only with <code>#[det=bitexact]</code></td></tr>
+<tr><td><b>replay</b></td><td>effects supplied only from a film</td><td>as <code>pure</code></td></tr>
+<tr><td><b>sandbox</b></td><td>named adapters with quotas</td><td>as <code>pure</code></td></tr>
+<tr><td><b>world</b></td><td>persistent actors; bounded per-period reductions; lockstep-capable</td><td>integers, <code>Fixed&lt;Q&gt;</code>; floats forbidden in state cells</td></tr>
+<tr><td><b>forge</b></td><td>generation plus verification gates</td><td>as <code>pure</code></td></tr>
+<tr><td><b>cluster</b></td><td>replicated facts and reconciliation; termination distinct from quiescence</td><td>as <code>pure</code></td></tr>
+</tbody></table></div>
+
+<div class="note"><b>The minimal conforming implementation.</b> Staged actors,
+the four core route textures, single <code class="inline">/</code> walls,
+<code class="inline">:: … //</code> fragments,
+<code class="inline">.n</code> period repetition,
+<code class="inline">?</code> variables, <code class="inline">|</code> guarded
+branches, <code class="inline">_</code> quiescence, and the expression core
+(records, variants, <code class="inline">Option</code>/<code class="inline">Result</code>,
+pure functions, <code class="inline">match</code>) — enough to observe the
+deterministic reduction property. Podium, stencils, derives, verified routes,
+merge, behavior blocks, streams and the spatial canvas may be added
+<b>incrementally without changing the core semantics</b>.</div>
+
+<h2 id="examples">43 · Seven worked examples</h2>
+
+<p>These seven span sports, distributed systems, fabrication, biology,
+machine-assisted patching and a versioned service. Together they exercise every
+construct in the language — which is exactly why <b>none of them can be written
+today</b>. Each carries a note saying which tiers it depends on.</p>
+
+<div class="note warn"><b>Read these as the target, not as a tutorial.</b> The
+surface you can actually type is the world-core: a
+<code class="inline">profile</code> line, five roles, solid edges and ports. If
+you want to write something and seal it, start at the
+<a href="learn.html">tutorial</a>; if you want to know what the language is
+aiming at, read on.</div>
+
+<h3>43.1 · Criterium race</h3>
+<p class="src">staging · stencils · periods · async · finish · podium</p>
+
+<pre class="code"><code><span class="cm">; a five-lap criterium with async team radio and a podium</span>
+
+::: rider(name, watts)
+  [<span class="kw">rider</span>:<span class="id">#name</span>](watts=watts, energy=<span class="lit">100</span>, lap=<span class="lit">0</span>, status=staged){road, radio, timing}
+///
+
+: <span class="id">@rider</span>(a, <span class="lit">330</span>)
+: <span class="id">@rider</span>(b, <span class="lit">295</span>)
+: <span class="id">@rider</span>(c, <span class="lit">410</span>)
+: <span class="id">@rider</span>(d, <span class="lit">305</span>)
+: [coach](plan=wait_then_attack)
+: [clock](period=<span class="lit">0</span>)
+
+{
+  [coach] <span class="rt">~~radio~~&gt;</span> [rider:<span class="id">*</span>]
+  [rider:<span class="id">*</span>] <span class="rt">~~draft~~&gt;</span> [rider:next]
+  [clock] <span class="rt">..tick..&gt;</span> [rider:<span class="id">*</span>]
+}
+
+(
+  [clock](period=<span class="id">?t</span>) <span class="rt">--advance--&gt;</span> (clock period=<span class="id">?t</span>+<span class="lit">1</span>)
+  [rider:<span class="id">*</span>](lap=<span class="id">?l</span>, energy=<span class="id">?e</span>) <span class="rt">--ride(cost=8)--&gt;</span> (rider:<span class="id">*</span> lap=<span class="id">?l</span>+<span class="lit">1</span>, energy=<span class="id">?e</span>-<span class="lit">8</span>)
+  [coach](plan=wait_then_attack) <span class="rt">--when(clock.period=4)--&gt;</span> (coach plan=sent)
+  [coach] <span class="rt">~~attack~~&gt;</span> [rider:<span class="id">c</span>]
+).<span class="lit">5</span>
+
+[rider:<span class="id">*</span>] <span class="rt">--sprint--&gt;</span> <span class="rt">//finish</span>
+<span class="rt">//finish</span> <span class="rt">==rank(by=time, tie=#id)==&gt;</span> o3.
+[winner, second, third] &lt;- o3.
+<span class="rt">///race-result</span></code></pre>
+
+<p>Read the last three lines together. The finish line is a
+<a href="#boundaries">commit boundary</a>, so crossing it is what makes a result
+rankable; the rank policy names a stable tie-breaker because
+<a href="#podium">a podium without one would not replay</a>; and the seal
+content-addresses the outcome. Nothing here is a library function.</p>
+
+<h3>43.2 · Supervised worker pool</h3>
+<p class="src">mailboxes · quiescence · faults · restart</p>
+
+<pre class="code"><code>::: worker(id)
+  [<span class="kw">worker</span>:<span class="id">#id</span>](status=idle, checkpoint=<span class="lit">0</span>){jobs: Mailbox&lt;Job, capacity=<span class="lit">256</span>, overflow=reject&gt;, supervisor}
+///
+
+: [supervisor:<span class="id">pool</span>](policy=restart_one)
+: <span class="id">@worker</span>(a)
+: <span class="id">@worker</span>(b)
+: <span class="id">@worker</span>(c)
+: [queue](jobs=[j1, j2, j3])
+
+[worker:<span class="id">*</span>] ^ [supervisor:<span class="id">pool</span>]
+
+[queue] <span class="rt">~~job(?j)~~&gt;</span> [worker:<span class="id">*</span>]
+[worker:<span class="id">*</span>] <span class="rt">_--&gt;</span> active(job=<span class="id">?j</span>)
+[worker:<span class="id">*</span>] <span class="rt">--perform(?j)--&gt;</span> (worker:<span class="id">*</span> status=idle, checkpoint=<span class="id">?j</span>)
+[worker:<span class="id">*</span>] <span class="rt">--&gt;</span> _
+
+[worker:<span class="id">b</span>] <span class="rt">!!crash(reason="bad input")!!&gt;</span> [supervisor:<span class="id">pool</span>]
+
+[supervisor:<span class="id">pool</span>](policy=restart_one)
+  <span class="rt">--on(crash(worker=?w))--&gt;</span>
+<span class="id">@worker</span>(<span class="id">?w</span>, restored_from=last_checkpoint)
+
+[supervisor:<span class="id">pool</span>] <span class="rt">==pool_quiescent==&gt;</span> <span class="rt">//done</span></code></pre>
+
+<p>This is the example WRL is weakest against today, and the site says so
+elsewhere: there is <b>no supervision floor</b>, no writable mailbox, no
+runtime-spawnable process. The design is stated; the runtime is not there.</p>
+
+<h3>43.3 · Replicated fact lattice</h3>
+<p class="src">CRDT merge · partition · convergence</p>
+
+<pre class="code"><code>: [node:<span class="id">a</span>]{facts, peers}
+: [node:<span class="id">b</span>]{facts, peers}
+: [node:<span class="id">c</span>]{facts, peers}
+
+[worker:<span class="id">a</span>] <span class="rt">~~candidate(program=#p1, result=true)~~&gt;</span> [node:<span class="id">a</span>]
+[node:<span class="id">a</span>] <span class="rt">--verify(program=#p1)--&gt;</span> [fact:<span class="id">#f1</span>]
+[fact:<span class="id">#f1</span>] <span class="rt">==accepted(by=node:a)==&gt;</span> [node:<span class="id">a</span>]{facts+<span class="id">#f1</span>}
+
+[node:<span class="id">a</span>] <span class="rt">&lt;~merge(facts)~&gt;</span> [node:<span class="id">b</span>]
+[node:<span class="id">b</span>] <span class="rt">&lt;~merge(facts)~&gt;</span> [node:<span class="id">c</span>]
+
+<span class="rt">/partition</span>
+[node:<span class="id">a</span>] <span class="rt">&lt;~blocked~&gt;</span> [node:<span class="id">c</span>]
+[node:<span class="id">c</span>] <span class="rt">--derive(from=#f1)--&gt;</span> [fact:<span class="id">#f2</span>]
+
+<span class="rt">/partition</span> <span class="rt">--open--&gt;</span> _
+[node:<span class="id">a</span>] <span class="rt">&lt;~merge(facts)~&gt;</span> [node:<span class="id">c</span>]
+[node:<span class="id">b</span>] <span class="rt">&lt;~merge(facts)~&gt;</span> [node:<span class="id">c</span>]
+
+[node:<span class="id">a</span>]{facts} <span class="rt">==same_hash==&gt;</span> [node:<span class="id">b</span>]{facts}
+[node:<span class="id">b</span>]{facts} <span class="rt">==same_hash==&gt;</span> [node:<span class="id">c</span>]{facts}
+<span class="rt">///converged</span></code></pre>
+
+<p>The partition is a <b>boundary</b>, not a failure mode bolted on for testing.
+Convergence is asserted as an ordinary verified route between two fact sets,
+which is only meaningful because
+<a href="#traits">the join instance is hash-pinned</a>.</p>
+
+<h3>43.4 · Forge world fabrication</h3>
+<p class="src">model wall · checks · verification · seal</p>
+
+<pre class="code"><code>: [brief](goal=<span class="lit">"coastal cycling city"</span>, players=<span class="lit">64</span>)
+: [seed:<span class="id">#city17</span>]
+
+[brief] &amp; [seed:<span class="id">#city17</span>] <span class="rt">--derive--&gt;</span> [world_spec]
+[world_spec] <span class="rt">--&gt;</span> <span class="rt">/model</span>
+<span class="rt">/model</span> <span class="rt">==observed(candidate=#layout1)==&gt;</span> [layout:<span class="id">#layout1</span>]
+
+[layout:<span class="id">#layout1</span>] <span class="rt">--check_connectivity--&gt;</span> [report:roads]
+[layout:<span class="id">#layout1</span>] <span class="rt">--check_spawn_safety--&gt;</span> [report:spawns]
+[layout:<span class="id">#layout1</span>] <span class="rt">--check_budget--&gt;</span> [report:budget]
+
+[layout:<span class="id">#layout1</span>]
+  &amp; [report:roads] &amp; [report:spawns] &amp; [report:budget]
+  <span class="rt">==verified(policy=forge.world.v1)==&gt;</span>
+[film:<span class="id">#world17</span>]
+
+[film:<span class="id">#world17</span>] <span class="rt">--&gt;</span> <span class="rt">/gpu</span>
+<span class="rt">/gpu</span> <span class="rt">==preview(frame=#preview17)==&gt;</span> [designer]
+[designer] <span class="rt">~~approve~~&gt;</span> [film:<span class="id">#world17</span>]
+[film:<span class="id">#world17</span>] <span class="rt">==seal==&gt;</span> <span class="rt">///world17</span></code></pre>
+
+<p>A generative model sits behind <code class="inline">/model</code> like any
+other effect adapter: it returns an <b>observation</b>, which is what the film
+records. Replaying this build does not re-run the model. That is the whole
+argument for putting generation behind a wall.</p>
+
+<h3>43.5 · Cell signaling</h3>
+<p class="src">membranes · diffusion · decay</p>
+
+<pre class="code"><code>::: cell(id, kind)
+  [<span class="kw">cell</span>:<span class="id">#id</span>](kind=kind, active=false, energy=<span class="lit">50</span>){membrane, neighbors}
+///
+
+: <span class="id">@cell</span>(a, sensor)
+: <span class="id">@cell</span>(b, relay)
+: <span class="id">@cell</span>(c, motor)
+: [field](signal=<span class="lit">0</span>)
+
+[field](signal=<span class="id">?s</span>) <span class="rt">--increase(10)--&gt;</span> (field signal=<span class="id">?s</span>+<span class="lit">10</span>)
+[field] <span class="rt">~~diffuse(level=?s)~~&gt;</span> [cell:<span class="id">a</span>]
+
+[cell:<span class="id">a</span>](kind=sensor, active=false) <span class="rt">--when(signal&gt;5)--&gt;</span> (cell:<span class="id">a</span> active=true)
+
+[cell:<span class="id">a</span>] <span class="rt">~~ligand(type=go)~~&gt;</span> <span class="rt">/membrane:b</span>
+<span class="rt">/membrane:b</span> <span class="rt">--bind(type=go)--&gt;</span> [cell:<span class="id">b</span>]
+[cell:<span class="id">b</span>] <span class="rt">~~relay(type=go)~~&gt;</span> <span class="rt">/membrane:c</span>
+<span class="rt">/membrane:c</span> <span class="rt">--bind(type=go)--&gt;</span> [cell:<span class="id">c</span>]
+[cell:<span class="id">c</span>] <span class="rt">--contract--&gt;</span> (cell:<span class="id">c</span> energy=energy-<span class="lit">5</span>)
+
+([field] <span class="rt">--decay(1)--&gt;</span> [field]).<span class="lit">10</span></code></pre>
+
+<p>A membrane is a <code class="inline">/</code> wall. Binding is a solid
+transition <i>through</i> it. Nothing about this domain required new syntax —
+which is the claim the example exists to test.</p>
+
+<h3>43.6 · Proof-carrying patch</h3>
+<p class="src">parallel lanes · verified acceptance · seal</p>
+
+<pre class="code"><code>: [issue:<span class="id">#217</span>](failure=<span class="lit">"stale imported schedule"</span>)
+: [repo:<span class="id">#trvm</span>](revision=<span class="id">#a91</span>)
+
+[issue:<span class="id">#217</span>] &amp; [repo:<span class="id">#trvm</span>] <span class="rt">--&gt;</span> <span class="rt">/model</span>
+<span class="rt">/model</span> <span class="rt">==observed(patch=#p44)==&gt;</span> [patch:<span class="id">#p44</span>]
+
+|| {
+  [patch:<span class="id">#p44</span>] <span class="rt">--compile--&gt;</span> [report:compile]
+  [patch:<span class="id">#p44</span>] <span class="rt">--property_tests--&gt;</span> [report:laws]
+  [patch:<span class="id">#p44</span>] <span class="rt">--replay_battery--&gt;</span> [report:replay]
+  [patch:<span class="id">#p44</span>] <span class="rt">--diff_scope--&gt;</span> [report:scope]
+}
+
+[patch:<span class="id">#p44</span>]
+  &amp; [report:compile] &amp; [report:laws] &amp; [report:replay] &amp; [report:scope]
+  <span class="rt">==verified(policy=trvm.patch.v1)==&gt;</span>
+[film:<span class="id">#accepted-p44</span>]
+
+[film:<span class="id">#accepted-p44</span>] <span class="rt">==merge_candidate==&gt;</span> <span class="rt">//review</span>
+[reviewer] <span class="rt">~~approve~~&gt;</span> <span class="rt">//review</span>
+<span class="rt">//review</span> <span class="rt">==seal==&gt;</span> <span class="rt">///release-candidate</span></code></pre>
+
+<p>A machine proposes; four independent checks run in parallel lanes; a named
+policy decides; a human approval is an ordinary async message into a commit
+boundary. The acceptance is an artifact with a hash, so "who accepted this and
+on what evidence" is a query, not an archaeology project.</p>
+
+<h3>43.7 · Versioned telemetry ingest</h3>
+<p class="src">expression notation · behavior block · backpressure · migration · test</p>
+
+<pre class="code"><code><span class="kw">module</span> ingest<span class="id">@#b12</span>
+
+<span class="kw">type</span> Reading = { sensor: SensorId, value: Fixed&lt;16&gt;, at: Period }
+
+<span class="kw">enum</span> IngestNote { out_of_range(sensor: SensorId), duplicate(sensor: SensorId) }
+
+<span class="kw">fn</span> validate(r: Reading) -&gt; Result&lt;Reading, IngestNote&gt;
+  <span class="kw">uses</span> {} {
+  <span class="kw">match</span> r.value {
+    v <span class="kw">when</span> v &gt;= <span class="lit">0</span> <span class="kw">and</span> v &lt;= <span class="lit">5000</span> =&gt; ok(r)
+    _                           =&gt; err(out_of_range(r.sensor))
+  }
+}
+
+<span class="kw">actor</span> ingest(shard: ShardId) {
+  <span class="kw">state</span> (stored=<span class="lit">0</span>, noted=<span class="lit">0</span>)
+
+  <span class="kw">ports</span> {
+    readings: Mailbox&lt;Reading, capacity=<span class="lit">1024</span>, overflow=backpressure&gt;,
+    archive: Port&lt;FactWrite&gt;
+  }
+
+  <span class="kw">on</span> <span class="rt">~~Reading(?r)~~&gt;</span> {
+    <span class="kw">match try</span> validate(<span class="id">?r</span>) {
+      ok(<span class="id">?v</span>)  =&gt; [self] <span class="rt">--store(?v)--&gt;</span> {facts + <span class="id">?v</span>}
+      err(<span class="id">?e</span>) =&gt; [self] <span class="rt">--note(?e)--&gt;</span> (state noted=state.noted+<span class="lit">1</span>)
+    }
+  }
+
+  <span class="kw">on</span> <span class="rt">~~unknown(#msg)~~&gt;</span> {
+    [self] <span class="rt">--forward(#msg)--&gt;</span> <span class="rt">/adapter.v1v2</span>     <span class="cm">; unknown messages are outcomes, not faults</span>
+  }
+}
+
+<span class="cm">; demand-driven collection</span>
+[ingest:shard] <span class="rt">~~demand(32)~~&gt;</span> [sensor:<span class="id">*</span>]
+[sensor:<span class="id">*</span>] <span class="rt">~~Reading(batch)~~&gt;</span> [ingest:shard]
+
+<span class="cm">; upgrading a live shard</span>
+(state: Ingest<span class="id">@#a91</span>) <span class="rt">==migrate(policy=ingest.v1v2, by=#m7)==&gt;</span> (state: Ingest<span class="id">@#b12</span>)
+
+<span class="kw">test</span> <span class="lit">"validation rejects out of range"</span> {
+  validate({sensor=s1, value=<span class="lit">9000</span>, at=<span class="lit">0</span>}) = err(out_of_range(s1))
+}
+
+<span class="kw">check</span> schedules=<span class="lit">10_000</span></code></pre>
+
+<p>This is the example that shows both surfaces at once. The behavior block and
+the drawn routes below it are <b>the same language</b>; by
+<a href="#conformance">conformance</a> they must canonicalize to identical
+bytes. The migration line upgrades live state without touching the module hash
+that produced it.</p>
+
+<h2 id="exclusions">44 · Exclusions <span class="tier core">Permanent</span></h2>
+
+<p>The following are <b>permanently excluded</b>. They are not future work. Each
+would break a stated principle, and the reason is given rather than assumed.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Excluded</th><th>Principle it would break</th></tr></thead>
+<tbody>
+<tr><td>textual or unhygienic macros; raw token-array metaprogramming</td><td>homoiconic over the canonical graph, not the text</td></tr>
+<tr><td>operator overloading of punctuation</td><td><a href="#punctuation">the punctuation rule</a></td></tr>
+<tr><td>implicit conversions</td><td>the surface must say what it means</td></tr>
+<tr><td><code>null</code></td><td><a href="#values">absence is <code>Option</code></a></td></tr>
+<tr><td>class inheritance; deep hierarchies; implicit virtual dispatch; actors inheriting actor implementations</td><td><a href="#traits">traits are the abstraction mechanism</a></td></tr>
+<tr><td>hidden exceptions</td><td><a href="#supervision">the error ladder</a></td></tr>
+<tr><td>shared mutable global state; shared mutable pointers</td><td>single-owner cells; conflicts must dissolve</td></tr>
+<tr><td>nondeterministic map or set iteration</td><td>replay exactness</td></tr>
+<tr><td>ambient filesystem / network / model / clock access — at run time <i>or</i> compile time</td><td><a href="#laws">Law 3</a>; effects cross named walls</td></tr>
+<tr><td>arbitrary compile-time I/O; compile-time host introspection</td><td><a href="#laws">Law 6</a>; the no-build property depends on it</td></tr>
+<tr><td>scheduler-dependent mailbox selection; scheduler arrival order as data</td><td>determinism</td></tr>
+<tr><td>semantics derived from canvas coordinates</td><td>layout is presentation; identity is content</td></tr>
+<tr><td>a new punctuation symbol for every conventional feature</td><td>a small coherent alphabet is preferred to a large one</td></tr>
+</tbody></table></div>
+
+<h2 id="reserved">45 · Reserved and implementation-defined <span class="tier prop">Proposed</span></h2>
+
+<p>Deliberately left open. A conforming implementation may specify these; the
+language does not fix them. Naming them is how the draft avoids pretending to
+have answers it does not have.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Open question</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td><b>Byzantine trust modes.</b> The CRDT laws guarantee convergence among <i>honest</i> replicas</td><td>the trust and evidence policy for dishonest peers is implementation-defined (<code>trust=</code> on merge routes)</td></tr>
+<tr><td><b>Distributed termination detection.</b> The detector that distinguishes true termination from temporary quiescence</td><td>implementation-defined</td></tr>
+<tr><td><b>Scoring functions.</b> A scored branch must record its scores as facts so replay is exact</td><td>the scoring function itself is implementation-defined</td></tr>
+<tr><td><b>Four-stroke delimiters</b> — <code>::::</code>, <code>////</code></td><td>reserved, undefined; the depth ladder caps at three</td></tr>
+<tr><td><b>Backtick blocks</b> for raw or foreign-code embedding</td><td>reserved; admitted only behind an authority wall with a pinned toolchain and artifact hash</td></tr>
+<tr><td><b>Explicit spatial predicates</b> — <code>#[inside=/district.north]</code>, <code>#[near=[station], distance&lt;20m]</code></td><td>reserved. Spatial layout is presentation only; geometry becomes semantic only when explicitly declared</td></tr>
+</tbody></table></div>
+
+<h2 id="conformance">46 · Conformance <span class="tier core">Core</span></h2>
+
+<p>An implementation conforms if it satisfies the following observable
+properties. <b>They double as a test matrix</b> — which is the point: a
+conformance claim you cannot execute is a marketing claim.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Property</th><th>Test</th></tr></thead>
+<tbody>
+<tr><td><b>Formatting invariance</b></td><td>random spaces and line lengths retain the semantic hash</td></tr>
+<tr><td><b>Two-surface isomorphism</b></td><td>a behavior block and its equivalent drawn routes produce identical canonical bytes</td></tr>
+<tr><td><b>Scheduler invariance</b></td><td>randomized worker ordering retains the committed film</td></tr>
+<tr><td><b>Replay exactness</b></td><td>a live run and its replay share all observables</td></tr>
+<tr><td><b>Build invariance</b></td><td>the same inputs produce an identical build film and identical hashes on different hosts</td></tr>
+<tr><td><b>Memoized-build soundness</b></td><td>reusing <code>(transform#, input#)</code> cache entries yields outputs identical to a cold build</td></tr>
+<tr><td><b>Fragment hygiene</b></td><td>copied fragments do not alias local identities; rebuilds reproduce derived identities</td></tr>
+<tr><td><b>Merge laws</b></td><td>fact union is commutative, associative, idempotent; the pinned join instance is identical across replicas of one program hash</td></tr>
+<tr><td><b>Boundary safety</b></td><td>undeclared effects cannot cross walls; capability-capturing values cannot travel</td></tr>
+<tr><td><b>Ranking stability</b></td><td><code>oN.</code> is unaffected by arrival order</td></tr>
+<tr><td><b>Numeric portability</b></td><td><code>world</code>-profile simulations produce identical films across supported targets; <code>extern pure</code> artifacts honor their declared determinism class</td></tr>
+<tr><td><b>Restore correctness</b></td><td>imported stale work prevents false termination</td></tr>
+<tr><td><b>Resource safety</b></td><td>loops, mailboxes, streams and expansion respect budgets and bounds</td></tr>
+<tr><td><b>Portability</b></td><td>the same sealed film executes identically across runtimes</td></tr>
+</tbody></table></div>
+
+<p>Today's toolchain demonstrably satisfies formatting invariance and the
+identity half of build invariance; those are what
+<a href="https://github.com/c-u-l8er/WRL/blob/main/test/conformance.mjs">the
+browser conformance corpus</a> asserts on every change. The other twelve are
+properties of a runtime this repository documents but does not contain.</p>
+
+<hr>
+
+<p style="font-style:italic;color:var(--ink-soft);max-width:64ch">The language
+becomes real when one small set of reading laws — shape says what a thing is,
+texture says how it moves, colons introduce and slashes bound, marks for
+architecture and words for computation — accurately expresses a bike race, a
+supervised server, a replicated document, a generated world, a biological
+pathway, a proof-carrying patch and a versioned service, and all of them compile
+to one inspectable canonical graph whose build, execution and history are
+equally replayable.</p>
+
+<div class="btnrow" style="margin-top:44px">
+  <a class="btn" href="spec.html">The frozen part →</a>
+  <a class="btn ghost" href="direction.html">Where this is going</a>
+  <a class="btn ghost" href="playground.html">Seal a world</a>
+</div>
+
+</div>
+</main>
+
+<footer class="site">
+  <div class="inner">
+    <div>
+      <strong>WallRiderLang</strong>
+      <a href="learn.html">Tutorial</a><br>
+      <a href="guide.html">Language guide</a><br>
+      <a href="draft.html">Design draft</a><br>
+      <a href="reference.html">Reference</a><br>
+      <a href="spec.html">Core 0.1.2 spec</a><br>
+      <a href="direction.html">Direction</a>
+    </div>
+    <div>
+      <strong>Tools</strong>
+      <a href="playground.html">Browser playground</a><br>
+      <a href="https://github.com/c-u-l8er/WRL">Source on GitHub</a>
+    </div>
+    <div>
+      <strong>Status</strong>
+      Core 0.1.2 — frozen<br>
+      Semantic IR v1 — frozen<br>
+      Draft — not frozen
+    </div>
+    <div style="max-width:32ch">
+      <strong>Colophon</strong>
+      WRL is the authoring language of TRVM Forge. Riders move, walls
+      authorize, films record.
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
