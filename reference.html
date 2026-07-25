@@ -634,45 +634,79 @@ today, read the <b>Writable now</b> column and stop there.</div>
 <h2 id="capabilities">Promotion capabilities</h2>
 
 <p>A <b>capability</b> is one named thing the toolchain does not do yet. It is
-the unit in which the future arrives: a capability is either unshipped or
-shipped, and when it ships, every snippet on this site that depends on it
-becomes a test obligation rather than a paragraph.</p>
+the unit in which the future arrives.</p>
 
 <p>This table is the <b>registry</b>, and it is machine-read. Every
 <code class="inline">data-requires</code> annotation in the published HTML must
 name a capability listed here; the conformance suite fails on an unknown name, on
-a capability with no meaning tier, and on a registry entry that nothing cites. A
-capability cannot be invented in a footnote, and it cannot be quietly
+a capability missing either classification, and on a registry entry that nothing
+cites. A capability cannot be invented in a footnote, and it cannot be quietly
 abandoned.</p>
 
-<div class="tbl"><table id="capability-registry">
-<thead><tr><th>Capability</th><th>Meaning</th><th>What has to ship</th><th>Step</th><th>Specified in</th></tr></thead>
+<p>Each row carries <b>two independent classifications</b>, and the difference
+between them is the difference between a design and a program:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Axis</th><th>Values</th><th>Answers</th></tr></thead>
 <tbody>
-<tr data-capability="typed-ports" data-tier="drafted"><td><code class="inline">typed-ports</code></td><td><span class="tier exp">drafted</span></td><td>ports carry a type, messages carry a schema</td><td>1</td><td><a href="draft.html#values">draft §11</a></td></tr>
-<tr data-capability="async-route" data-tier="settled"><td><code class="inline">async-route</code></td><td><span class="tier core">settled</span></td><td><code class="inline">~~</code> as a logical route declaration, plus a writable mailbox</td><td>2</td><td><a href="draft.html#messages">draft §21</a></td></tr>
-<tr data-capability="attributed-relations" data-tier="sketched"><td><code class="inline">attributed-relations</code></td><td><span class="tier prop">sketched</span></td><td>typed attributes and units on a relation</td><td>3</td><td><a href="spec.html#d8">Core Part II §D8</a></td></tr>
-<tr data-capability="expression-notation" data-tier="drafted"><td><code class="inline">expression-notation</code></td><td><span class="tier exp">drafted</span></td><td>values, data types, functions, pattern matching</td><td>4</td><td><a href="draft.html#punctuation">draft §10–§13</a></td></tr>
-<tr data-capability="generics-traits" data-tier="drafted"><td><code class="inline">generics-traits</code></td><td><span class="tier exp">drafted</span></td><td>parametric generics, traits, hash-pinned coherence</td><td>4</td><td><a href="draft.html#traits">draft §14</a></td></tr>
-<tr data-capability="numerics" data-tier="drafted"><td><code class="inline">numerics</code></td><td><span class="tier exp">drafted</span></td><td>the numeric tower with determinism classes</td><td>4</td><td><a href="draft.html#numerics">draft §15</a></td></tr>
-<tr data-capability="collections" data-tier="drafted"><td><code class="inline">collections</code></td><td><span class="tier exp">drafted</span></td><td><code class="inline">Set</code> vs <code class="inline">FactSet</code>, the four symbol kinds</td><td>4</td><td><a href="draft.html#collections">draft §16</a></td></tr>
-<tr data-capability="resources" data-tier="drafted"><td><code class="inline">resources</code></td><td><span class="tier exp">drafted</span></td><td>affine handles, <code class="inline">borrow</code> and <code class="inline">move</code></td><td>4</td><td><a href="draft.html#resources">draft §17</a></td></tr>
-<tr data-capability="behaviours" data-tier="drafted"><td><code class="inline">behaviours</code></td><td><span class="tier exp">drafted</span></td><td>user-written behaviour blocks canonicalizing to drawn routes</td><td>4</td><td><a href="draft.html#behavior">draft §26</a></td></tr>
-<tr data-capability="merge-routes" data-tier="drafted"><td><code class="inline">merge-routes</code></td><td><span class="tier exp">drafted</span></td><td><code class="inline">&lt;~merge~&gt;</code> over a declared join-semilattice</td><td>5</td><td><a href="draft.html#merge">draft §22</a></td></tr>
-<tr data-capability="verified-route" data-tier="settled"><td><code class="inline">verified-route</code></td><td><span class="tier core">settled</span></td><td><code class="inline">==</code> with checker identity, policy version and evidence</td><td>5</td><td><a href="draft.html#verify">draft §23</a></td></tr>
-<tr data-capability="dynamic-topology" data-tier="sketched"><td><code class="inline">dynamic-topology</code></td><td><span class="tier prop">sketched</span></td><td>the eight topology operations and their obligations</td><td>6</td><td><a href="spec.html#d9">Core Part II §D9</a></td></tr>
-<tr data-capability="supervision" data-tier="drafted"><td><code class="inline">supervision</code></td><td><span class="tier exp">drafted</span></td><td>the supervision floor, caret ownership and <code class="inline">!!</code></td><td>7</td><td><a href="draft.html#supervision">draft §25</a></td></tr>
-<tr data-capability="effect-walls" data-tier="drafted"><td><code class="inline">effect-walls</code></td><td><span class="tier exp">drafted</span></td><td>capability gates, effect rows, seeded entropy</td><td>8</td><td><a href="draft.html#effects">draft §20, §24</a></td></tr>
-<tr data-capability="podium" data-tier="drafted"><td><code class="inline">podium</code></td><td><span class="tier exp">drafted</span></td><td>the ranking boundary with a mandatory stable tie-breaker</td><td>8</td><td><a href="draft.html#podium">draft §20.7</a></td></tr>
-<tr data-capability="migration" data-tier="drafted"><td><code class="inline">migration</code></td><td><span class="tier exp">drafted</span></td><td>live-state migration as a verified, evidence-carrying route</td><td>8</td><td><a href="draft.html#evolution">draft §27</a></td></tr>
-<tr data-capability="derives" data-tier="sketched"><td><code class="inline">derives</code></td><td><span class="tier prop">sketched</span></td><td>stratified monotone graph functions with checkers</td><td>9</td><td><a href="draft.html#derives">draft §32</a></td></tr>
-<tr data-capability="metaprogramming" data-tier="sketched"><td><code class="inline">metaprogramming</code></td><td><span class="tier prop">sketched</span></td><td>phases, fragments, stencils and the six laws</td><td>9</td><td><a href="draft.html#phases">draft §28–§31</a></td></tr>
-<tr data-capability="reflection" data-tier="sketched"><td><code class="inline">reflection</code></td><td><span class="tier prop">sketched</span></td><td>compile-time reflection free, runtime reflection gated</td><td>9</td><td><a href="draft.html#reflection">draft §34</a></td></tr>
-<tr data-capability="modules" data-tier="sketched"><td><code class="inline">modules</code></td><td><span class="tier prop">sketched</span></td><td>content-addressed modules and the no-build property</td><td>9</td><td><a href="draft.html#modules">draft §35–§36</a></td></tr>
-<tr data-capability="testing" data-tier="sketched"><td><code class="inline">testing</code></td><td><span class="tier prop">sketched</span></td><td>tests and properties as first-class graph specifications</td><td>9</td><td><a href="draft.html#testing">draft §37</a></td></tr>
-<tr data-capability="ffi" data-tier="sketched"><td><code class="inline">ffi</code></td><td><span class="tier prop">sketched</span></td><td>foreign functions admitted only through a boundary</td><td>9</td><td><a href="draft.html#ffi">draft §38</a></td></tr>
-<tr data-capability="resolved-terminals" data-tier="sketched"><td><code class="inline">resolved-terminals</code></td><td><span class="tier prop">sketched</span></td><td>many drivers on one terminal, settled by a named resolution function</td><td>9</td><td><a href="spec.html#d8">Core Part II §D8</a></td></tr>
-<tr data-capability="acausal-relations" data-tier="sketched"><td><code class="inline">acausal-relations</code></td><td><span class="tier prop">sketched</span></td><td>undirected conserved-quantity connections settled by a solver wall</td><td>9</td><td><a href="spec.html#d8">Core Part II §D8</a></td></tr>
-<tr data-capability="domain-profiles" data-tier="drafted"><td><code class="inline">domain-profiles</code></td><td><span class="tier exp">drafted</span></td><td>a profile pinning roles, ports, units, laws and film schemas</td><td>10</td><td><a href="draft.html#profiles">draft §41</a></td></tr>
+<tr><td><b>Meaning</b></td><td><span class="tier core">settled</span> <span class="tier exp">drafted</span> <span class="tier prop">sketched</span></td><td>how firm the <i>definition</i> is — whether it is frozen, written down in full, or argued for</td></tr>
+<tr><td><b>Toolchain</b></td><td><span class="tier core">shipped</span> <span class="tier partial">partial</span> <span class="tier prop">unshipped</span></td><td>how much of it the implementation actually does. A <span class="tier partial">partial</span> row must also name the pipeline stages that work, from <code class="inline">tokenize · parse · type · lower · seal · execute</code></td></tr>
+</tbody></table></div>
+
+<p>The two textures below are why the second axis exists. Writing
+<code class="inline">[p0] ~~sig~~&gt; [r0]</code> does not produce a syntax
+error: the toolchain tokenizes it, parses it, locates it on line 4, and then
+refuses it at lowering with
+<code class="inline">WRL_UNSUPPORTED_FEATURE</code>. Calling that "unshipped"
+would be as wrong as calling it shipped. The conformance suite <b>runs that
+probe</b> and fails if a row's claim and the toolchain's behaviour disagree, so
+the stage list is demonstrated rather than asserted.</p>
+
+<div class="note warn"><b>What promotion does and does not do automatically.</b>
+An earlier version of this page said that when a capability ships, every snippet
+depending on it "becomes a test obligation" by itself. That was not true. Most
+draft snippets are <i>fragments</i> — they carry no
+<code class="inline">profile</code> line, so they do not seal today and would go
+on not sealing after the capability landed, for a reason having nothing to do
+with the capability. Nothing would have gone red.
+<br><br>
+What is mechanical is this: shipping a capability means editing its
+<b>Toolchain</b> cell to <span class="tier core">shipped</span>, and the moment
+that cell changes the suite fails for every block still citing it, by file and
+block number. The trip-wire is on the row, where a person must act, not on the
+snippet, where nothing would have happened. Turning a fragment into a positive
+test additionally needs a <b>fixture context</b> to embed it in — that does not
+exist yet, and is named here rather than implied.</div>
+
+<div class="tbl"><table id="capability-registry">
+<thead><tr><th>Capability</th><th>Meaning</th><th>Toolchain</th><th>What has to ship</th><th>Step</th><th>Specified in</th></tr></thead>
+<tbody>
+<tr data-capability="typed-ports" data-tier="drafted" data-implementation="unshipped"><td><code class="inline">typed-ports</code></td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">unshipped</span></td><td>ports carry a type, messages carry a schema</td><td>1</td><td><a href="draft.html#values">draft §11</a></td></tr>
+<tr data-capability="async-route" data-tier="settled" data-implementation="partial" data-stages="tokenize,parse"><td><code class="inline">async-route</code></td><td><span class="tier core">settled</span></td><td><span class="tier partial">partial</span> <span style="color:var(--ink-faint);font-size:12px">tokenize, parse</span></td><td><code class="inline">~~</code> as a logical route declaration, plus a writable mailbox</td><td>2</td><td><a href="draft.html#messages">draft §21</a></td></tr>
+<tr data-capability="profile-mechanism" data-tier="sketched" data-implementation="unshipped"><td><code class="inline">profile-mechanism</code></td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">unshipped</span></td><td>the machinery a profile is written <i>in</i>: relation kinds, attribute types, units, bounded resources, resolution functions</td><td>3</td><td><a href="spec.html#d6">Core Part II §D6</a></td></tr>
+<tr data-capability="attributed-relations" data-tier="sketched" data-implementation="unshipped"><td><code class="inline">attributed-relations</code></td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">unshipped</span></td><td>typed attributes and units on a relation</td><td>4</td><td><a href="spec.html#d8">Core Part II §D8</a></td></tr>
+<tr data-capability="expression-notation" data-tier="drafted" data-implementation="unshipped"><td><code class="inline">expression-notation</code></td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">unshipped</span></td><td>values, data types, functions, pattern matching</td><td>5</td><td><a href="draft.html#punctuation">draft §10–§13</a></td></tr>
+<tr data-capability="generics-traits" data-tier="drafted" data-implementation="unshipped"><td><code class="inline">generics-traits</code></td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">unshipped</span></td><td>parametric generics, traits, hash-pinned coherence</td><td>5</td><td><a href="draft.html#traits">draft §14</a></td></tr>
+<tr data-capability="numerics" data-tier="drafted" data-implementation="unshipped"><td><code class="inline">numerics</code></td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">unshipped</span></td><td>the numeric tower with determinism classes</td><td>5</td><td><a href="draft.html#numerics">draft §15</a></td></tr>
+<tr data-capability="collections" data-tier="drafted" data-implementation="unshipped"><td><code class="inline">collections</code></td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">unshipped</span></td><td><code class="inline">Set</code> vs <code class="inline">FactSet</code>, the four symbol kinds</td><td>5</td><td><a href="draft.html#collections">draft §16</a></td></tr>
+<tr data-capability="resources" data-tier="drafted" data-implementation="unshipped"><td><code class="inline">resources</code></td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">unshipped</span></td><td>affine handles, <code class="inline">borrow</code> and <code class="inline">move</code></td><td>5</td><td><a href="draft.html#resources">draft §17</a></td></tr>
+<tr data-capability="behaviours" data-tier="drafted" data-implementation="unshipped"><td><code class="inline">behaviours</code></td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">unshipped</span></td><td>user-written behaviour blocks canonicalizing to drawn routes</td><td>5</td><td><a href="draft.html#behavior">draft §26</a></td></tr>
+<tr data-capability="merge-routes" data-tier="drafted" data-implementation="unshipped"><td><code class="inline">merge-routes</code></td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">unshipped</span></td><td><code class="inline">&lt;~merge~&gt;</code> over a declared join-semilattice</td><td>6</td><td><a href="draft.html#merge">draft §22</a></td></tr>
+<tr data-capability="verified-route" data-tier="settled" data-implementation="partial" data-stages="tokenize,parse"><td><code class="inline">verified-route</code></td><td><span class="tier core">settled</span></td><td><span class="tier partial">partial</span> <span style="color:var(--ink-faint);font-size:12px">tokenize, parse</span></td><td><code class="inline">==</code> with checker identity, policy version and evidence</td><td>6</td><td><a href="draft.html#verify">draft §23</a></td></tr>
+<tr data-capability="dynamic-topology" data-tier="sketched" data-implementation="unshipped"><td><code class="inline">dynamic-topology</code></td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">unshipped</span></td><td>the eight topology operations and their obligations</td><td>8</td><td><a href="spec.html#d9">Core Part II §D9</a></td></tr>
+<tr data-capability="supervision" data-tier="drafted" data-implementation="unshipped"><td><code class="inline">supervision</code></td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">unshipped</span></td><td>the supervision floor, caret ownership and <code class="inline">!!</code></td><td>7</td><td><a href="draft.html#supervision">draft §25</a></td></tr>
+<tr data-capability="effect-walls" data-tier="drafted" data-implementation="unshipped"><td><code class="inline">effect-walls</code></td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">unshipped</span></td><td>capability gates, effect rows, seeded entropy</td><td>9</td><td><a href="draft.html#effects">draft §20, §24</a></td></tr>
+<tr data-capability="podium" data-tier="drafted" data-implementation="unshipped"><td><code class="inline">podium</code></td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">unshipped</span></td><td>the ranking boundary with a mandatory stable tie-breaker</td><td>9</td><td><a href="draft.html#podium">draft §20.7</a></td></tr>
+<tr data-capability="migration" data-tier="drafted" data-implementation="unshipped"><td><code class="inline">migration</code></td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">unshipped</span></td><td>live-state migration as a verified, evidence-carrying route</td><td>9</td><td><a href="draft.html#evolution">draft §27</a></td></tr>
+<tr data-capability="derives" data-tier="sketched" data-implementation="unshipped"><td><code class="inline">derives</code></td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">unshipped</span></td><td>stratified monotone graph functions with checkers</td><td>10</td><td><a href="draft.html#derives">draft §32</a></td></tr>
+<tr data-capability="metaprogramming" data-tier="sketched" data-implementation="unshipped"><td><code class="inline">metaprogramming</code></td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">unshipped</span></td><td>phases, fragments, stencils and the six laws</td><td>10</td><td><a href="draft.html#phases">draft §28–§31</a></td></tr>
+<tr data-capability="reflection" data-tier="sketched" data-implementation="unshipped"><td><code class="inline">reflection</code></td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">unshipped</span></td><td>compile-time reflection free, runtime reflection gated</td><td>10</td><td><a href="draft.html#reflection">draft §34</a></td></tr>
+<tr data-capability="modules" data-tier="sketched" data-implementation="unshipped"><td><code class="inline">modules</code></td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">unshipped</span></td><td>content-addressed modules and the no-build property</td><td>10</td><td><a href="draft.html#modules">draft §35–§36</a></td></tr>
+<tr data-capability="testing" data-tier="sketched" data-implementation="unshipped"><td><code class="inline">testing</code></td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">unshipped</span></td><td>tests and properties as first-class graph specifications</td><td>10</td><td><a href="draft.html#testing">draft §37</a></td></tr>
+<tr data-capability="ffi" data-tier="sketched" data-implementation="unshipped"><td><code class="inline">ffi</code></td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">unshipped</span></td><td>foreign functions admitted only through a boundary</td><td>10</td><td><a href="draft.html#ffi">draft §38</a></td></tr>
+<tr data-capability="resolved-terminals" data-tier="sketched" data-implementation="unshipped"><td><code class="inline">resolved-terminals</code></td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">unshipped</span></td><td>many drivers on one terminal, settled by a named resolution function</td><td>4</td><td><a href="spec.html#d8">Core Part II §D8</a></td></tr>
+<tr data-capability="acausal-relations" data-tier="sketched" data-implementation="unshipped"><td><code class="inline">acausal-relations</code></td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">unshipped</span></td><td>undirected conserved-quantity connections settled by a solver wall</td><td>9</td><td><a href="spec.html#d8">Core Part II §D8</a></td></tr>
+<tr data-capability="domain-profiles" data-tier="drafted" data-implementation="unshipped"><td><code class="inline">domain-profiles</code></td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">unshipped</span></td><td>a complete production package — mobility, electrical, logistics, robotics — pinning roles, ports, units, laws and film schemas, written using the step-3 mechanism</td><td>11</td><td><a href="draft.html#profiles">draft §41</a></td></tr>
 </tbody></table></div>
 
 <p>The <b>Step</b> column is the position in

@@ -145,17 +145,27 @@ the reason the ceiling is high even though the floor is low.</p>
 with declared capacity and overflow policy, behaviour blocks that canonicalize to
 the same bytes as the drawn form, capability walls, deterministic supervision,
 verified live-state migration and content-addressed message compatibility are
-all specified in the <a href="draft.html">authored draft</a>. The gap between
-WRL and OTP is mostly <i>implementation</i>, not <i>conception</i> — which is a
-different kind of gap, and closes differently.</p>
+all specified in the <a href="draft.html">authored draft</a>. That is a
+substantial design, and it is a different kind of gap from a blank page — but
+it would overstate it to call the remainder <i>mere implementation</i>. Several
+questions an actor operating system has already answered are still genuinely
+open here: <b>placement</b> (which host runs which identity, and who decides),
+<b>partitions</b> (what a period means when the fleet splits), <b>fairness</b>
+(what the scheduler owes a starved identity when order is canonical),
+<b>lifecycle</b> (spawn, hand-off and retirement under replay), and
+<b>operations</b> (upgrade, observation and intervention on a running system).
+Those are design questions, not typing exercises, and the answers may move the
+draft.</p>
 
 <p>But the ruler still measures the wrong thing. Erlang is an <b>actor operating
 system</b>: it is superb at keeping large populations of processes alive,
 supervised and upgradable. It is deliberately indifferent to what those
-processes <i>mean</i>. A road network, a power grid or a robot fleet modelled in
-Erlang lives in process state, ETS tables, maps, registries and external
-databases — the topology is an implementation detail that the language never
-sees, cannot name, and cannot hand to you as an artifact.</p>
+processes <i>mean</i>. A road network, a power grid or a robot fleet can be
+modelled in Erlang perfectly well — the topology lives in process state, ETS
+tables, maps, registries and external databases. What Erlang does not do is
+make that domain topology a <b>native canonical language artifact</b>: a thing
+the language names, seals, diffs and hands you as evidence. It is expressible;
+it is not first-class.</p>
 
 <p>WRL's bet is the opposite one:</p>
 
@@ -169,10 +179,19 @@ is the frame the rest of this site should be read in.</p>
 
 <h2 id="thesis">One identity, many networks</h2>
 
-<p>Most modelling tools represent exactly one network at a time. A traffic
-simulator knows roads and vehicles. A circuit simulator knows components and
-nets. An actor runtime knows processes and messages. A robotics middleware knows
-nodes and topics. Each is excellent and each is alone.</p>
+<p>Many specialist tools privilege exactly one network. A traffic simulator
+knows roads and vehicles. A circuit simulator knows components and nets. An
+actor runtime knows processes and messages. A robotics middleware knows nodes
+and topics. Each is excellent inside its domain, and each was built by people
+who had no reason to model the others.</p>
+
+<p>Heterogeneous tools do exist, and the claim here is not that nobody has ever
+combined two domains — co-simulation frameworks, Ptolemy's hierarchical
+directors <a class="cite" href="#c5">[5]</a> and Modelica's multi-physics
+libraries <a class="cite" href="#c2">[2]</a> all do. The claim is narrower:
+combining them over <b>one durable
+identity</b>, with a content-addressed name for the whole assembly and a
+replayable film of the run, is the part that is rare.</p>
 
 <p>A real drone is simultaneously a participant in many networks:</p>
 
@@ -189,11 +208,13 @@ nodes and topics. Each is excellent and each is alone.</p>
 <tr><td>Evidence</td><td>a signed observation is accepted under a policy</td></tr>
 </tbody></table></div>
 
-<p>Today that drone is modelled seven times: as a ROS node, a routing entity, a
-battery model, an authorization subject, a maintenance record, a process, and a
-simulation object. Seven representations, seven identifiers, and seven chances
-for them to disagree. Keeping them consistent is not a modelling problem that
-anyone solved; it is a integration cost that everyone pays.</p>
+<p>In practice that drone is often represented separately in each system that
+touches it — as a ROS node, a routing entity, a battery model, an authorization
+subject, a maintenance record, a process, a simulation object — with a different
+identifier in each. How many representations there are depends entirely on the
+deployment, so the number is not the point. The point is that every pair of them
+is a chance to disagree, and keeping them aligned is an integration cost paid
+continuously rather than a modelling problem anyone finished solving.</p>
 
 <p>The thesis is that they should be <b>one durable identity participating in
 several typed topologies</b>, and that the whole assembly — world, policies,
@@ -234,9 +255,9 @@ be blamed on a harsh grader:</p>
 <thead><tr><th>What is being scored</th><th></th><th>Why</th></tr></thead>
 <tbody>
 <tr><td><b>WRL Core's writable actor surface</b><br><span class="cite">what you can type today</span></td><td><b>3.5</b>/10</td><td>five fixed roles, one texture, no behaviours, no mailbox, no spawn. This is the number a hands-on reviewer will reach, and it is right</td></tr>
-<tr><td><b>The implemented deterministic runtime foundation</b><br><span class="cite">what the small surface sits on</span></td><td><b>7.5</b>/10</td><td>content-addressed worlds, canonical ordering, within-period fixpoint, byte-exact replay, an independent oracle. Rare, hard, and finished</td></tr>
+<tr><td><b>The implemented deterministic runtime foundation</b><br><span class="cite">what the small surface sits on</span></td><td><b>7.5</b>/10</td><td>content-addressed worlds, canonical ordering, within-period fixpoint, byte-exact replay, an independent oracle. Rare and hard — and <b>frozen and demonstrated for the Core fixture</b>, which is a smaller claim than "finished": it has not been shown at fleet scale, under partition, or across hosts of different architectures</td></tr>
 <tr><td><b>The full authored actor-model design</b><br><span class="cite">what the language is designed to be</span></td><td><b>8.7</b>/10</td><td>mailboxes with capacity and overflow, behaviour blocks, capability walls, deterministic supervision, verified migration, message compatibility — all written, none running</td></tr>
-<tr><td><b>Topology-native actor-system potential</b><br><span class="cite">the ceiling if the thesis is right</span></td><td><b>9.7</b>/10</td><td>no other actor language makes the relation itself a typed, attributed, sealed, replayable object. The ceiling is high because nobody is standing under it</td></tr>
+<tr><td><b>Topology-native actor-system potential</b><br><span class="cite">the ceiling if the thesis is right</span></td><td><b>9.7</b>/10</td><td>few actor-oriented systems combine a first-class relation with canonical identity, replay evidence and capability topology — the pieces exist separately in graph databases, modelling languages and actor runtimes, and the combination is what is unoccupied. A ceiling, not a result</td></tr>
 <tr><td><b>Production operations maturity vs OTP</b><br><span class="cite">running it in anger</span></td><td><b>2</b>/10</td><td>no distribution, no hot upgrade in production, no observer, no tracing, no thirty years of operators. This one is not close and will not be soon</td></tr>
 </tbody></table></div>
 
@@ -504,9 +525,9 @@ actor.</b></p>
 <p>The pull towards actor features is strong and it is the wrong pull. Spawn,
 selective receive, a supervision tree and a distribution layer would each close a
 visible gap against Erlang, and each would leave the language competing on
-Erlang's ground with thirty fewer years of work. Meanwhile the thing no actor
-runtime has — <b>a relation that is itself a typed, attributed, checkable,
-sealed object</b> — would still not exist.</p>
+Erlang's ground with thirty fewer years of work. Meanwhile the thing few
+actor-oriented systems offer — <b>a relation that is itself a typed,
+attributed, checkable, sealed object</b> — would still not exist here.</p>
 
 <div class="note warn"><b>The claim.</b> An actor language whose connections are
 untyped arrows is a worse Erlang. An actor language whose <i>connections</i>
@@ -520,17 +541,19 @@ from a binary directed <code class="inline">Edge</code> to a general
 <code class="inline">Relation</code>, with today's route as its simplest
 specialisation.</p>
 
-<pre class="code"><code>Relation { participants, directionality, cardinality, domain,
-           texture, attributes, policy, provenance }</code></pre>
+<pre class="code"><code>Relation { domain, kind, endpoints, orientation,
+           texture, attributes, policy, provenance }
+
+Endpoint { terminal, role }</code></pre>
 
 <p>Three unusual capabilities fall out of that one change, and none of them is
 reachable by improving actors:</p>
 
 <div class="tbl"><table>
-<thead><tr><th>Falls out</th><th>Because</th><th>Nobody else has it because</th></tr></thead>
+<thead><tr><th>Falls out</th><th>Because</th><th>Rare elsewhere because</th></tr></thead>
 <tbody>
-<tr><td><b>Multi-participant relations</b> — a bus, a net, a shared segment</td><td><code class="inline">participants</code> is a sequence, not a pair. This is the link graph of a bigraph,<sup><a href="#c9">9</a></sup> where a link joins any number of ports</td><td>actor runtimes model connection as addressing, and an address has one target</td></tr>
-<tr><td><b>Acausal relations</b> — potentials equal, flows sum to zero</td><td><code class="inline">directionality</code> admits a value that names no source, which is what a physical connection actually is<sup><a href="#c2">2</a></sup></td><td>message passing presupposes a sender; a wire does not have one</td></tr>
+<tr><td><b>Multi-participant relations</b> — a bus, a net, a shared segment</td><td><code class="inline">endpoints</code> is a set, not a pair, and each one carries a role — the tail-and-head structure of a directed hyperarc. This is also the link graph of a bigraph,<sup><a href="#c9">9</a></sup> where a link joins any number of ports</td><td>actor runtimes model connection as addressing, and an address has one target</td></tr>
+<tr><td><b>Acausal relations</b> — potentials equal, flows sum to zero</td><td><code class="inline">orientation</code> admits a value that names no source, which is what a physical connection actually is<sup><a href="#c2">2</a></sup></td><td>message passing presupposes a sender; a wire does not have one</td></tr>
 <tr><td><b>Domain-checked attributes</b> — capacity, cost, impedance, units</td><td><code class="inline">attributes</code> are typed by the world's profile, so <code class="inline">capacity=3</code> has a unit and a range and can be checked before the run</td><td>graph databases got here first for storage<sup><a href="#c10">10</a></sup> — but they do not seal, check, or replay</td></tr>
 </tbody></table></div>
 
@@ -868,17 +891,37 @@ ordering, with the reason each step cannot move earlier:</p>
 <tbody>
 <tr><td>1</td><td><b>Typed ports and message schemas</b></td><td>every later feature has to say <i>what</i> flows; without this, attributes and behaviours are untyped strings</td></tr>
 <tr><td>2</td><td><b><code class="inline">~~</code> async route + mailbox surface</b></td><td>already <a href="spec.html#s16">§16</a> step 2. Telemetry is asynchronous; a fleet without it is a diagram</td></tr>
-<tr><td>3</td><td><b>Attributed relations</b> (weight, capacity, units)</td><td>needs typed values from step 1, or "cost" is a name with no arithmetic</td></tr>
-<tr><td>4</td><td><b>Behaviours</b></td><td>needs the expression notation, which <a href="spec.html#s13">§13</a> still lists as Experimental in its entirety</td></tr>
-<tr><td>5</td><td><b><code class="inline">==</code> verified route</b></td><td><a href="spec.html#s16-1">§16.1</a>: needs claimant, target, operation family and named policy all enforced — nothing less is a verified route</td></tr>
-<tr><td>6</td><td><b>Dynamic topology</b></td><td>identities joining and leaving is meaningless without a lifecycle, and a lifecycle without supervision leaks</td></tr>
+<tr><td>3</td><td><b>Profile <i>mechanism</i></b> — declaring relation kinds, attribute types, units, bounded resources and resolution functions</td><td>needs the type system from step 1. This is the machinery a profile is written <i>in</i>, and it has to exist before anything can be validated by one</td></tr>
+<tr><td>4</td><td><b>Attributed relations</b> (weight, capacity, units) and <b>resolved terminals</b></td><td>needs step 3 to say what <code class="inline">capacity=3</code> means, or "cost" is a name with no arithmetic and no unit</td></tr>
+<tr><td>5</td><td><b>Behaviours</b></td><td>needs the expression notation, which <a href="spec.html#s13">§13</a> still lists as Experimental in its entirety</td></tr>
+<tr><td>6</td><td><b><code class="inline">==</code> verified route</b></td><td><a href="spec.html#s16-1">§16.1</a>: needs claimant, target, operation family and named policy all enforced — nothing less is a verified route</td></tr>
 <tr><td>7</td><td><b>Supervision floor + <code class="inline">!!</code></b></td><td><a href="spec.html#s16">§16</a> step 6 is explicit: the fault route may only follow a supervision floor that actually exists</td></tr>
-<tr><td>8</td><td><b>Effect adapters</b> (walls to ROS, devices, APIs)</td><td>a command that leaves the world needs step 5 to authorize it and a film to record it</td></tr>
-<tr><td>9</td><td><b>Derive boundary + checkers</b></td><td>needs attributes (3) to state constraints and effects (8) to matter</td></tr>
-<tr><td>10</td><td><b>Domain profiles</b></td><td>a profile pins roles, ports, units, laws and film schemas — it can only pin things that exist</td></tr>
+<tr><td>8</td><td><b>Dynamic topology</b></td><td>identities joining and leaving is meaningless without a lifecycle, and a lifecycle without supervision leaks. It also needs step 4's bounded resources before an escrowed <code class="inline">attach</code> can be safe under partition</td></tr>
+<tr><td>9</td><td><b>Effect adapters</b> (walls to ROS, devices, APIs) and the <b>solver wall</b></td><td>a command that leaves the world needs step 6 to authorize it and a film to record it. Acausal relations settle here, because they settle in a solver</td></tr>
+<tr><td>10</td><td><b>Derive boundary + checkers</b></td><td>needs attributes (4) to state constraints and effects (9) to matter</td></tr>
+<tr><td>11</td><td><b>Production domain profiles</b> — mobility, electrical, logistics, robotics</td><td>a profile pins roles, ports, units, laws and film schemas — it can only pin things that exist</td></tr>
 </tbody></table></div>
 
-<div class="note stop"><b>The mobility profile is step 10, and it is the one
+<div class="note warn"><b>Two corrections to an earlier version of this
+table.</b> It had dynamic topology at 6 and supervision at 7, while the same row
+said <i>"a lifecycle without supervision leaks"</i> — the justification named a
+dependency the ordering violated, and the machine-readable annotation on
+<a href="spec.html#d9-sketch">§D9's sketch</a> named
+<code class="inline">supervision</code> too. The ordering was wrong, not the
+reason.
+<br><br>
+It also had a cycle. Attributed relations were step 3 and domain profiles step
+10, but §D8 says relation attributes are validated <i>by a profile</i> — so step
+3 depended on step 10. The fix is that these were always two capabilities
+wearing one name: the <b>mechanism</b> for declaring kinds, types and units, and
+the <b>production packages</b> written with it. The mechanism is early because
+everything typed needs it. The packages are late because they can only pin
+things that already exist. The
+<a href="#demo-bus">resolved bus</a> can then be built against a small
+conformance profile without freezing the digital-circuit domain to get
+there.</div>
+
+<div class="note stop"><b>The mobility profile is step 11, and it is the one
 everybody will want to build first.</b> It demonstrates beautifully and it would
 be a mistake. A profile invented before typed ports and behaviours exist would
 have to smuggle in a role system by example — which is exactly the failure

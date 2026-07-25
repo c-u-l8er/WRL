@@ -64,7 +64,9 @@ unfairly bad review or an unearned good one:
    overflow policy, behaviour blocks, capability walls, deterministic
    supervision, verified live-state migration, content-addressed message
    compatibility. Forty-six sections, written down, tier-marked, **not built**.
-   Published in full at [`draft.html`](draft.html).
+   Published in full at [`draft.html`](draft.html). It is a substantial design,
+   not a finished one: placement, partitions, fairness, lifecycle and operations
+   semantics remain genuinely open, and answering them may move the draft.
 3. **The topology direction.** [`direction.html`](direction.html). It goes past
    what conventional actor runtimes model, because it is about giving
    *relationships* domain meaning rather than giving processes better plumbing.
@@ -108,19 +110,42 @@ be rejected** by today's toolchain, and each one names the
 The suite parses the published capability table as its registry — not a parallel
 constant, because a registry that can drift from the page documenting it is not
 a registry — and checks the claim in both directions. Every named requirement
-must be a registered capability with a meaning tier, and **every registered
-capability must be required by at least one snippet**, so a capability cannot be
-invented in a footnote or quietly abandoned. When a capability ships, its
-snippets start sealing, the assertions go red, and the documents have to be
-corrected. That turns the draft into a **roadmap dependency graph** rather than
-inert prose.
+must be a registered capability, and **every registered capability must be
+required by at least one snippet**, so a capability cannot be invented in a
+footnote or quietly abandoned. That turns the draft into a **roadmap dependency
+graph** rather than inert prose.
 
-Paired spellings go further. Two blocks tagged
+Each capability carries two independent axes, because "is this idea settled?"
+and "can the toolchain do it?" are different questions:
+
+| Axis | Values | Means |
+| --- | --- | --- |
+| **Meaning** | `settled` · `drafted` · `sketched` | how firm the design is |
+| **Toolchain** | `shipped` · `partial` · `unshipped` | how far a real run gets |
+
+`partial` is measured, not asserted. `async-route` and `verified-route` declare
+`data-stages="tokenize,parse"`, and the suite fires a probe (`~~sig~~>`) that
+must be *located* at a real line and then refused with `WRL_UNSUPPORTED_FEATURE`
+— so a stage claim that stopped being true fails by name.
+
+**What promotion does and does not do automatically.** An earlier version of
+this file claimed that when a capability ships its snippets "start sealing and
+the assertions go red". That was not true, and is worth stating rather than
+quietly deleting. Most aspirational blocks are *fragments*, not complete worlds;
+they carry no `profile` line, so they fail with `WRL_MISSING_PROFILE` both
+before and after their capability ships, and nothing changes colour. The real
+trip-wire is on the **registry row**: mark a capability `shipped` while any
+block still lists it in `data-requires`, and the suite fails that capability by
+name. Promotion is a one-line human edit that then forces every citing document
+to be corrected.
+
+Paired spellings are a **registered future equivalence claim**, not an
+executable obligation. Two blocks tagged
 `data-equivalent-future="rider-behavior-01"` — one a behaviour block, one the
-drawn routes it must canonicalize to — are checked today only for being a
-well-formed pair. When `behaviours` is promoted, the check becomes an assertion
-that both produce the same `sem-` id. That is the only way "two surfaces, one
-meaning" can be a property rather than an aspiration.
+drawn routes it should canonicalize to — are checked today for being a
+well-formed pair that waits on the same prerequisites. Whether they truly
+produce the same `sem-` id cannot be checked until `behaviours` exists; the tag
+records the claim so it can be tested then, and so it cannot be forgotten.
 
 ## The playground is not a mock
 

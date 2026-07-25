@@ -21,7 +21,7 @@
  *
  * No dependencies. Node >= 18 (WebCrypto + BigInt).
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as W from "../wrl.js";
@@ -374,6 +374,7 @@ function decode(html) {
 
 const htmlFiles = readdirSync(ROOT).filter((f) => f.endsWith(".html"));
 let blocks = 0, annotated = 0;
+let notCurrentWorlds = 0, notCurrentFragments = 0;
 
 /* ---------------------------------------------- the capability registry
  *
@@ -386,8 +387,14 @@ const REGISTRY = (() => {
   const table = /<table id="capability-registry">([\s\S]*?)<\/table>/.exec(html);
   const out = new Map();
   if (!table) return out;
-  for (const row of table[1].matchAll(/data-capability="([^"]+)"\s+data-tier="([^"]*)"/g)) {
-    out.set(row[1], row[2]);
+  for (const row of table[1].matchAll(/<tr ([^>]*data-capability[^>]*)>/g)) {
+    const a = row[1];
+    out.set(ATTR(a, "data-capability"), {
+      tier: ATTR(a, "data-tier"),
+      impl: ATTR(a, "data-implementation"),
+      stages: (ATTR(a, "data-stages") || "")
+        .split(",").map((s) => s.trim()).filter(Boolean),
+    });
   }
   return out;
 })();
@@ -395,11 +402,60 @@ const REGISTRY = (() => {
 ok("caps/registry-found", REGISTRY.size > 0,
    "reference.html#capability-registry did not parse -- no capability can be checked");
 
-/* A capability with no meaning tier is unclassified, which is the exact defect
-   the tier table exists to prevent. */
-for (const [cap, tier] of REGISTRY) {
-  ok(`caps/${cap}-classified`, ["settled", "drafted", "sketched"].includes(tier),
-     `capability "${cap}" has tier "${tier}"; expected settled|drafted|sketched`);
+/* Three ORTHOGONAL axes, because collapsing them is what let the site claim a
+ * promotion mechanism it did not have. `tier` says how settled the MEANING is;
+ * `impl` says how much of the toolchain does it; `stages` says exactly which
+ * pipeline stages accept it when the answer is "some of them". */
+const STAGES = ["tokenize", "parse", "type", "lower", "seal", "execute"];
+
+/* A partial capability must PROVE its claim. Each probe is a source whose
+ * treatment demonstrates the stages the registry says work: the toolchain must
+ * reject it, with a located diagnostic (proof the earlier stages ran) and a
+ * code that names the stage that refused (proof the later ones did not). A
+ * registry row that says "partial" without a probe is an unchecked assertion,
+ * which is the whole defect being corrected. */
+const STAGE_PROBES = {
+  "async-route": { texture: "~~sig~~>", through: ["tokenize", "parse"] },
+  "verified-route": { texture: "==sig==>", through: ["tokenize", "parse"] },
+};
+const probeSource = (texture) =>
+  `profile forge.world.core.v1\n` +
+  `[pulser:p0](every 2){sig_out}\n` +
+  `[relay:r0]{sig_in, sig_out}\n` +
+  `[p0] ${texture} [r0]\n`;
+
+for (const [cap, r] of REGISTRY) {
+  ok(`caps/${cap}-classified`, ["settled", "drafted", "sketched"].includes(r.tier),
+     `capability "${cap}" has tier "${r.tier}"; expected settled|drafted|sketched`);
+  ok(`caps/${cap}-implementation`,
+     ["unshipped", "partial", "shipped"].includes(r.impl),
+     `capability "${cap}" has implementation "${r.impl}"; ` +
+     `expected unshipped|partial|shipped. Meaning maturity and implementation ` +
+     `status are different axes and both must be stated.`);
+
+  if (r.impl === "partial") {
+    const probe = STAGE_PROBES[cap];
+    ok(`caps/${cap}-has-probe`, !!probe,
+       `capability "${cap}" claims implementation="partial" but test/conformance.mjs ` +
+       `has no stage probe for it. A partial claim must be demonstrated.`);
+    ok(`caps/${cap}-stages-declared`,
+       r.stages.length > 0 && r.stages.every((s) => STAGES.includes(s)),
+       `a partial capability must name the stages that work, from ${STAGES.join("|")}`);
+    if (probe) {
+      const res = await W.sealWorld(probeSource(probe.texture));
+      ok(`caps/${cap}-stage-probe`,
+         !res.ok && res.code === "WRL_UNSUPPORTED_FEATURE" && res.line > 0,
+         `the probe for "${cap}" should parse far enough to be LOCATED and then ` +
+         `be refused by lowering; got ok=${res.ok} code=${res.code} line=${res.line}`);
+      ok(`caps/${cap}-stages-match-probe`,
+         r.stages.join(",") === probe.through.join(","),
+         `registry says stages "${r.stages.join(",")}" but the probe demonstrates ` +
+         `"${probe.through.join(",")}"`);
+    }
+  } else {
+    ok(`caps/${cap}-no-stray-stages`, r.stages.length === 0,
+       `only a partial capability may name stages; "${cap}" is ${r.impl}`);
+  }
 }
 
 /* every capability cited anywhere, so we can check both directions */
@@ -450,10 +506,26 @@ for (const file of htmlFiles) {
 
     if (equiv) {
       if (!futurePairs.has(equiv)) futurePairs.set(equiv, []);
-      futurePairs.get(equiv).push(label);
+      futurePairs.get(equiv).push({ label, requires });
+    }
+
+    /* FRAGMENT or WORLD. This is derived rather than declared, because a
+     * derived fact cannot drift; the attribute is honoured when an author
+     * states it, so that a block whose classification matters can pin it. The
+     * distinction is not cosmetic: for a complete world, "does not seal" is a
+     * claim about the CONSTRUCT; for a fragment it is very nearly a tautology,
+     * since a fragment has no profile line and could not seal whatever the
+     * toolchain supported. */
+    const kind = isWorld(source) ? "world" : "fragment";
+    const declaredKind = ATTR(attrs, "data-snippet-kind");
+    if (declaredKind) {
+      ok(`${label}/snippet-kind`, declaredKind === kind,
+         `declares data-snippet-kind="${declaredKind}" but is a ${kind} ` +
+         `(a world is a block containing a profile line)`);
     }
 
     if (notCurrent) {
+      if (kind === "world") notCurrentWorlds++; else notCurrentFragments++;
       /* The honest negative claim for a DRAFT snippet. `data-future` asserts a
        * specific diagnostic, which is a lie for draft-notation blocks: the
        * parser's first complaint is almost always the missing profile line, not
@@ -509,13 +581,95 @@ for (const cap of REGISTRY.keys()) {
      `Either annotate the block that needs it, or remove the row.`);
 }
 
+/* THE PROMOTION TRIP-WIRE, and the honest version of a claim this suite used
+ * to make loosely.
+ *
+ * The old claim was that when a capability ships, every snippet depending on it
+ * "becomes a test obligation" automatically. That was not true and could not
+ * be: most draft snippets are fragments with no profile line, so they go on
+ * failing to seal for a reason that has nothing to do with the capability, and
+ * nothing would go red.
+ *
+ * What IS mechanical is this. Shipping a capability means editing its registry
+ * row to implementation="shipped" -- and the moment that row changes, every
+ * snippet still citing it fails HERE, by name, with the file and block number.
+ * The trip-wire is on the registry, where a human must act, rather than on the
+ * snippet, where nothing would have happened. The docs are then corrected
+ * because the build stopped, which was always the point. */
+for (const [cap, r] of REGISTRY) {
+  if (r.impl !== "shipped") continue;
+  const stale = cited.get(cap) || [];
+  ok(`caps/${cap}-shipped-but-still-required`, stale.length === 0,
+     `capability "${cap}" is marked implementation="shipped", but ${stale.length} ` +
+     `block(s) still wait on it: ${stale.join(", ")}. Each one must now be ` +
+     `re-annotated -- a complete world becomes data-seal, a fragment gets a ` +
+     `fixture context -- and this row's promotion documented.`);
+}
+
 /* Paired snippets: two spellings that must eventually canonicalize to the same
-   bytes. Today neither parses, so the only checkable claim is that the pair is
-   well-formed. When `behaviours` ships, this becomes a real equality test. */
-for (const [id, labels] of futurePairs) {
-  ok(`equiv/${id}-is-a-pair`, labels.length === 2,
-     `data-equivalent-future="${id}" appears on ${labels.length} block(s): ` +
+ * bytes. Today neither parses, so this is a REGISTERED EQUIVALENCE CLAIM and
+ * not yet an executable equality test -- the suite is careful to call it that.
+ * Two things about the pair are checkable now, and both are checked: that it is
+ * a pair, and that both halves wait on the same capabilities. The second
+ * matters because a pair whose halves have different prerequisites can never
+ * become an equality test -- one spelling would be writable while the other
+ * still is not, and there would be nothing to compare it against. */
+for (const [id, entries] of futurePairs) {
+  const labels = entries.map((e) => e.label);
+  ok(`equiv/${id}-is-a-pair`, entries.length === 2,
+     `data-equivalent-future="${id}" appears on ${entries.length} block(s): ` +
      `${labels.join(", ")}. An equivalence claim needs exactly two spellings.`);
+  if (entries.length === 2) {
+    const [a, b] = entries.map((e) => [...e.requires].sort().join(","));
+    ok(`equiv/${id}-same-prerequisites`, a === b,
+       `the two spellings of "${id}" wait on different capabilities ` +
+       `("${a}" vs "${b}"). They cannot both become writable at the same time, ` +
+       `so the equality could never be tested.`);
+  }
+}
+
+/* ------------------------------------------------------------------ links ---
+ * Every argument on this site is made by cross-reference: a claim in
+ * direction.html is justified by an anchor in spec.html, and a capability row
+ * in reference.html points at the section that defines it. A broken anchor is
+ * therefore not a cosmetic defect — it is a citation to a source that does not
+ * exist, which is exactly the failure mode the rest of this suite is built to
+ * prevent. Anchors are also the most fragile thing here: renaming one heading
+ * silently orphans every reference to it, and nothing complains, because HTML
+ * has no link checker. So the suite is the link checker. */
+{
+  const idsOf = new Map();
+  for (const file of htmlFiles) {
+    const set = new Set();
+    for (const m of readFileSync(join(ROOT, file), "utf8").matchAll(/\sid="([^"]+)"/g))
+      set.add(m[1]);
+    idsOf.set(file, set);
+  }
+
+  let checked = 0;
+  const broken = [];
+  for (const file of htmlFiles) {
+    for (const m of readFileSync(join(ROOT, file), "utf8").matchAll(/href="([^"]+)"/g)) {
+      const href = m[1];
+      if (/^(https?:|mailto:|#$)/.test(href)) continue;   /* external, or a no-op */
+      const [target, frag] = href.split("#");
+      const page = target === "" ? file : target;         /* "#x" is same-page */
+      checked++;
+      if (!idsOf.has(page)) {
+        if (!existsSync(join(ROOT, page)))
+          broken.push(`${file} -> ${href} (no such file)`);
+        continue;                                          /* a non-HTML asset */
+      }
+      if (frag && !idsOf.get(page).has(frag))
+        broken.push(`${file} -> ${href} (no element with id="${frag}")`);
+    }
+  }
+
+  ok("links/no-broken-anchors", broken.length === 0,
+     `${broken.length} of ${checked} internal link(s) point nowhere:\n    ` +
+     broken.join("\n    "));
+  ok("links/swept", checked > 100,
+     `only ${checked} internal links found; the sweep probably matched nothing`);
 }
 
 /* The playground's ten examples are the only sources on this site that a reader
@@ -633,7 +787,11 @@ for (const [id, labels] of futurePairs) {
 
 console.log(`\n  ${pass} passed, ${fail} failed ` +
             `(${annotated} annotated doc blocks of ${blocks} swept, ` +
-            `${cited.size}/${REGISTRY.size} capabilities cited)\n`);
+            `${cited.size}/${REGISTRY.size} capabilities cited)`);
+console.log(`  not-current: ${notCurrentWorlds} complete world(s), ` +
+            `${notCurrentFragments} fragment(s) -- a fragment's non-acceptance ` +
+            `is weak evidence, and needs a fixture context to become a positive ` +
+            `test when its capability ships\n`);
 if (fail) {
   for (const f of failures) console.log(`  FAIL  ${f}`);
   console.log("");

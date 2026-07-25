@@ -860,15 +860,20 @@ a <a href="#conformance">conformance requirement</a>: for every construct with
 both a drawn and a textual form, the two forms produce identical canonical
 bytes. The language has two surfaces and one meaning, permanently.</div>
 
-<div class="note"><b>This pair is a pending conformance obligation, not a
-comment.</b> The two blocks above are tagged with the same equivalence id in the
-page source. Today the suite can only check that the pair is well-formed and
-that neither spelling is accepted. When the <code class="inline">behaviours</code>
-capability is <a href="reference.html#capabilities">promoted</a>, both blocks
-start sealing and the check becomes what it is meant to be: an assertion that the
-two produce the same <code class="inline">sem-</code> id. If they do not, the
-build breaks — which is the only way "two surfaces, one meaning" can be a
-property rather than an aspiration.</div>
+<div class="note"><b>This pair is a registered future equivalence claim, not a
+comment — and not yet an executable obligation.</b> The two blocks above are
+tagged with the same equivalence id in the page source. Today the suite checks
+only what is checkable today: that the pair is well-formed, that neither
+spelling is accepted, and that both spellings wait on <i>the same</i>
+prerequisites — a pair whose two halves disagreed about what they need would
+already be evidence that the claim was confused. Whether they genuinely produce
+the same <code class="inline">sem-</code> id cannot be tested until
+<code class="inline">behaviours</code> exists to seal them; no amount of harness
+work can extract that answer from a toolchain that rejects both inputs. What the
+tag buys is that the claim is <b>recorded, located and enumerable</b>, so when
+the capability is <a href="reference.html#capabilities">promoted</a> the
+obligation is waiting rather than remembered. Registering a claim is a weaker
+thing than enforcing one, and it is worth naming the difference.</div>
 
 <h2 id="evolution">27 · Evolution: migration and compatibility <span class="tier exp">Experimental</span></h2>
 
