@@ -292,7 +292,7 @@ you can type today, and the two disagree on purpose.</p>
 <tr><td>Deterministic supervision</td><td><b>8.5</b></td><td>no</td><td>designed to replay identically, which conventional supervision does not</td></tr>
 <tr><td>Behaviour blocks</td><td><b>8.5</b></td><td>no</td><td>required to canonicalize to the same bytes as the drawn form — a testable law</td></tr>
 <tr><td>Message compatibility</td><td><b>8.5</b></td><td>no</td><td>content-addressed message types; an unknown hash is an outcome, not a crash</td></tr>
-<tr><td>Dynamic process lifecycle</td><td><b>6</b></td><td>no</td><td>the hard case for sealed identity; sketched in <a href="spec.html#d9">§D9</a>, unresolved for genuinely open worlds</td></tr>
+<tr><td>Dynamic process lifecycle</td><td><b>6</b></td><td>no</td><td>the hard case for sealed identity; <a href="spec.html#d9">§D9</a> now derives topology from immutable ledger facts and admits novel identities by sealed rule — placement and partition behaviour remain open</td></tr>
 <tr><td>Selective receive</td><td><b>5</b></td><td>no</td><td>no design; it interacts badly with canonical ordering and needs one</td></tr>
 <tr><td>Distributed placement</td><td><b>4</b></td><td>no</td><td>merge laws exist; placement, partition and consensus do not</td></tr>
 <tr><td>Scheduler implementation</td><td><b>4</b></td><td>n/a</td><td>the reducer is correct and unoptimised; no preemption, no fairness work</td></tr>
@@ -937,7 +937,7 @@ sanctioned.</div>
 These are the five that would. The spec states the same list, more tersely, as
 <a href="spec.html#d7">§D7</a>.</p>
 
-<h3>1 · If identity turns out to be per-layer after all</h3>
+<h3 data-falsifier="per-layer-identity">1 · If identity turns out to be per-layer after all</h3>
 
 <p>Node-alignment (<a href="#p1">pillar 1</a>) assumes one identity is the right
 granularity across every layer. That assumption fails if layers need to version
@@ -947,7 +947,7 @@ persist. If that turns out to be the common case rather than the exception, WRL
 needs per-layer replicas and explicit coupling edges, and the largest claimed
 advantage over conventional multilayer tooling evaporates.</p>
 
-<h3>2 · If checking is not cheaper than solving</h3>
+<h3 data-falsifier="no-cheap-checker">2 · If checking is not cheaper than solving</h3>
 
 <p><a href="#p5">Pillar 5</a> assumes a plan's feasibility can be verified far
 more cheaply than the plan can be found. That is true for routing with capacity
@@ -957,7 +957,7 @@ check than to compute. Wherever that holds, the derive boundary provides
 paperwork rather than verification, and should say so instead of implying
 otherwise.</p>
 
-<h3>3 · If profiles cannot compose without a central registry</h3>
+<h3 data-falsifier="central-registry">3 · If profiles cannot compose without a central registry</h3>
 
 <p><a href="#p4">Pillar 4</a> assumes a wall can join two profiles knowing only
 their contracts. If in practice every cross-profile wall needs global knowledge
@@ -965,33 +965,53 @@ their contracts. If in practice every cross-profile wall needs global knowledge
 place — then "one world, many domains" degrades into a monolith with a plugin
 directory, and the composition claim was never real.</p>
 
-<h3>4 · If broadening the relation moves every published id</h3>
+<h3 data-falsifier="relation-bytes-move">4 · If broadening the relation moves every published id</h3>
 
 <p><a href="#p6">Pillar 6</a> assumes a general
 <code class="inline">Relation</code> can serialise a plain directed route to the
-<i>same canonical bytes</i> today's edge produces, by eliding every defaulted
-field. If that cannot be arranged — if directionality, cardinality or an empty
-attribute map has to appear in the canonical form — then every
-<code class="inline">sem-</code> id ever published moves, the change is a version
-break rather than an extension, and the ordering of the entire ladder has to be
-reconsidered. This is the cheapest condition on the list to test, and it should
-be tested first.</p>
+<i>same canonical bytes</i> today's edge produces. Eliding defaulted fields is
+not enough to achieve that, and <a href="spec.html#d8-projection">§D8</a> now
+says so: the frozen form names objects where the general form names terminals,
+and calls the container <code class="inline">edges</code> rather than
+<code class="inline">relations</code>, neither of which is a default that can be
+omitted. The compatibility mechanism is therefore a <b>normative legacy
+projection</b> — relations of exactly the frozen shape are encoded in the old
+form — and the condition is whether that projection is <b>total over the
+published corpus</b>. If some pinned world contains a route the projection
+cannot cover, every <code class="inline">sem-</code> id ever published moves,
+the change is a version break rather than an extension, and the ordering of the
+entire ladder has to be reconsidered. This is still the cheapest condition on
+the list to test, and it should still be tested first.</p>
 
-<h3>5 · If useful worlds are genuinely open</h3>
+<h3 data-falsifier="admission-undecidable">5 · If admission cannot be decided from sealed rules and recorded evidence</h3>
 
-<p><a href="spec.html#d9">§D9</a> keeps a world's identity stable while its
-topology changes by sealing the initial configuration <i>plus the authorised
-operations</i>, so every later state is a deterministic function of the seal and
-the ledger. That works only if the set of <b>possible</b> participants is bounded
-by the document. A fleet that must accept another operator's vehicle mid-run —
-an identity the sealed world never anticipated — is not covered. If that is the
-normal case rather than the exotic one, then sealed identity and open topology
-are in genuine conflict, and one of them has to be given up.</p>
+<p><a href="spec.html#d9-open">§D9</a> admits identities the document never
+enumerated by sealing an <b>admission rule</b> — trust roots, identity scheme,
+schema, checker, quota policy — rather than a roster of participants. A vehicle
+belonging to another operator can therefore join a sealed world mid-run, because
+what was sealed was the <i>test</i> it has to pass, not the list it has to be on.
+That construction fails if real federation requires consulting <b>live external
+state</b> at admission time — a revocation service, a broker's current view, a
+quota held somewhere else — which cannot be captured as evidence a replay can
+re-read. Then admission is not a function of the seal and the ledger, the film
+stops being self-contained, and the guarantee degrades to "it was true when we
+looked".</p>
 
 <div class="note"><b>None of these are settled.</b> They are stated here so that
 the answers, when they arrive, are recognizable as answers rather than as
 surprises — and so that a reader can tell which parts of this page are
 engineering and which are a bet.</div>
+
+<div class="note warn"><b>A retired condition, kept visible.</b> An earlier
+version of this list argued that sealed identity and open topology were in
+"genuine conflict, and one of them has to be given up", on the assumption that
+the set of possible participants had to be bounded by the document.
+<a href="spec.html#d9-open">§D9</a> retired that assumption — a trust domain
+admits by attested rule, not by prior enumeration, which is how SPIFFE
+federates — so the dilemma was a false one and the condition above replaces it
+with the narrower question that survives. Retired conditions are struck here
+rather than deleted, because a falsification list that quietly loses entries is
+a list you cannot audit.</div>
 
 <h2 id="first">The first real test</h2>
 
@@ -1003,11 +1023,12 @@ last piece of honesty this page owes.</p>
 participates in road, communications, dispatch, energy and fault topologies at
 once; executed across a multi-machine TRVM run; calling an external route solver
 through a derive; producing a film a third party can check without trusting the
-machine that produced it. That demonstration is <b>step 10</b>, and the work
-between here and there is steps 1 through 9 — typed ports, an async surface,
-attributes on relations, an expression notation, an authorization model, a
-supervision floor, an effects boundary. None of it is glamorous and none of it
-can be skipped.</p>
+machine that produced it. That demonstration needs a production mobility
+profile, which is <b>step 11</b> — the last rung — and the work between here and
+there is steps 1 through 10: typed ports, an async surface, the profile
+mechanism, attributes on relations, behaviours, a verified route, a supervision
+floor, dynamic topology, an effects boundary and the derive wall. None of it is
+glamorous and none of it can be skipped.</p>
 
 <p><b>The demonstration that should be built first</b> is
 <a href="#demo-bus">demonstration B</a>, the resolved digital bus. It is the
@@ -1021,9 +1042,13 @@ demonstration A cannot do for years.</p>
 
 <div class="note"><b>The rule the two together imply.</b> Build the smallest
 thing that can be wrong, before the largest thing that would be impressive. The
-fleet profile is step 10 for the reason given above; the bus is not a step on the
-ladder at all, it is a test of whether the ladder's third rung is the right
-shape.</div>
+fleet profile is step 11 for the reason given above; the bus is not a step on the
+ladder at all, it is a test of whether steps <b>1, 3 and 4</b> — typed ports, the
+profile mechanism, and attributed relations with resolved terminals — have the
+right shape between them. A resolution table is written in the profile mechanism,
+over ports that step 1 typed, to govern attributes step 4 introduced; the bus is
+the smallest world that needs all three at once, which is exactly why it is worth
+building before anything larger.</div>
 
 <blockquote>The strongest version of WRL is not Erlang with prettier arrows. It
 is a language for living networks — where identities persist, topology has

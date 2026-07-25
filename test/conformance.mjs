@@ -387,13 +387,21 @@ const REGISTRY = (() => {
   const table = /<table id="capability-registry">([\s\S]*?)<\/table>/.exec(html);
   const out = new Map();
   if (!table) return out;
-  for (const row of table[1].matchAll(/<tr ([^>]*data-capability[^>]*)>/g)) {
-    const a = row[1];
+  /* whole rows, not just the opening tag: the STEP lives in a cell, and the
+   * published row ORDER is itself a claim that gets checked below */
+  let order = 0;
+  for (const row of table[1].matchAll(/<tr ([^>]*data-capability[^>]*)>([\s\S]*?)<\/tr>/g)) {
+    const [, a, cells] = row;
+    const tds = [...cells.matchAll(/<td>([\s\S]*?)<\/td>/g)].map((m) => m[1]);
     out.set(ATTR(a, "data-capability"), {
       tier: ATTR(a, "data-tier"),
       impl: ATTR(a, "data-implementation"),
       stages: (ATTR(a, "data-stages") || "")
         .split(",").map((s) => s.trim()).filter(Boolean),
+      refusedAt: ATTR(a, "data-refused-at"),
+      /* the step cell is the only all-digit cell in a row */
+      step: Number(tds.find((t) => /^\d+$/.test(t.trim())) ?? NaN),
+      order: order++,
     });
   }
   return out;
@@ -408,21 +416,33 @@ ok("caps/registry-found", REGISTRY.size > 0,
  * pipeline stages accept it when the answer is "some of them". */
 const STAGES = ["tokenize", "parse", "type", "lower", "seal", "execute"];
 
-/* A partial capability must PROVE its claim. Each probe is a source whose
- * treatment demonstrates the stages the registry says work: the toolchain must
- * reject it, with a located diagnostic (proof the earlier stages ran) and a
- * code that names the stage that refused (proof the later ones did not). A
- * registry row that says "partial" without a probe is an unchecked assertion,
- * which is the whole defect being corrected. */
+/* A partial capability must PROVE its claim, and the claim has to be the one
+ * the implementation actually supports. An earlier version of this file said
+ * these textures were "refused at lowering" and listed `tokenize,parse` as
+ * working. That was wrong, and wrong in the flattering direction: there is no
+ * route declaration and no lowering step for them. `parseWrlCore` matches the
+ * characters and refuses the line where it stands, so `tokenize` is the last
+ * stage the input COMPLETES and `parse` is the stage that refuses it.
+ *
+ * What is still true, and worth proving, is that the texture is RECOGNIZED
+ * rather than merely rejected -- the parser has a branch for it that explains
+ * what it is, instead of letting it fall through to "unrecognized notation".
+ * Asserting that from the code would be circular, so each probe is paired with
+ * a line of genuine nonsense and the two are required to fail DIFFERENTLY. If
+ * the reserved branch were ever deleted, both would produce the same
+ * fall-through diagnostic and the recognition claim would fail by name. */
 const STAGE_PROBES = {
-  "async-route": { texture: "~~sig~~>", through: ["tokenize", "parse"] },
-  "verified-route": { texture: "==sig==>", through: ["tokenize", "parse"] },
+  "async-route": { texture: "~~sig~~>", through: ["tokenize"], refusedAt: "parse" },
+  "verified-route": { texture: "==sig==>", through: ["tokenize"], refusedAt: "parse" },
 };
 const probeSource = (texture) =>
   `profile forge.world.core.v1\n` +
   `[pulser:p0](every 2){sig_out}\n` +
   `[relay:r0]{sig_in, sig_out}\n` +
   `[p0] ${texture} [r0]\n`;
+
+/* the control: syntactically a line, semantically nothing at all */
+const NONSENSE = await W.sealWorld(probeSource("qqq zzz"));
 
 for (const [cap, r] of REGISTRY) {
   ok(`caps/${cap}-classified`, ["settled", "drafted", "sketched"].includes(r.tier),
@@ -441,20 +461,42 @@ for (const [cap, r] of REGISTRY) {
     ok(`caps/${cap}-stages-declared`,
        r.stages.length > 0 && r.stages.every((s) => STAGES.includes(s)),
        `a partial capability must name the stages that work, from ${STAGES.join("|")}`);
+    ok(`caps/${cap}-refusal-stage`,
+       STAGES.includes(r.refusedAt) &&
+       r.stages.every((s) => STAGES.indexOf(s) < STAGES.indexOf(r.refusedAt)),
+       `a partial capability must name the stage that REFUSES it, and it must ` +
+       `come after every stage it completes; got stages="${r.stages.join(",")}" ` +
+       `refused-at="${r.refusedAt}"`);
     if (probe) {
       const res = await W.sealWorld(probeSource(probe.texture));
-      ok(`caps/${cap}-stage-probe`,
+      ok(`caps/${cap}-probe-located`,
          !res.ok && res.code === "WRL_UNSUPPORTED_FEATURE" && res.line > 0,
-         `the probe for "${cap}" should parse far enough to be LOCATED and then ` +
-         `be refused by lowering; got ok=${res.ok} code=${res.code} line=${res.line}`);
+         `the probe for "${cap}" should be refused with a LOCATED ` +
+         `WRL_UNSUPPORTED_FEATURE; got ok=${res.ok} code=${res.code} line=${res.line}`);
+      /* Recognition, demonstrated rather than asserted. Both the texture and
+         the nonsense line fail with the same CODE, so the code proves nothing;
+         the difference is that nonsense falls through to "unrecognized", while
+         a reserved texture hits a branch that names what it is. Comparing the
+         two messages verbatim would be weak -- they quote different source --
+         so the property tested is the fall-through itself. */
+      ok(`caps/${cap}-probe-recognized`,
+         !NONSENSE.ok && /unrecognized/i.test(NONSENSE.message) &&
+         !/unrecognized/i.test(res.message),
+         `"${cap}" claims its texture is RECOGNIZED, but the toolchain treats ` +
+         `it as a fall-through: nonsense says "${NONSENSE.message}" and the ` +
+         `texture says "${res.message}". A reserved construct must be explained ` +
+         `by its own branch, not by the catch-all.`);
       ok(`caps/${cap}-stages-match-probe`,
-         r.stages.join(",") === probe.through.join(","),
-         `registry says stages "${r.stages.join(",")}" but the probe demonstrates ` +
-         `"${probe.through.join(",")}"`);
+         r.stages.join(",") === probe.through.join(",") &&
+         r.refusedAt === probe.refusedAt,
+         `registry says stages "${r.stages.join(",")}" refused at "${r.refusedAt}" ` +
+         `but the probe demonstrates "${probe.through.join(",")}" refused at ` +
+         `"${probe.refusedAt}"`);
     }
   } else {
-    ok(`caps/${cap}-no-stray-stages`, r.stages.length === 0,
-       `only a partial capability may name stages; "${cap}" is ${r.impl}`);
+    ok(`caps/${cap}-no-stray-stages`, r.stages.length === 0 && !r.refusedAt,
+       `only a partial capability may name stages or a refusal stage; ` +
+       `"${cap}" is ${r.impl}`);
   }
 }
 
@@ -531,8 +573,15 @@ for (const file of htmlFiles) {
        * parser's first complaint is almost always the missing profile line, not
        * the construct the block is actually demonstrating. So assert only what
        * is true and load-bearing -- the toolchain does not accept this -- and
-       * let `data-requires` carry the reason. When the capability ships, the
-       * block starts sealing and this goes red. */
+       * let `data-requires` carry the reason.
+       *
+       * This comment used to end "when the capability ships, the block starts
+       * sealing and this goes red". That is FALSE for the 54 fragments, which
+       * carry no profile line and will keep failing on WRL_MISSING_PROFILE
+       * forever, and it is the exact overclaim the promotion trip-wire below
+       * exists to replace. Do not restore it: a fragment's non-acceptance is
+       * weak evidence by construction, and the mechanism that actually forces a
+       * correction lives on the registry row, not here. */
       annotated++;
       const r = await W.sealWorld(source.endsWith("\n") ? source : source + "\n");
       ok(`${label} (not-current: ${requires.join(" ") || "?"})`, !r.ok,
@@ -579,6 +628,77 @@ for (const cap of REGISTRY.keys()) {
   ok(`caps/${cap}-cited`, cited.has(cap),
      `capability "${cap}" is registered but no snippet requires it. ` +
      `Either annotate the block that needs it, or remove the row.`);
+}
+
+/* ------------------------------------------------------- duplicated claims ---
+ * The link checker proves every citation RESOLVES. It cannot prove two pages
+ * that both resolve are saying the same thing, and that is the failure mode
+ * this site keeps hitting: the ladder was reordered in direction.html while
+ * reference.html still carried the old step numbers, and a falsification
+ * condition was retired in spec.html while direction.html went on publishing
+ * it. Both survive a link check perfectly.
+ *
+ * So the duplicated structures get a single source of truth and a comparison.
+ * The registry owns the step numbers; Direction's ladder must agree with it. */
+{
+  const dir = readFileSync(join(ROOT, "direction.html"), "utf8");
+  const tbl = /<h2 id="ladder">[\s\S]*?<tbody>([\s\S]*?)<\/tbody>/.exec(dir);
+  ok("ladder/table-found", !!tbl,
+     "could not locate the dependency-ladder table in direction.html");
+
+  if (tbl) {
+    const steps = [...tbl[1].matchAll(/<tr><td>(\d+)<\/td>/g)].map((m) => Number(m[1]));
+    ok("ladder/steps-are-1..n",
+       steps.length > 0 && steps.every((n, i) => n === i + 1),
+       `the ladder must be numbered 1..n with no gaps or repeats; got ` +
+       `[${steps.join(", ")}]`);
+
+    /* every step a capability claims must exist as a rung */
+    const top = steps.length;
+    for (const [cap, r] of REGISTRY) {
+      ok(`ladder/${cap}-step-in-range`,
+         Number.isInteger(r.step) && r.step >= 1 && r.step <= top,
+         `the registry puts "${cap}" at step ${r.step}, but the ladder in ` +
+         `direction.html has rungs 1..${top}. One of the two pages is stale.`);
+    }
+
+    /* and the published row order must match the numbers, so a reader
+       scanning the table and a program parsing it see the same roadmap */
+    const rows = [...REGISTRY.entries()]
+      .sort((a, b) => a[1].order - b[1].order);
+    const sorted = [...rows].sort((a, b) =>
+      a[1].step - b[1].step || a[0].localeCompare(b[0]));
+    ok("caps/registry-sorted-by-step",
+       rows.every(([cap], i) => sorted[i][0] === cap),
+       `the capability registry is published out of order. Sort rows by ` +
+       `(step, capability). Expected:\n    ` +
+       sorted.map(([c, r]) => `${r.step} ${c}`).join("\n    "));
+  }
+}
+
+/* The falsification conditions are the other duplicated structure. Direction
+ * states them at length; the spec states its own list. They drifted once
+ * already -- Direction published a condition D9 had explicitly retired -- so
+ * both pages now tag conditions with a machine-readable id and the suite
+ * requires Direction's set to be a subset of the spec's, with nothing invented
+ * and nothing resurrected. */
+{
+  const idsIn = (file) => new Set(
+    [...readFileSync(join(ROOT, file), "utf8")
+      .matchAll(/data-falsifier="([^"]+)"/g)].map((m) => m[1]));
+  const spec = idsIn("spec.html");
+  const dir = idsIn("direction.html");
+
+  ok("falsify/spec-declares-conditions", spec.size > 0,
+     "spec.html declares no data-falsifier ids; the parity check is vacuous");
+  ok("falsify/direction-declares-conditions", dir.size > 0,
+     "direction.html declares no data-falsifier ids; the parity check is vacuous");
+
+  const orphans = [...dir].filter((id) => !spec.has(id));
+  ok("falsify/no-orphan-conditions", orphans.length === 0,
+     `direction.html publishes falsification condition(s) [${orphans.join(", ")}] ` +
+     `that spec.html does not declare. Either the spec retired the condition ` +
+     `and Direction is stale, or Direction invented one.`);
 }
 
 /* THE PROMOTION TRIP-WIRE, and the honest version of a claim this suite used

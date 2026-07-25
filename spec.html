@@ -1085,14 +1085,14 @@ true:</p>
 <div class="tbl"><table>
 <thead><tr><th>#</th><th>Condition</th><th>What it would falsify</th></tr></thead>
 <tbody>
-<tr><td>1</td><td>Real domains require <b>per-layer identity</b> — the same entity genuinely needing distinct, independently-connected existence in two layers — often enough that "three identities and a wall" is unworkable</td><td><b>§D1.</b> Node-alignment would have to be relaxed to replica-based layers, and identity would stop being structural</td></tr>
-<tr><td>2</td><td>The results worth deriving have <b>no checker cheaper than the search</b></td><td><b>§D5.</b> Derives would either seal unverifiable claims or become useless, and optimisation stays permanently outside the language</td></tr>
-<tr><td>3</td><td>Profiles need a <b>central registry</b> to interoperate — that is, two independently-written profiles cannot be composed without an authority arbitrating names</td><td><b>§D6.</b> The "profiles, not construct kinds" answer would collapse into a governance problem, which a language cannot solve</td></tr>
-<tr><td>4</td><td>Resolved-port resolution functions cannot be expressed in the document and hashed with it</td><td><b>§D2.</b> Resolved ports would break §11 content identity and must not ship</td></tr>
-<tr><td>5</td><td>Per-profile boundary safety across walls proves undecidable in practice</td><td><b>§D4.</b> Heterogeneous execution would have to be dropped, leaving acausal connections nowhere to live</td></tr>
-<tr><td>6</td><td>A broadened relation <b>cannot serialise a plain directed route to today's exact bytes</b>, so generalising the entity moves every published <code class="inline">sem-</code> id</td><td><b>§D8.</b> Relation would become a 0.2 breaking change rather than an 0.1.<i>x</i> extension, and the ordering of the entire ladder would change</td></tr>
-<tr><td>7</td><td>Admission decisions <b>cannot be made from a sealed rule and recorded evidence alone</b> — real federation turns out to require consulting live external state that no film can replay</td><td><b>§D9.</b> The admission answer collapses back into the dilemma it replaced, and a world has to choose between a closed roster and a replayable film</td></tr>
-<tr><td>8</td><td>The invariants worth enforcing on a changing topology <b>cannot be escrowed</b> — every useful bound needs global coordination at the moment it is checked, not an allowance divided in advance</td><td><b>§D9.</b> Topology change would be safe only in a single-writer deployment, and the replication story would quietly be a single-node story</td></tr>
+<tr data-falsifier="per-layer-identity"><td>1</td><td>Real domains require <b>per-layer identity</b> — the same entity genuinely needing distinct, independently-connected existence in two layers — often enough that "three identities and a wall" is unworkable</td><td><b>§D1.</b> Node-alignment would have to be relaxed to replica-based layers, and identity would stop being structural</td></tr>
+<tr data-falsifier="no-cheap-checker"><td>2</td><td>The results worth deriving have <b>no checker cheaper than the search</b></td><td><b>§D5.</b> Derives would either seal unverifiable claims or become useless, and optimisation stays permanently outside the language</td></tr>
+<tr data-falsifier="central-registry"><td>3</td><td>Profiles need a <b>central registry</b> to interoperate — that is, two independently-written profiles cannot be composed without an authority arbitrating names</td><td><b>§D6.</b> The "profiles, not construct kinds" answer would collapse into a governance problem, which a language cannot solve</td></tr>
+<tr data-falsifier="resolution-not-hashable"><td>4</td><td>Resolved-port resolution functions cannot be expressed in the document and hashed with it</td><td><b>§D2.</b> Resolved ports would break §11 content identity and must not ship</td></tr>
+<tr data-falsifier="boundary-undecidable"><td>5</td><td>Per-profile boundary safety across walls proves undecidable in practice</td><td><b>§D4.</b> Heterogeneous execution would have to be dropped, leaving acausal connections nowhere to live</td></tr>
+<tr data-falsifier="relation-bytes-move"><td>6</td><td>A broadened relation <b>cannot serialise a plain directed route to today's exact bytes</b>, so generalising the entity moves every published <code class="inline">sem-</code> id</td><td><b>§D8.</b> Relation would become a 0.2 breaking change rather than an 0.1.<i>x</i> extension, and the ordering of the entire ladder would change</td></tr>
+<tr data-falsifier="admission-undecidable"><td>7</td><td>Admission decisions <b>cannot be made from a sealed rule and recorded evidence alone</b> — real federation turns out to require consulting live external state that no film can replay</td><td><b>§D9.</b> The admission answer collapses back into the dilemma it replaced, and a world has to choose between a closed roster and a replayable film</td></tr>
+<tr data-falsifier="invariants-not-escrowable"><td>8</td><td>The invariants worth enforcing on a changing topology <b>cannot be escrowed</b> — every useful bound needs global coordination at the moment it is checked, not an allowance divided in advance</td><td><b>§D9.</b> Topology change would be safe only in a single-writer deployment, and the replication story would quietly be a single-node story</td></tr>
 </tbody></table></div>
 
 <div class="note">Conditions 6, 7 and 8 were added with §D8 and §D9, which are
@@ -1239,11 +1239,41 @@ two authors describing one physical net would seal two different
 typing habits instead of topology.</p>
 
 <p>So canonicalisation sorts endpoints by <b>role, then terminal</b>, with roles
-in the declared enumeration order above. The key is total: a terminal may appear
-at most once per role, so no two endpoints of one relation can collide. This is
-the same discipline §11 already applies to sorted-key JSON and to omitted empty
-port groups — the canonical form decides an order so that the author does not
-have to have one.</p>
+in the declared enumeration order above. This is the same discipline §11 already
+applies to sorted-key JSON and to omitted empty port groups — the canonical form
+decides an order so that the author does not have to have one.</p>
+
+<p>For that sort key to be <b>total</b>, terminals have to be unique within a
+relation. An earlier draft said "at most once <i>per role</i>", which is the
+weaker rule and lets a contradiction through:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Rule</th><th>Admits</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td>once per <i>role</i></td><td><code class="inline">{(x, source), (x, target)}</code></td><td>the same terminal is simultaneously in the tail and the head</td></tr>
+<tr><td>once per <i>relation</i></td><td>rejected</td><td>correct</td></tr>
+</tbody></table></div>
+
+<p>The hypergraph precedent <a class="cite" href="#r-hyper">[H]</a> settles it:
+a hyperarc is an ordered pair of <b>disjoint</b> vertex sets. Tail and head do
+not overlap, so the rule is:</p>
+
+<div class="note stop"><b>Normative.</b> A terminal appears <b>at most once in a
+relation</b>, regardless of role. For a directed relation this makes the
+<code class="inline">source</code> and <code class="inline">target</code>
+terminal sets disjoint by construction, matching the hyperarc definition the
+roles were taken from — and it makes the canonical sort key total, since role
+alone can no longer be the tiebreaker.</div>
+
+<p>This does not outlaw an identity relating to itself, which is an ordinary
+thing an actor does. A self-loop uses <i>different terminals on the same
+object</i> — <code class="inline">a.out</code> as source and
+<code class="inline">a.in</code> as target — and remains legal, because those
+are two terminals. What is now impossible is one terminal holding two
+contradictory positions in a single relation. If a profile has a genuine use for
+a reflexive <i>terminal</i>, it should declare that as an explicit feature with
+its own meaning, rather than receive it as an accident of a rule about
+uniqueness.</p>
 
 <h3 id="d8-derived">Cardinality is derived, and therefore never stored</h3>
 
@@ -1296,10 +1326,78 @@ Two of the corrections above make this <i>easier</i> rather than harder, which i
 worth saying plainly. Cardinality is derived, so there is no field to elide.
 Endpoints sort by role then terminal, and <code class="inline">source</code>
 precedes <code class="inline">target</code> in the enumeration — so a two-endpoint
-directed relation canonicalises in exactly the order today's
-<code class="inline">source</code>, <code class="inline">destination</code> pair
-already serialises in. The general form was chosen so that the frozen case falls
-out of it byte-for-byte, not merely semantically.</div>
+directed relation orders its endpoints exactly the way today's
+<code class="inline">src</code>, <code class="inline">dst</code> pair is already
+ordered.</div>
+
+<h3 id="d8-projection">Elision is necessary and not sufficient</h3>
+
+<p>An earlier version of the note above claimed that eliding defaulted fields
+was <i>enough</i> to preserve every published id. That is wrong, and the gap is
+not a detail. Here is what a route serialises to today, from the starter
+world's own canonical bytes:</p>
+
+<pre class="code"><code>"edges": [{"dst": "r0", "kind": "SignalWire", "src": "p0"}]</code></pre>
+
+<p>Now remove every defaulted field from the general record —
+<code class="inline">domain</code>, <code class="inline">orientation</code>,
+default <code class="inline">texture</code>, empty
+<code class="inline">attributes</code>, <code class="inline">policy</code>,
+<code class="inline">provenance</code>, and the derived cardinality that was
+never a field. Three differences survive elision, because none of them is a
+field that could be elided:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Frozen artifact</th><th>General record</th><th>Why elision cannot bridge it</th></tr></thead>
+<tbody>
+<tr><td>container <code class="inline">"edges"</code></td><td><code class="inline">"relations"</code></td><td>a key is renamed, not omitted</td></tr>
+<tr><td><code class="inline">"src"</code> / <code class="inline">"dst"</code></td><td><code class="inline">"endpoints"</code></td><td>two scalar members become one array of records; that is a change of <i>shape</i></td></tr>
+<tr><td><code class="inline">"p0"</code></td><td><code class="inline">p0.sig_out</code></td><td>the frozen form names the <b>object</b>; an endpoint names a <b>terminal</b>. Nothing is defaulted here — the general form is strictly more specific</td></tr>
+</tbody></table></div>
+
+<p>So the compatibility mechanism is not elision but a <b>legacy projection</b>:
+a normative rule that a relation meeting the frozen profile's exact shape is
+<i>encoded in the old form</i>. Stated so it can be implemented and tested:</p>
+
+<div class="note stop"><b>Normative — the ForgeSemanticArtifactV1 edge
+projection.</b> When a relation has <code class="inline">domain = signal</code>;
+<code class="inline">kind ∈ {SignalWire, SocketControl}</code>;
+<code class="inline">orientation = directed</code>; exactly one
+<code class="inline">source</code> endpoint and one
+<code class="inline">target</code> endpoint; both terminals being the ports the
+kind <i>implies</i> for their objects' roles; and no attributes, policy or
+non-default relation metadata — then the canonical encoder <b>MUST</b> emit it
+into the <code class="inline">edges</code> array as
+<code class="inline">{"kind": K, "src": S, "dst": D}</code>, where
+<code class="inline">S</code> and <code class="inline">D</code> are the
+<i>object ids</i> of the source and target terminals, and MUST NOT emit a
+<code class="inline">relations</code> key at all. Any relation failing any
+clause needs either a <code class="inline">relations</code> encoding under a new
+<code class="inline">ir_version</code>, or a fully specified extension field
+that provably cannot appear in an artifact of the frozen shape.
+<br><br>
+The clause about implied ports is what makes the projection <b>lossless in both
+directions</b>: it is exactly the condition under which
+<code class="inline">p0.sig_out</code> is recoverable from
+<code class="inline">p0</code>, because the kind and the role determine the
+terminal. Where that is not true, the old form genuinely cannot represent the
+relation, and pretending otherwise would be the actual breaking change.</div>
+
+<p>This is a testable claim rather than a promise, and it should be tested
+before D8 is called structurally closed. The golden test is a round trip with
+byte equality at the end:</p>
+
+<pre class="code"><code>frozen Edge      → canonical bytes  ─┐
+                                     ├─ MUST be byte-identical
+equivalent Relation → projection ────┘
+
+and every published sem- id, re-sealed, is unchanged</code></pre>
+
+<p>Until that test exists and passes over the full pinned corpus, the correct
+status for exact compatibility is <b>argued, not demonstrated</b> — which is
+what <a href="direction.html#falsify">falsification condition 4</a> already
+says, and this section narrows it from "can defaults be elided" to the sharper
+question of whether the projection above is total over the frozen corpus.</p>
 
 <h3 id="d8-prior">Why this shape and not another</h3>
 
