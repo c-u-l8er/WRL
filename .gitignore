@@ -1,0 +1,5 @@
+# Snapshot archives of the site itself. The repository is the artifact; a zip of
+# it is a duplicate that goes stale the moment anything changes.
+*.zip
+
+node_modules/
