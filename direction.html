@@ -544,16 +544,21 @@ from a binary directed <code class="inline">Edge</code> to a general
 specialisation.</p>
 
 <pre class="code" data-preimage="normative"><code>RelationAllocation =
-    AuthoredAllocation { world_id, authored_name }        ; present at period 0
-  | GrantedAllocation  { grant_id, local_counter }        ; attached at runtime
+    InitialRelationAllocation                            ; present at period 0
+  | GrantedAllocation { grant_id, local_counter }        ; attached at runtime
+
+InitialRelationAllocation =
+    NamedInitialAllocation { world_id, relation_name }   ; needs a surface
+  | LegacyEdgeAllocation  { world_id, kind, src, dst }   ; V1, from the seal
 
 RelationRevision   { domain, kind, endpoints, orientation,
                      texture?, attributes, policy }
 
 Endpoint { terminal, role }
 
-relation_id      = H("WRL_RELATION" ‖ "authored" ‖ world_id ‖ authored_name)
-relation_id      = H("WRL_RELATION" ‖ "granted"  ‖ grant_id ‖ local_counter)
+relation_id      = H("WRL_RELATION" ‖ "named-initial" ‖ world_id ‖ relation_name)
+relation_id      = H("WRL_RELATION" ‖ "legacy-edge" ‖ world_id ‖ kind ‖ src ‖ dst)
+relation_id      = H("WRL_RELATION" ‖ "granted" ‖ grant_id ‖ local_counter)
 current_revision = fold over the ledger prefix — derived, never stored</code></pre>
 
 <p>The split into a stable <code class="inline">relation_id</code> and a

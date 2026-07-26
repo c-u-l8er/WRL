@@ -108,6 +108,7 @@
   <a href="#d8-identity-fork">D8.4 · Non-forking allocation</a>
   <a href="#d8-identity-scope">D8.5 · Identity is world-scoped</a>
   <a href="#d8-identity-burn">D8.6 · Allocations burn on use</a>
+  <a href="#d8-kernel">D8 · What already runs</a>
   <a href="#d9">D9 · Dynamic topology</a>
   <a href="#d9-classify">D9 · Conflict classification</a>
   <a href="#d9-closure">D9.1 · Replay closure</a>
@@ -1576,27 +1577,70 @@ can be computed first. An identity scheme needs an <b>allocation source</b> that
 is prior to the event, not derived from it:</p>
 
 <pre class="code" data-preimage="normative"><code>RelationAllocation =
-    AuthoredAllocation { world_id, authored_name }        ; present at period 0
-  | GrantedAllocation  { grant_id, local_counter }        ; attached at runtime
+    InitialRelationAllocation                            ; present at period 0
+  | GrantedAllocation { grant_id, local_counter }        ; attached at runtime
 
-relation_id = H("WRL_RELATION" ‖ "authored" ‖ world_id ‖ authored_name)
-relation_id = H("WRL_RELATION" ‖ "granted"  ‖ grant_id ‖ local_counter)
+InitialRelationAllocation =
+    NamedInitialAllocation { world_id, relation_name }   ; needs a surface
+  | LegacyEdgeAllocation  { world_id, kind, src, dst }   ; V1, from the seal
 
-RelationAttached { allocation, revision_id, … }        ; full record: §D8.3 below</code></pre>
+relation_id = H("WRL_RELATION" ‖ "named-initial" ‖ world_id ‖ relation_name)
+relation_id = H("WRL_RELATION" ‖ "legacy-edge" ‖ world_id ‖ kind ‖ src ‖ dst)
+relation_id = H("WRL_RELATION" ‖ "granted" ‖ grant_id ‖ local_counter)</code></pre>
 
-<div class="note"><b>Two variants, not one overloaded record.</b> The first
+<div class="note"><b>Three variants, not one overloaded record.</b> The first
 version of this was a single <code class="inline">{ world_id, issuer, nonce }</code>
 triple, with <code class="inline">issuer</code> meaning "the world itself" at
 period 0 and a claimant at runtime. That is a tagged union wearing a flat record,
-and it hides the fact that the two cases have different <i>preconditions</i>: an
-authored name is unique by parse, a granted counter is unique by
-<a href="#d8-identity-fork">§D8.4</a>. Writing the tag makes the variant part of
-the preimage, so the two families cannot collide even if a
-<code class="inline">world_id</code> and a <code class="inline">grant_id</code>
+and it hides the fact that the cases have different <i>preconditions</i>: an
+authored name is unique by parse, a V1 edge key is unique by seal-time validation,
+a granted counter is unique by <a href="#d8-identity-fork">§D8.4</a>. Writing the
+tag makes the variant part of the preimage, so the families cannot collide even if
+a <code class="inline">world_id</code> and a <code class="inline">grant_id</code>
 ever coincided as bytes. <code class="inline">world_id</code> is absent from the
 granted form because <a href="#d8-identity-fork"><code class="inline">grant_id</code>
 already covers it</a> — restating it would be the same fact in two places,
 one line apart, in a section about not doing that.</div>
+
+<div class="note warn" data-retired-term="AuthoredAllocation"><b>The period-0 case
+was itself a hidden union, and this is the second time that defect has been found
+in the same record.</b> It was one variant,
+<code class="inline">AuthoredAllocation</code>, whose uniqueness clause read <i>the
+authored relation name, where the surface provides one; where it does not, the
+triple</i> — a disjunction inside a variant of a tagged union, which is precisely
+the shape the paragraph above congratulates itself for having removed one level
+up. The consequence was not cosmetic. A V1 artifact records only
+<code class="inline">{ kind, src, dst }</code>; it has no field for an authored
+name. Two sources naming the same edge differently would seal to identical bytes
+under one <code class="inline">sem-</code> id and still mint different
+<code class="inline">relation_id</code>s — a sealed world failing to determine its
+own future semantics, which is the one thing the seal exists to do.</div>
+
+<div class="note"><b>V1 has no writable relation names, and that is the ruling,
+not a limitation to be worked around.</b> Identity for a relation already present
+at period 0 is derived from the frozen edge key
+<code class="inline">(kind, src, dst)</code> — the only relation-distinguishing
+material the sealed artifact actually contains.
+<code class="inline">NamedInitialAllocation</code> is stated here so the eventual
+surface has a preimage waiting rather than an improvisation, and it is
+<a href="#d9-pending">registered as awaiting that surface</a>. Nothing may emit
+it until a relation name is something an author can write and a seal can carry.
+The two are separate variants rather than one parameterised case because they
+have different <i>availability</i>, and a union that hides an availability
+difference is how a name gets minted from a field that is not there.</div>
+
+<div class="note"><b>‖ is a framing, not a concatenation.</b> Three fields joined
+by an unframed separator are ambiguous the moment any of them is variable-length:
+<code class="inline">kind ‖ src ‖ dst</code> cannot tell
+<code class="inline">("ab", "c", …)</code> from
+<code class="inline">("a", "bc", …)</code>, and the legacy-edge variant is the
+first preimage on this page with three adjacent free-form strings in it. Every
+<code class="inline">‖</code> above denotes an <b>unambiguous canonical
+serialization</b> of the tagged record — the same
+<a href="#s11">§11 canonicalization</a> the artifact itself is hashed under, with
+the variant tag as a field. Read as literal concatenation these equations would be
+collision-prone by construction, and the collision would be between two relations
+in one world, which is the exact failure the tag was added to prevent.</div>
 
 <p>The cycle is broken because <code class="inline">relation_id</code> is a
 function of the allocation, and the allocation is an ordinary argument of the
@@ -1608,23 +1652,45 @@ id over a preimage that deliberately <b>excludes</b> the derived
 sentence "event identity hashes the operation and its arguments" false, and a
 rule with one silent exception is a rule that will acquire a second.</p>
 
+<p>An allocation that exists before the world runs and one that is handed out
+while it runs do not arrive by the same route, so they are not the same event:</p>
+
+<pre class="code"><code>InitialRelationDeclared   carries an InitialRelationAllocation   ; sealed, period 0
+RelationAttached          carries a  GrantedAllocation           ; proposed, at runtime
+
+; both are declared once, in §D8.3's ledger below</code></pre>
+
+<div class="note"><b>One event carrying either variant would have been an
+overload wearing a type.</b> A period-0 relation is not <i>attached</i> by
+anybody; it is present because the world was sealed with it, and there is no
+proposer, no grant and nothing to accept. Letting
+<code class="inline">RelationAttached</code> carry an
+<code class="inline">InitialRelationAllocation</code> would have given the
+attachment record a mode in which its
+<a href="#d8-identity-provenance">provenance</a> and
+<a href="#d9-transition">proposal envelope</a> are meaningless, and a record with
+a mode where half its fields do not apply is a union that was not written down.
+Splitting them also makes the milestone honest: a V1 implementation can emit
+<code class="inline">InitialRelationDeclared</code> today and cannot emit
+<code class="inline">RelationAttached</code> at all, and no field of either has to
+be left blank to say so.</div>
+
 <div class="note"><b><code class="inline">RelationAttached</code> carries the
 allocation, not both ids.</b> Carrying <code class="inline">relation_id</code>
 alongside the allocation it is computed from would put one fact in two places —
 the defect <a href="#d8-derived">§D8 rejects for cardinality</a> and
 <a href="#d8-identity-ledger">again below</a> for revision history. A validator
-computes the id from the allocation; there is nothing to disagree with. The
-<code class="inline">…</code> above is a projection, not the record: two more
-fields arrive with <a href="#d8-identity-provenance">§D8.3</a>, and the one
-place <code class="inline">RelationAttached</code> is <i>declared</i> is
-<a href="#d8-identity-ledger">below</a>. Showing part of a record is fine;
-showing two different wholes under one name is how a reader ends up
-implementing whichever they reached first.</div>
+computes the id from the allocation; there is nothing to disagree with. Neither
+line above is a record: they name which variant each event admits, and the one
+place both are <i>declared</i> is <a href="#d8-identity-ledger">below</a>. Showing
+part of a record is fine; showing two different wholes under one name is how a
+reader ends up implementing whichever they reached first.</div>
 
 <div class="tbl"><table>
 <thead><tr><th>Relation</th><th>Variant</th><th>Where uniqueness comes from</th></tr></thead>
 <tbody>
-<tr><td><b>Present at period 0</b> — authored in the sealed world</td><td><code class="inline">AuthoredAllocation</code></td><td>the <b>authored relation name</b>, where the surface provides one. Where it does not, the triple (<code class="inline">kind</code>, <code class="inline">src</code>, <code class="inline">dst</code>) — legal <i>only</i> where that triple is unique, which is the <a href="#d8-identity-cost">same precondition</a> the V1 projection already depends on. One condition, stated once, doing both jobs. Either way it is checked <b>at seal time</b>, by the validator that already walks the artifact</td></tr>
+<tr><td><b>Present at period 0</b> — named in the sealed world</td><td><code class="inline">NamedInitialAllocation</code></td><td>the <b>authored relation name</b>, unique by parse. No surface can write one yet, so nothing may emit this variant — <a href="#d9-pending">registered as awaiting a surface</a></td></tr>
+<tr><td><b>Present at period 0</b> — V1, derived from the seal</td><td><code class="inline">LegacyEdgeAllocation</code></td><td>the edge key (<code class="inline">kind</code>, <code class="inline">src</code>, <code class="inline">dst</code>), which is all the artifact records. Legal <i>only</i> where that key is unique within the world, which is the <a href="#d8-identity-cost">same precondition</a> the V1 projection already depends on — one condition, stated once, doing both jobs. Checked <b>at seal time</b>, by the validator that already walks the artifact</td></tr>
 <tr><td><b>Attached at runtime</b> — §D9 operation 3</td><td><code class="inline">GrantedAllocation</code></td><td>a counter drawn from a <b>grant</b>'s range. Two grants cannot collide whatever their ranges, because <code class="inline">grant_id</code> is in the preimage; the obligation is only that a grant is issued and never restored — <a href="#d8-identity-fork">§D8.4</a></td></tr>
 </tbody></table></div>
 
@@ -1741,6 +1807,36 @@ holder cannot collide with anyone. The only question that survives is the first,
 and it survives in weakened form: a disagreement about the clock can cause a draw
 to be <i>refused</i> or wrongly <i>admitted</i>, which is an availability and
 policy matter, and cannot make two relations share a name.</p>
+
+<div class="note warn"><b>That is an argument about consequences, and it leaves
+<code class="inline">validity</code> without a type.</b> Showing a clock
+disagreement cannot cause a collision is not the same as saying what the field
+holds. As written, an implementer could reasonably store a wall-clock instant
+read at draw time — and a replayer would then have no way to decide whether a
+draw was admissible, because that instant is nowhere in the film. A field that
+only the original run can evaluate makes replay <i>consult the environment</i>,
+which §D9.1 refuses for exactly the reason it would refuse here.</div>
+
+<div class="tbl"><table>
+<thead><tr><th>Basis for <code class="inline">validity</code></th><th>Replayable?</th></tr></thead>
+<tbody>
+<tr><td>a range of <b>logical periods</b></td><td><b>Yes</b> — the period is the ledger's own ordering, so a replayer already knows it</td></tr>
+<tr><td>a <b>clock observation admitted as an event</b></td><td><b>Yes</b> — the observation is in the ledger, so the replayer reads the same value the original run did</td></tr>
+<tr><td>an <b>authority-issued expiration event</b></td><td><b>Yes</b> — expiry becomes a fact with a position in the ledger rather than a threshold anyone must evaluate</td></tr>
+<tr><td>another basis <b>pinned by the profile</b></td><td><b>Yes, if</b> the profile is one of §D9.1's pinned references, which is what makes it recoverable from the film</td></tr>
+<tr><td>a wall-clock instant read <b>at draw time</b></td><td><b>No</b> — nothing records it, so admissibility is not a function of the film</td></tr>
+</tbody></table></div>
+
+<p><code class="inline">validity</code> is therefore <b>owed a basis</b>, and it
+is owed one before grants can be implemented rather than after. The rule stands
+unamended: expiry still carries no safety weight, and none of these bases changes
+D8.4-a. What they change is whether a <i>replayer</i> can reach the same verdict
+about a draw as the original run — and a rule whose admissibility test is
+unreplayable is one that will be enforced differently on every host without any
+of them looking wrong. The
+<a href="#d9-pending">register carries this as its own property</a>, separately
+from the rule, because it is a debt against the field rather than a doubt about
+the law.</p>
 
 <p>Three fixes come with the content address, and the third is the one that was
 actually missing. <code class="inline">grant_id</code> is now <b>named by the
@@ -1974,7 +2070,25 @@ RelationRevised  { relation_id, expected_prior_revision, next_revision,
 RelationRetired  { relation_id, expected_prior_revision,
                                              provenance, offered_evidence }</code></pre>
 
-<p>The last two fields on each are <a href="#d8-identity-provenance">§D8.3</a>:
+<p>The <code class="inline">allocation</code> on
+<code class="inline">RelationAttached</code> is a
+<code class="inline">GrantedAllocation</code> and nothing else. Relations that
+were already there when the world was sealed have their own fact, which is not an
+operation at all:</p>
+
+<pre class="code"><code>InitialRelationDeclared { allocation, revision_id }</code></pre>
+
+<p>It has no <code class="inline">provenance</code> and no
+<code class="inline">offered_evidence</code> because there was no proposer: the
+seal is the whole story of how it came to be, and a
+<code class="inline">sem-</code> id already records that story exactly. It is not
+one of the eight operations, it does not need a grant, and it cannot be refused —
+by the time any period runs it is already true. What it shares with the three
+above is the shape of its name: an allocation, and the revision that allocation
+was born holding.</p>
+
+<p>The last two fields on the operations are
+<a href="#d8-identity-provenance">§D8.3</a>:
 <code class="inline">provenance</code> records how the operation came to be
 proposed, and <code class="inline">offered_evidence</code> is what the
 <i>proposer</i> put forward to justify it. Both are arguments of the operation
@@ -2121,7 +2235,8 @@ per allocation variant</a>, sitewide.</div>
 <div class="tbl"><table>
 <thead><tr><th>Variant</th><th>How <code class="inline">world_id</code> reaches the id</th></tr></thead>
 <tbody>
-<tr><td><code class="inline">AuthoredAllocation</code></td><td><b>Directly.</b> It is a field of the allocation and a term of the hash, visible in one line</td></tr>
+<tr><td><code class="inline">NamedInitialAllocation</code></td><td><b>Directly.</b> It is a field of the allocation and a term of the hash, visible in one line</td></tr>
+<tr><td><code class="inline">LegacyEdgeAllocation</code></td><td><b>Directly</b>, the same way — which is the whole reason this variant is safe to derive from bytes the artifact already holds. The edge key alone would be world-portable, and a relation id that survives being moved into another world is a migration nobody wrote</td></tr>
 <tr><td><code class="inline">GrantedAllocation</code></td><td><b>Transitively</b>, through <code class="inline">grant_id</code> — which is the content address of an <a href="#d8-identity-fork"><code class="inline">AllocationGrant</code></a> whose first field is <code class="inline">world_id</code>. The same grant issued in a second world is a different grant with a different id, so a granted relation id cannot leave its world either</td></tr>
 </tbody></table></div>
 
@@ -2405,11 +2520,121 @@ it, and records which capabilities it waits on:</p>
 [<span class="kw">load</span>:<span class="id">r1</span>](<span class="lit">ohms=470</span>){<span class="rt">pin</span>}
 <span class="kw">relation</span> electrical.node <span class="lit">acausal</span> {<span class="id">n1</span>.pin, <span class="id">vcc</span>.pin, <span class="id">r1</span>.pin}</code></pre>
 
+<h3 id="d8-kernel">The part of this that already runs<span class="draft">draft design · running implementation</span></h3>
+
+<p>Everything above is design. This subsection is not: it records what a
+working implementation established, and it is here because four rows of the
+register below stopped saying <i>awaiting</i> because of it.</p>
+
+<p>The obstacle was that §D8.1 mints a relation's identity from an authored
+name, and <b>V1 has no way to write one</b>. A frozen artifact's edge is
+exactly <code class="inline">{kind, src, dst}</code>. So an implementation that
+invented names would have two sources sealing to the <i>same</i>
+<code class="inline">sem-</code> id while producing <i>different</i>
+<code class="inline">relation_id</code>s — and a sealed world that does not
+determine its own future semantics is the one thing <code class="inline">sem-</code>
+exists to prevent. The resolution is not to wait for a surface. It is
+<code class="inline">LegacyEdgeAllocation</code>: for a world sealed under
+<code class="inline">ir_version 1.0</code>, a relation's name <b>is</b> its
+frozen edge key, and nothing about that requires new syntax.</p>
+
+<p>The implementation lives in <code class="inline">relation-identity.js</code>,
+which imports <code class="inline">wrl.js</code>. The direction is the
+guarantee, not a convention: the spine has no way to reach the derived view, so
+no <code class="inline">rel-</code> or <code class="inline">rev-</code> value can
+enter a <code class="inline">sem-</code> preimage by accident. The suite checks
+that both pinned fixtures seal <b>byte-identically</b> through the kernel and
+through <code class="inline">sealWorld</code>, because a marker reading
+<i>non-canonical</i> is a claim and byte equality is a fact.</p>
+
+<h4 id="d8-kernel-partition">Two of seven fields are the name</h4>
+
+<p>The interesting result was not planned. §D8.1 says a relation's identity
+survives its revision changing; tested by mutating one field and observing
+stability, that is nearly vacuous, since the id is minted from an allocation
+that need never have touched a revision at all. So the test routes the revision
+<i>through</i> the V1 projection — the only path by which revision content can
+reach a V1 identity — mutates every field in turn, and classifies what
+happened. The result has to be a <b>total</b> partition of the field set: a
+subset check is how an eighth field that quietly names a relation would get
+in.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Fields</th><th>Effect on <code class="inline">relation_id</code></th><th>What that means</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">kind</code>, <code class="inline">endpoints</code></td><td><b>moves it</b></td><td>these two <i>are</i> the name in V1</td></tr>
+<tr><td><code class="inline">domain</code>, <code class="inline">policy</code></td><td>free</td><td>may change without touching identity — this is §D8.1's live content</td></tr>
+<tr><td><code class="inline">orientation</code>, <code class="inline">texture</code>, <code class="inline">attributes</code></td><td>no V1 form</td><td>a relation carrying any of these cannot be projected to a V1 edge at all</td></tr>
+</tbody></table></div>
+
+<p>The third row is the one worth reading twice. It is not an implementation
+gap; it is the price of §D8 stated numerically. Three of the seven fields a
+relation revision carries have <b>no expression whatsoever</b> in a frozen V1
+artifact — so §D8's richer relation is not today's edge plus some unwritten
+extras. It is a record most of whose interesting content is inexpressible until
+the artifact version moves. <a href="#d8-identity-cost">§D8's cost note</a>
+argued that qualitatively. This is the count.</p>
+
+<p>A matched pair falls out of the same seam, and neither half means much
+alone. The same edge key in two different worlds yields two <b>different</b>
+<code class="inline">relation_id</code>s (§D8.5 — two worlds' relations are not
+the same relation), while the same relation <i>structure</i> in two different
+worlds yields the <b>same</b> <code class="inline">revision_id</code> (§D8.3 —
+which world described it is provenance, and provenance rides the event, not the
+value). Checked separately, either would pass on a build that had accidentally
+fed both hashes the same input, so they are asserted together on the same
+edge.</p>
+
+<h4 id="d8-kernel-duplicate">A miscount where there should be a name clash</h4>
+
+<p>Writing one relation twice is refused today, and refused for the wrong
+reason. The block below is a complete world, and its annotation records what
+the <i>published spine</i> currently says about it:</p>
+
+<pre class="code" data-reject="WRL_CONTROLLER_CONFLICT"><code><span class="kw">profile</span> forge.world.core.v1
+
+[<span class="kw">pulser</span>:<span class="id">p0</span>](<span class="lit">every 2</span>){<span class="rt">sig_out</span>}
+[<span class="kw">relay</span>:<span class="id">r0</span>]{<span class="rt">sig_in</span>, <span class="rt">sig_out</span>}
+
+<span class="cm">; the same relation, written twice</span>
+[<span class="id">p0</span>] <span class="rt">--sig--&gt;</span> [<span class="id">r0</span>]
+[<span class="id">p0</span>] <span class="rt">--sig--&gt;</span> [<span class="id">r0</span>]</code></pre>
+
+<p><code class="inline">r0 has 2 signal-wire inputs (a node admits one)</code>
+is true of the lowered graph and useless to whoever wrote it. There is one
+input, written twice, and the author is now looking for a second wire that does
+not exist. Under §D8 the failure is sharper than a miscount: these are
+<b>two relations whose only available name is the same name</b>, so no later
+revision could say which one it meant. The kernel reports
+<code class="inline">WRL_DUPLICATE_RELATION_KEY</code>, and the ordering is the
+substance — the census runs before <code class="inline">graphToIr</code>, which
+is where the controller count lives. The suite asserts <i>both</i> answers, so
+if the spine ever adopts the better one this annotation goes red and this
+passage gets corrected rather than quietly outliving its subject.</p>
+
+<div class="note"><b>What is deliberately still pending.</b> Nothing in the
+kernel mints a grant, schedules a transition, or survives a crash. §D8.4 and
+§D8.6 stay <i>awaiting</i> in the register below, at the
+<code class="inline">runtime</code> layer, and so does every §D9 row. A rule is
+settled when a check can falsify <i>it</i>; handing a pending row a check that
+tests something adjacent and easier is how a register becomes decoration.</div>
+
 <h3 id="d8-owes">What D8 owes before it can ship</h3>
 
 <ol>
 <li><b>A canonical form</b> that leaves every existing <code class="inline">sem-</code> id where it is (the note above).</li>
-<li><b>An allocation surface and its validator.</b> The minting rule is now specified (<a href="#d8-identity-mint">§D8.1</a>), but two things it depends on are not: a way to <i>write</i> an authored relation name in the surface, and a validator that enforces the V1 projection's precondition — that (<code class="inline">kind</code>, <code class="inline">src</code>, <code class="inline">dst</code>) is unique within any artifact encoded as <code class="inline">ir_version 1.0</code>. Without that check, the first genuine multigraph world silently seals as something it is not.</li>
+<li><b>An allocation surface.</b> The minting rule is specified (<a href="#d8-identity-mint">§D8.1</a>) and, for period-0 relations, <a href="#d8-kernel">implemented</a>. What is still missing is a way to <i>write</i> an authored relation name, which is why <code class="inline">NamedInitialAllocation</code> exists in the preimage block and is refused by the implementation.
+<div class="note">This item used to also demand a validator enforcing that
+(<code class="inline">kind</code>, <code class="inline">src</code>,
+<code class="inline">dst</code>) is unique within an
+<code class="inline">ir_version 1.0</code> artifact, warning that without it
+"the first genuine multigraph world silently seals as something it is not."
+That validator now exists:
+<a href="#d8-kernel-duplicate"><code class="inline">WRL_DUPLICATE_RELATION_KEY</code></a>.
+The warning was also wrong in a detail worth keeping — such a world never
+sealed silently. It was <i>refused</i>, as a controller miscount, which is
+arguably worse than silence: a wrong diagnostic sends the author somewhere
+there is nothing to find.</div></li>
 <li><b>An attribute type system.</b> <code class="inline">capacity=3</code> is meaningless without a unit and a range. This is the same requirement as typed ports (§D2), and neither should ship without the other.</li>
 <li><b>Terminal-level validation.</b> Single-writer becomes a property of a terminal rather than a global law, so validation must move with it: an owned terminal with two <code class="inline">source</code> endpoints reaching it is still an error, and must still be caught before the seal. A terminal declaring <code class="inline">resolved(f)</code> is the one exemption, and the exemption is visible on the terminal.</li>
 <li><b>A well-formedness rule per orientation.</b> Roles and orientation can contradict each other and the checker must say so: <code class="inline">directed</code> requires at least one <code class="inline">source</code> and at least one <code class="inline">target</code> and admits no other role; <code class="inline">symmetric</code> admits only <code class="inline">peer</code>; <code class="inline">acausal</code> admits only <code class="inline">terminal</code> and carries no texture. Each violation needs its own code.</li>
@@ -2489,7 +2714,7 @@ topology operations is an open set of ways for two hosts to disagree.</p>
 <tbody>
 <tr><td>1</td><td><b>create identity</b></td><td>adds an object with a role, config and ports</td><td><code class="inline">IdentityCreated</code></td></tr>
 <tr><td>2</td><td><b>retire identity</b></td><td>marks an object non-participating; its history stays addressable</td><td><code class="inline">IdentityRetired</code></td></tr>
-<tr><td>3</td><td><b>attach relation</b></td><td>adds a relation over existing terminals (§D8), minting its <code class="inline">relation_id</code> from a claimant-owned <a href="#d8-identity-mint">allocation</a></td><td><code class="inline">RelationAttached { allocation, revision_id, … }</code></td></tr>
+<tr><td>3</td><td><b>attach relation</b></td><td>adds a relation over existing terminals (§D8), minting its <code class="inline">relation_id</code> from a claimant-owned <a href="#d8-identity-mint">granted allocation</a></td><td><code class="inline">RelationAttached { allocation, revision_id, … }</code></td></tr>
 <tr><td>4</td><td><b>detach relation</b></td><td>ends a relation's participation; the id stays addressable</td><td><code class="inline">RelationRetired { relation_id, expected_prior_revision }</code></td></tr>
 <tr><td>5</td><td><b>replace relation attributes</b></td><td>changes capacity, cost, latency … without changing endpoints <i>or</i> the <code class="inline">relation_id</code> (<a href="#d8-identity">§D8.1</a>)</td><td><code class="inline">RelationRevised { relation_id, expected_prior_revision, next_revision }</code></td></tr>
 <tr><td>6</td><td><b>transfer ownership</b></td><td>moves an owned terminal's single writer from one identity to another, atomically — no period has zero writers or two</td><td><code class="inline">OwnershipTransferred</code></td></tr>
@@ -2983,16 +3208,34 @@ followed.</div>
 
 <h4 id="d9-identity-stack">The identity stack these rules add up to</h4>
 
-<p>Six sections have each introduced a name, and the reason it is not six ways of
-saying one thing is that each answers a question none of the others can:</p>
+<p>The stack is seven layers, and only <b>five</b> of them are new. The other
+<b>two</b> are frozen, which is what makes this a chain rather than a proposal:
+§8's acceptance receipt and §8b's film were settled before any of these rules
+existed, and §D8 and §D9 build between and beneath them without the standing to
+renegotiate either end. The reason the five new names are not five ways of saying
+one thing is that each answers a question none of the others can:</p>
 
-<pre class="code"><code>AllocationGrant       authorizes a namespace
+<pre class="code" data-identity-stack><code>AllocationGrant       authorizes a namespace
 RelationAllocation    selects one name within that namespace
 RelationBirthKey      binds that name to one semantic birth
 ScheduledTransition   proposes when that birth becomes effective
 ProposalEvent         records who proposed it, and with what evidence
-AcceptanceReceipt     records why the world accepted or refused it
-Film                  closes the complete replay-visible history</code></pre>
+acceptance receipt    records why the world accepted or refused it    ; §8  frozen
+Film                  closes the complete replay-visible history      ; §8b frozen</code></pre>
+
+<div class="note warn"><b>The seventh name was found by a check, and it was not
+a miscount.</b> This paragraph read <i>"Six sections have each introduced a
+name"</i> above a block listing seven, and the review caught it where no
+instrument could — a number stated in prose is invisible to every reader on this
+page. The obvious repair was to write <i>seven</i>. The check written to hold the
+sentence against the block then failed on something else entirely:
+<code class="inline">AcceptanceReceipt</code> appeared in the summary having been
+minted nowhere — a CamelCase record coined on the spot for something §8 already
+owns and spells <i>acceptance receipt</i>. The fix was not to introduce the name
+properly; it was to stop introducing it, which is why one line of this block is
+deliberately not in the shape of the others. Two of the seven were never these
+sections' to name, and writing <i>six</i> was an attempt to say so without
+admitting which.</div>
 
 <p>Read downward it is an authority chain, and read upward it is a provenance
 chain. The test for whether a layer is redundant is whether removing it forces
@@ -3006,41 +3249,73 @@ to find out</i>, and D9.1's own opening sentence ruled against it.</p>
 
 <h4 id="d9-pending">What has to be proved when this becomes writable</h4>
 
-<p>None of §D8 or §D9 has a writable surface, so none of it is executable, and a
-draft rule that is never reduced to a falsifiable property is a rule that will be
-quietly reinterpreted instead. The register below is the decisive battery: each
-row states a property, names the rule it would falsify, and declares whether it
-runs today. A row may not claim to run without naming a check that exists.</p>
+<p>A draft rule that is never reduced to a falsifiable property is a rule that will
+be quietly reinterpreted instead. The register below is the decisive battery:
+each row states a property, names the rule it would falsify, and declares two
+things that are easy to confuse — <b>which layer</b> the property lives at, and
+<b>whether a check for it runs today</b>. A row may not claim to run without
+naming a check that exists.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Layer</th><th>What it settles</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">model</code></td><td>the semantic layer: what an identity <i>is</i>, provable from sealed structure alone</td></tr>
+<tr><td><code class="inline">surface</code></td><td>needs syntax an author can write that does not exist yet</td></tr>
+<tr><td><code class="inline">runtime</code></td><td>needs a running world: grants, proposals, acceptance, crash and restart</td></tr>
+<tr><td><code class="inline">film</code></td><td>needs the recorded artifact: closure, packaging, rehydration</td></tr>
+</tbody></table></div>
+
+<p>The two axes are independent, and keeping them apart is not bookkeeping. Every
+row of this register once read <i>awaiting surface</i>, which quietly asserted
+that nothing here could be tested until syntax landed — and that is false for the
+whole <code class="inline">model</code> layer, where identity is determined by
+structure that is <i>already</i> sealed. Collapsing the axes would have pushed
+the next milestone toward inventing syntax when the semantic model was the part
+still unproved.</p>
+
+<p>That is not hypothetical. Separating the axes is what produced
+<a href="#d8-kernel">the kernel</a>, and the <code class="inline">model</code>
+layer is now <b>empty of debt</b>: four rows run. The suite enforces that as a
+ratchet rather than a milestone — settling a model-layer property lowers the
+permitted count, and a <i>new</i> model row therefore has to arrive already
+executable. The severity is the point. The model layer is defined as the layer
+with no external blocker, so a model row saying <i>awaiting</i> is saying
+"nobody wrote it" in language that sounds like "nobody could" — and that
+substitution is the entire failure this register exists to catch.</p>
 
 <div class="tbl" data-pending-register="identity-stack"><table>
-<thead><tr><th>Property</th><th>Expected result</th><th>Falsifies</th></tr></thead>
+<thead><tr><th>Property</th><th>Expected result</th><th>Falsifies</th><th>Layer · status</th></tr></thead>
 <tbody>
-<tr data-pending-law="revision-does-not-move-relation-id" data-pending-for="D8.1" data-pending-status="awaiting-surface"><td>a relation is revised, repeatedly</td><td><code class="inline">relation_id</code> is <b>unchanged</b>; only the revision id moves</td><td><a href="#d8-identity-mint">D8.1</a></td></tr>
-<tr data-pending-law="revision-references-no-other-revision" data-pending-for="D8.2" data-pending-status="awaiting-surface"><td>a <code class="inline">RelationRevision</code> carrying a pointer to its predecessor</td><td><b>refused</b> — lifecycle has one home, and it is the ledger</td><td><a href="#d8-derived">D8.2</a></td></tr>
-<tr data-pending-law="provenance-does-not-move-revision-id" data-pending-for="D8.3" data-pending-status="awaiting-surface"><td>identical revision content, different <code class="inline">provenance</code></td><td>the <b>same</b> revision id — provenance rides the event, not the value</td><td><a href="#d8-identity-provenance">D8.3</a></td></tr>
-<tr data-pending-law="overlapping-grants-do-not-collide" data-pending-for="D8.4" data-pending-status="awaiting-surface"><td>two grants issued with <i>overlapping</i> <code class="inline">counter_range</code>, both drawn from</td><td><b>no collision</b> — distinct <code class="inline">grant_id</code> is in the preimage, so this is the case allocator mutual exclusion was thought to be needed for</td><td><a href="#d8-identity-fork">D8.4</a></td></tr>
-<tr data-pending-law="same-name-different-world-differs" data-pending-for="D8.5" data-pending-status="awaiting-surface"><td>the same authored name in two sealed worlds</td><td>two <b>different</b> <code class="inline">relation_id</code>s, and no migration implied between them</td><td><a href="#d8-identity-scope">D8.5</a></td></tr>
-<tr data-pending-law="different-birth-same-allocation-collides" data-pending-for="D8.6" data-pending-status="awaiting-surface"><td>same allocation, different initial revision</td><td><b>allocation collision</b>, deterministically</td><td><a href="#d8-identity-burn">D8.6</a></td></tr>
-<tr data-pending-law="reservation-survives-crash" data-pending-for="D8.6" data-pending-status="awaiting-surface"><td>local reservation, crash, restart</td><td>the <i>same</i> allocation and birth key are retried, never a fresh counter</td><td><a href="#d8-identity-burn">D8.6</a></td></tr>
-<tr data-pending-law="unpinned-reference-is-refused" data-pending-for="D9.1" data-pending-status="awaiting-surface"><td>a package whose reference resolves only through a service it does not pin</td><td><b>refused</b> — replay must not depend on a contract the package never stated</td><td><a href="#d9-closure">D9.1</a></td></tr>
-<tr data-pending-law="birth-key-survives-rescheduling" data-pending-for="D9.2" data-pending-status="awaiting-surface"><td>same birth proposed at period 20 and at period 21</td><td>same <code class="inline">RelationBirthKey</code>, different <code class="inline">ScheduledTransition</code></td><td><a href="#d9-transition">D9.2</a></td></tr>
-<tr data-pending-law="evidence-does-not-fork-structure" data-pending-for="D9.2" data-pending-status="awaiting-surface"><td>same schedule, different <code class="inline">offered_evidence</code></td><td>one structural candidate, two proposal envelopes</td><td><a href="#d9-transition">D9.2</a></td></tr>
-<tr data-pending-law="pack-rehydrates-byte-identically" data-pending-for="D9.3" data-pending-status="awaiting-surface"><td>transport pack plus object store</td><td>rehydrates to a <b>byte-identical</b> canonical film</td><td><a href="#d9-object-table">D9.3</a></td></tr>
-<tr data-pending-law="missing-object-is-never-a-film" data-pending-for="D9.3" data-pending-status="awaiting-surface"><td>a closure object is absent</td><td>an incomplete package — <b>never</b> a valid film</td><td><a href="#d9-object-table">D9.3</a></td></tr>
-<tr data-pending-law="schedule-carries-no-meaning" data-pending-for="D9.4" data-pending-status="awaiting-surface"><td>a value that depends on the activation period, left implicit in the schedule</td><td><b>refused</b> — two schedules must not share a birth key while meaning different things</td><td><a href="#d9-schedule">D9.4</a></td></tr>
-<tr data-pending-law="re-execution-claim-needs-the-code" data-pending-for="D9.5" data-pending-status="awaiting-surface"><td>a film claims a derivation is re-execution-complete but omits its implementation</td><td><b>refused</b> — replay-complete is the most it may advertise</td><td><a href="#d9-effect-wall">D9.5</a></td></tr>
+<tr data-pending-law="revision-does-not-move-relation-id" data-pending-for="D8.1" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/only-the-key-names-the-relation"><td>every field of a revision mutated in turn, and the id re-derived through the projection</td><td>only <code class="inline">kind</code> and <code class="inline">endpoints</code> move <code class="inline">relation_id</code>; <code class="inline">domain</code> and <code class="inline">policy</code> are <b>free</b>; the other three have no V1 form at all</td><td><a href="#d8-identity-mint">D8.1</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="revision-references-no-other-revision" data-pending-for="D8.2" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/revision-has-no-backpointer"><td>a <code class="inline">RelationRevision</code> carrying a pointer to its predecessor</td><td><b>refused</b> as <code class="inline">WRL_REVISION_BACKPOINTER</code> — lifecycle has one home, and it is the ledger</td><td><a href="#d8-derived">D8.2</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="provenance-does-not-move-revision-id" data-pending-for="D8.3" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/revision-id-is-world-independent"><td>the same relation structure sealed into two <i>different</i> worlds</td><td>the <b>same</b> revision id — which world described it is provenance, and provenance rides the event, not the value</td><td><a href="#d8-identity-provenance">D8.3</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="overlapping-grants-do-not-collide" data-pending-for="D8.4" data-pending-status="awaiting" data-pending-stage="runtime"><td>two grants issued with <i>overlapping</i> <code class="inline">counter_range</code>, both drawn from</td><td><b>no collision</b> — distinct <code class="inline">grant_id</code> is in the preimage, so this is the case allocator mutual exclusion was thought to be needed for</td><td><a href="#d8-identity-fork">D8.4</a></td><td class="stage">runtime · awaiting</td></tr>
+<tr data-pending-law="same-name-different-world-differs" data-pending-for="D8.5" data-pending-status="awaiting" data-pending-stage="surface"><td>the same authored name in two sealed worlds</td><td>two <b>different</b> <code class="inline">relation_id</code>s, and no migration implied between them</td><td><a href="#d8-identity-scope">D8.5</a></td><td class="stage">surface · awaiting</td></tr>
+<tr data-pending-law="same-edge-key-different-world-differs" data-pending-for="D8.5" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/relation-id-is-world-scoped"><td>the same <code class="inline">(kind, src, dst)</code> edge key in two sealed worlds</td><td>two <b>different</b> <code class="inline">relation_id</code>s — and the <i>same</i> revision id, because identity is world-scoped and description is not</td><td><a href="#d8-identity-scope">D8.5</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="different-birth-same-allocation-collides" data-pending-for="D8.6" data-pending-status="awaiting" data-pending-stage="runtime"><td>same allocation, different initial revision</td><td><b>allocation collision</b>, deterministically</td><td><a href="#d8-identity-burn">D8.6</a></td><td class="stage">runtime · awaiting</td></tr>
+<tr data-pending-law="grant-validity-has-a-replayable-basis" data-pending-for="D8.4" data-pending-status="awaiting" data-pending-stage="runtime"><td>a grant whose <code class="inline">validity</code> is evaluated against something the film does not record</td><td><b>refused</b> — a replayer must reach the same verdict about a draw as the original run</td><td><a href="#d8-identity-fork">D8.4</a></td><td class="stage">runtime · awaiting</td></tr>
+<tr data-pending-law="reservation-survives-crash" data-pending-for="D8.6" data-pending-status="awaiting" data-pending-stage="runtime"><td>local reservation, crash, restart</td><td>the <i>same</i> allocation and birth key are retried, never a fresh counter</td><td><a href="#d8-identity-burn">D8.6</a></td><td class="stage">runtime · awaiting</td></tr>
+<tr data-pending-law="unpinned-reference-is-refused" data-pending-for="D9.1" data-pending-status="awaiting" data-pending-stage="film"><td>a package whose reference resolves only through a service it does not pin</td><td><b>refused</b> — replay must not depend on a contract the package never stated</td><td><a href="#d9-closure">D9.1</a></td><td class="stage">film · awaiting</td></tr>
+<tr data-pending-law="birth-key-survives-rescheduling" data-pending-for="D9.2" data-pending-status="awaiting" data-pending-stage="runtime"><td>same birth proposed at period 20 and at period 21</td><td>same <code class="inline">RelationBirthKey</code>, different <code class="inline">ScheduledTransition</code></td><td><a href="#d9-transition">D9.2</a></td><td class="stage">runtime · awaiting</td></tr>
+<tr data-pending-law="evidence-does-not-fork-structure" data-pending-for="D9.2" data-pending-status="awaiting" data-pending-stage="runtime"><td>same schedule, different <code class="inline">offered_evidence</code></td><td>one structural candidate, two proposal envelopes</td><td><a href="#d9-transition">D9.2</a></td><td class="stage">runtime · awaiting</td></tr>
+<tr data-pending-law="pack-rehydrates-byte-identically" data-pending-for="D9.3" data-pending-status="awaiting" data-pending-stage="film"><td>transport pack plus object store</td><td>rehydrates to a <b>byte-identical</b> canonical film</td><td><a href="#d9-object-table">D9.3</a></td><td class="stage">film · awaiting</td></tr>
+<tr data-pending-law="missing-object-is-never-a-film" data-pending-for="D9.3" data-pending-status="awaiting" data-pending-stage="film"><td>a closure object is absent</td><td>an incomplete package — <b>never</b> a valid film</td><td><a href="#d9-object-table">D9.3</a></td><td class="stage">film · awaiting</td></tr>
+<tr data-pending-law="schedule-carries-no-meaning" data-pending-for="D9.4" data-pending-status="awaiting" data-pending-stage="runtime"><td>a value that depends on the activation period, left implicit in the schedule</td><td><b>refused</b> — two schedules must not share a birth key while meaning different things</td><td><a href="#d9-schedule">D9.4</a></td><td class="stage">runtime · awaiting</td></tr>
+<tr data-pending-law="re-execution-claim-needs-the-code" data-pending-for="D9.5" data-pending-status="awaiting" data-pending-stage="film"><td>a film claims a derivation is re-execution-complete but omits its implementation</td><td><b>refused</b> — replay-complete is the most it may advertise</td><td><a href="#d9-effect-wall">D9.5</a></td><td class="stage">film · awaiting</td></tr>
 </tbody></table></div>
 
 <div class="note"><b>The register is checked, which is the only reason to write
 one.</b> The suite verifies that every row names a rule this page actually
 states, that no two rows share a name, and — the row that matters — that a row
-declaring itself executable names a check that <i>ran</i>. Without that last
-condition the table would be free to mark itself green as the surface lands,
-which is precisely the drift every other instrument on this page exists to
-prevent. Today <b>every</b> row reads
-<code class="inline">awaiting-surface</code>, and the honest claim is that these
-are the properties that would settle the rules, not that anything has settled
-them.</div>
+declaring itself executable names a check that <i>ran</i> — and that a row
+declaring itself awaiting names <i>no</i> live check. Without the first condition
+the table could mark itself green as the surface lands, which is precisely the
+drift every other instrument on this page exists to prevent. Without the second,
+a property could be quietly settled and left advertised as open, which understates
+the page in the one direction nobody audits. The printed
+<code class="inline">layer · status</code> is checked against the machine-readable
+attributes too, because a table that says one thing to a reader and another to the
+suite is worse than no table.</div>
 
 <div class="note warn"><b>Six of these rows exist because the check demanded
 them, not because I thought of them.</b> The register began with the eight

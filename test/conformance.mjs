@@ -898,9 +898,19 @@ for (const cap of REGISTRY.keys()) {
  * mint different ids for the same relation and neither page would be visibly
  * wrong. So the summary's equations must appear verbatim in the spec. */
 {
-  const eq = (file) => [...readFileSync(join(ROOT, file), "utf8")
-    .matchAll(/^\s*(relation_id\s*=\s*H\(.*)$/gm)]
-    .map((m) => m[1].replace(/\s+/g, " ").trim());
+  /* Strip tags before reading lines, for the same reason the census below
+   * does. A raw line match is wrong at both ends of a <pre><code> block: an
+   * equation on the first line is preceded by markup and is silently SKIPPED,
+   * and an equation on the last line carries </code></pre> into the compared
+   * text and reports drift that is not there. This reader hit the second the
+   * moment a block stopped ending with something other than an equation --
+   * which is to say it was always going to, and only the first has the
+   * failure mode nobody notices. */
+  const eq = (file) => readFileSync(join(ROOT, file), "utf8")
+    .replace(/<[^>]*>/g, "\n")
+    .split("\n")
+    .map((l) => l.replace(/\s+/g, " ").trim())
+    .filter((l) => /^relation_id\s*=\s*H\(/.test(l));
 
   const inSpec = new Set(eq("spec.html"));
   const inDir = eq("direction.html");
@@ -997,16 +1007,24 @@ for (const cap of REGISTRY.keys()) {
    * time a third allocation source is added -- and drift silently, in the
    * direction of not checking the new one. */
   const specSrc = readFileSync(join(ROOT, "spec.html"), "utf8");
+
+  /* The tag is the variant name in kebab case: NamedInitialAllocation is
+   * tagged "named-initial". A plain toLowerCase() was enough while every
+   * variant was one word, and would have silently derived "namedinitial" --
+   * matching no equation, so `one-normative-preimage-per-variant` would have
+   * reported zero and the failure would have read as a missing rule rather
+   * than as this reader being wrong. */
+  const kebab = (s) => s.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
   const variants = [...new Set(
     [...specSrc.matchAll(/\b([A-Z]\w*)Allocation\s*\{/g)]
       .map((m) => m[1])
       .filter((v) => v !== "Relation")
-      .map((v) => v.toLowerCase()))];
+      .map(kebab))];
 
-  ok("identity/allocation-variants-are-declared", variants.length >= 2,
+  ok("identity/allocation-variants-are-declared", variants.length >= 3,
      `spec.html declares ${variants.length} allocation variant(s) ` +
-     `(${variants.join(", ") || "none"}); D8.1 states two, so either the union ` +
-     `was reshaped or this reader stopped matching it.`);
+     `(${variants.join(", ") || "none"}); D8.1 states three, so either the ` +
+     `union was reshaped or this reader stopped matching it.`);
 
   ok("identity/normative-preimages-name-a-variant",
      normative.every((e) => variants.filter((v) => e.text.includes(`"${v}"`)).length === 1),
@@ -1571,14 +1589,524 @@ for (const [id, entries] of futurePairs) {
   }
 }
 
-/* ============================================ 21. the pending-battery register
+/* ============================================ 21. the relation identity kernel
  *
- * §D8 and §D9 have no writable surface, so their rules cannot be executed --
- * and an unexecutable rule is the one kind this page has repeatedly shown it
- * will reinterpret rather than break loudly. The register names the properties
- * that would settle each rule. These checks keep it from becoming decoration:
- * a row has to name a rule that is really stated, names have to be unique, and
- * a row that claims to run has to name a check that really ran.
+ * The first executable content of §D8. Everything here is derived from worlds
+ * that are ALREADY SEALED -- V1 artifacts carry no authored relation name, so
+ * a period-0 relation's only name is its frozen `(kind, src, dst)` edge key.
+ * That is a ruling, not a shortcut: any scheme that let two sources with the
+ * same artifact bytes produce different relation ids would mean the sealed
+ * world did not determine its own future semantics, which is the one thing
+ * `sem-` is for.
+ *
+ * The kernel lives in its own module and imports `wrl.js`; `wrl.js` does not
+ * import it. That direction is the guarantee. A derived, non-canonical view
+ * that is not in the artifact bytes cannot become any of those things by
+ * accident if the frozen spine has no way to reach it.
+ *
+ * These checks are what let four register rows below stop saying `awaiting`.
+ * They are deliberately not the whole of §D8: nothing here mints a grant,
+ * schedules a transition or survives a crash, and the rows for those stay
+ * pending rather than being handed a check that tests something easier. */
+{
+  const s = await import("../relation-identity.js");
+
+  const worlds = { starter: W.STARTER_WORLD, demo: W.DEMO_WORLD };
+  const sealed = {};
+
+  /* -- compatibility. The kernel re-runs the spine's pipeline in order to
+   *    interpose one census between canonicalization and lowering. If that
+   *    interposition moved a single byte, every id on this site would be
+   *    wrong, and the derived view would be worth nothing. This is checked
+   *    first because nothing after it means anything if it fails. */
+  for (const [name, src] of Object.entries(worlds)) {
+    const base = await W.sealWorld(src);
+    const kern = await s.sealWithRelations(src);
+    sealed[name] = kern;
+    ok(`relation/${name}/seal-is-byte-identical`,
+       kern.ok && base.ok && kern.bytes === base.bytes &&
+       kern.semanticId === base.semanticId,
+       !kern.ok ? `the kernel refused a fixture the spine seals: ${kern.code}`
+       : `the kernel's ${name} world seals to ${kern.semanticId}, the spine's ` +
+         `to ${base.semanticId}. A derived view that perturbs what it derives ` +
+         `from is not a view.`);
+  }
+
+  /* Everything below reads a sealed fixture's artifact. If the compatibility
+   * check above failed, those fixtures are diagnostics rather than worlds, and
+   * a suite that dereferences them dies with a TypeError instead of reporting
+   * the failure it already found. A test file that crashes on its own red is
+   * the worst instrument on this page: it turns a named, legible failure into
+   * a stack trace, and takes every check after it down unnamed. */
+  if (!(sealed.starter?.ok && sealed.demo?.ok)) {
+    ok("relation/fixtures-are-sealable", false,
+       `the kernel refused a pinned fixture, so §D8's battery could not run. ` +
+       `Its checks below are not passing -- they did not execute.`);
+  } else {
+
+  /* -- the projection round trip. A relation revision is a richer record than
+   *    a V1 edge, so the claim that V1 edges ARE relations is only honest if
+   *    the enrichment is lossless in the direction that matters: every edge
+   *    the spine sealed has to come back out of its revision as the same
+   *    bytes, not as an equivalent-looking record. */
+  for (const [name, kern] of Object.entries(sealed)) {
+    if (!kern.ok) continue;
+    const wrong = kern.artifact.edges.filter((edge) => {
+      const back = s.projectRelationRevisionToV1Edge(
+        s.edgeToRelationRevision(kern.artifact, edge));
+      return W.serializeArtifact(back) !== W.serializeArtifact(edge);
+    });
+    ok(`relation/${name}/every-edge-projects-back-exactly`,
+       kern.artifact.edges.length > 0 && wrong.length === 0,
+       wrong.length
+         ? `${wrong.length} edge(s) did not survive the round trip, e.g. ` +
+           W.serializeArtifact(wrong[0])
+         : `the ${name} world has no edges, so this proves nothing`);
+  }
+
+  /* -- §D8.1, as a census rather than a spot check.
+   *
+   * D8.1 says a relation's identity does not move when its revision changes.
+   * Tested by mutating one field and looking for stability, that is nearly
+   * vacuous -- the id is minted from an allocation, and an allocation the
+   * check builds by hand need never have touched a revision at all. So the
+   * revision is routed THROUGH the projection, which is the only path by
+   * which revision content can reach a V1 identity, and then every field of
+   * the revision is mutated in turn and classified by what happened.
+   *
+   * The result has to be a TOTAL partition of the declared field set. A
+   * subset check would let a new field appear unclassified, which is exactly
+   * how a field that quietly names a relation would get in. */
+  {
+    const kern = sealed.starter;
+    const edge = kern.artifact.edges[0];
+    const base = s.edgeToRelationRevision(kern.artifact, edge);
+    const idOf = async (rev) => s.relationIdFromAllocation(
+      s.legacyEdgeAllocation(kern.semanticId,
+                             s.projectRelationRevisionToV1Edge(rev)));
+    const baseId = await idOf(base);
+
+    /* one mutation per field, each the smallest change that is still a change */
+    const MUTATE = {
+      domain:      (r) => ({ ...r, domain: "other.profile.v1" }),
+      kind:        (r) => ({ ...r, kind: "SocketControl",
+                             endpoints: [{ terminal: r.endpoints[0].terminal, role: "socket" },
+                                         { terminal: r.endpoints[1].terminal, role: "pose" }] }),
+      endpoints:   (r) => ({ ...r, endpoints: [{ ...r.endpoints[0], terminal: "zz" },
+                                               r.endpoints[1]] }),
+      orientation: (r) => ({ ...r, orientation: "undirected" }),
+      texture:     (r) => ({ ...r, texture: "braided" }),
+      attributes:  (r) => ({ ...r, attributes: { weight: 1 } }),
+      policy:      (r) => ({ ...r, policy: "other.rules.v1" }),
+    };
+
+    /* the declared partition. Changing it is a semantic decision and should
+     * read like one -- which is why it is written out here rather than
+     * inferred from whatever the code happens to do today. */
+    const NAMES        = ["kind", "endpoints"];
+    const FREE         = ["domain", "policy"];
+    const UNPROJECTED  = ["orientation", "texture", "attributes"];
+
+    const observed = {};
+    for (const f of s.REVISION_FIELDS) {
+      if (!MUTATE[f]) { observed[f] = "unmutated"; continue; }
+      try {
+        observed[f] = (await idOf(MUTATE[f](base))) === baseId ? "free" : "names";
+      } catch { observed[f] = "unprojected"; }
+    }
+
+    const expected = Object.fromEntries([
+      ...NAMES.map((f) => [f, "names"]),
+      ...FREE.map((f) => [f, "free"]),
+      ...UNPROJECTED.map((f) => [f, "unprojected"]),
+    ]);
+
+    const declared = [...NAMES, ...FREE, ...UNPROJECTED];
+    const missing = s.REVISION_FIELDS.filter((f) => !declared.includes(f));
+    const extra = declared.filter((f) => !s.REVISION_FIELDS.includes(f));
+    ok("relation/revision-field-partition-is-total",
+       missing.length === 0 && extra.length === 0,
+       `the partition and the revision's field set disagree: ` +
+       `${missing.length ? `unclassified [${missing.join(", ")}]` : ""}` +
+       `${extra.length ? ` classified but absent [${extra.join(", ")}]` : ""}. ` +
+       `An unclassified field is how a second name for a relation gets in.`);
+
+    const wrong = s.REVISION_FIELDS.filter((f) => observed[f] !== expected[f]);
+    ok("relation/only-the-key-names-the-relation",
+       wrong.length === 0 && FREE.length > 0,
+       wrong.length
+         ? wrong.map((f) => `'${f}' is declared ${expected[f]} but behaves ` +
+                            `${observed[f]}`).join("; ")
+         : `no field is free to change, so §D8.1 has no content here: a ` +
+           `revision that cannot change trivially never moves an id`);
+  }
+
+  /* -- §D8.2. A revision that names its predecessor is a second home for
+   *    lifecycle history, and two homes disagree. Checked in both directions:
+   *    the validator refuses a backpointer by name, and no revision the kernel
+   *    itself produces carries a value shaped like another revision's id. */
+  {
+    const kern = sealed.starter;
+    const rev = kern.derived.relations[0].revision;
+    let refused = null;
+    try { s.validateRelationRevision({ ...rev, previous_revision: "rev-0" }); }
+    catch (e) { refused = e.code; }
+    const selfRef = kern.derived.relations.filter(
+      (r) => /(^|")rev-/.test(W.serializeArtifact(r.revision)));
+    ok("relation/revision-has-no-backpointer",
+       refused === "WRL_REVISION_BACKPOINTER" && selfRef.length === 0,
+       refused !== "WRL_REVISION_BACKPOINTER"
+         ? `a revision carrying previous_revision was ${refused ? `refused as ` +
+            `${refused}` : "accepted"}, not named as a backpointer`
+         : `${selfRef.length} produced revision(s) already reference a revision id`);
+  }
+
+  /* -- §D8.3 and §D8.5, which are one fact seen from two sides.
+   *
+   * The two hashes read disjoint inputs, and that is the whole design: a
+   * relation's IDENTITY is world-scoped, so the same key in two worlds is two
+   * relations; a relation's DESCRIPTION is world-independent, so the same
+   * structure in two worlds is the same revision. Checking either alone would
+   * pass on a build that had accidentally made both hashes read the same
+   * thing, so they are checked as a pair on the same edge. */
+  {
+    const a = sealed.starter, b = sealed.demo;
+    const key = (r) => `${r.allocation.kind}|${r.allocation.src}|${r.allocation.dst}`;
+    const byKey = new Map(b.derived.relations.map((r) => [key(r), r]));
+    const shared = a.derived.relations
+      .map((r) => [r, byKey.get(key(r))]).filter(([, m]) => m);
+
+    ok("relation/the-two-fixtures-share-an-edge-key", shared.length > 0,
+       `the two pinned worlds have no edge key in common, so neither half of ` +
+       `this pair proves anything`);
+
+    ok("relation/revision-id-is-world-independent",
+       shared.length > 0 && shared.every(([x, y]) => x.revision_id === y.revision_id),
+       `the same relation structure got different revision ids in two worlds. ` +
+       `A revision describes; what world it was described in is provenance, ` +
+       `and provenance that moves a description's id makes the description ` +
+       `unshareable.`);
+
+    ok("relation/relation-id-is-world-scoped",
+       shared.length > 0 && shared.every(([x, y]) => x.relation_id !== y.relation_id),
+       `the same edge key produced the same relation id in two different ` +
+       `worlds. Two worlds' relations are not the same relation, and an ` +
+       `identity that says they are cannot be revised independently.`);
+  }
+
+  /* -- the duplicate key, and where it is reported.
+   *
+   * The ordering is the point, so it is tested as an ordering. Today the spine
+   * reports a doubled edge as a controller miscount, which is true of the
+   * lowered graph and useless to the author: there is one controller, written
+   * twice. Under §D8 it is sharper than a miscount -- two relations whose only
+   * available name is the same name. Asserting the kernel's code alone would
+   * pass even if the spine had started saying the same thing, so the spine's
+   * answer is asserted too, as the thing being improved on. */
+  {
+    const doubled = W.STARTER_WORLD + "\n[p0] --sig--> [r0]\n";
+    const spine = await W.sealWorld(doubled);
+    const kern = await s.sealWithRelations(doubled);
+    ok("relation/duplicate-key-is-named-as-itself",
+       !kern.ok && kern.code === "WRL_DUPLICATE_RELATION_KEY",
+       `a world with one edge written twice was ${kern.ok ? "sealed"
+          : `refused as ${kern.code}`}`);
+    ok("relation/duplicate-key-precedes-the-controller-count",
+       !spine.ok && spine.code === "WRL_CONTROLLER_CONFLICT" &&
+       kern.code === "WRL_DUPLICATE_RELATION_KEY",
+       `the census is meant to run before validateGraph's controller count, ` +
+       `but the spine now reports ${spine.code} and the kernel ${kern.code}. ` +
+       `If those have converged, this check has nothing left to guard.`);
+
+    /* and the other direction: two DISTINCT edges that do overload a
+     * controller must still reach the frozen validator. A census that fires
+     * here would be refusing worlds §7 admits. */
+    const twoControllers = W.STARTER_WORLD +
+      "\n[spinner:sp2](w=16, n=8, rotor=quarter_turn_z, configurable){sig_in, socket}\n" +
+      "[r0] --sig--> [sp2]\n[sp2] --socket--> [ob]\n";
+    const overloaded = await s.sealWithRelations(twoControllers);
+    ok("relation/distinct-keys-reach-the-frozen-validator",
+       !overloaded.ok && overloaded.code === "WRL_CONTROLLER_CONFLICT",
+       `two distinct edges onto one orb were reported as ` +
+       `${overloaded.ok ? "acceptable" : overloaded.code}; the key census ` +
+       `must be silent about worlds whose keys are distinct`);
+  }
+
+  /* -- the two allocation variants that have no V1 source. §D8's preimage
+   *    block names three, and a module that could mint all three would be
+   *    quietly asserting a surface and a grant machinery that do not exist. */
+  {
+    const unmintable = s.ALLOCATION_VARIANTS.filter(
+      (v) => !s.MINTABLE_VARIANTS.includes(v));
+    const results = [];
+    for (const variant of unmintable) {
+      try {
+        await s.relationIdFromAllocation({ variant, world_id: sealed.starter.semanticId,
+                                           relation_name: "n", grant_id: "g",
+                                           local_counter: 0 });
+        results.push(`${variant} minted`);
+      } catch (e) {
+        if (e.code !== "WRL_UNWRITABLE_ALLOCATION")
+          results.push(`${variant} refused as ${e.code}`);
+      }
+    }
+    ok("relation/unwritable-variants-are-refused",
+       unmintable.length === 2 && results.length === 0,
+       results.length ? results.join("; ")
+         : `expected exactly two unmintable variants, found ${unmintable.length}`);
+  }
+
+  /* -- the marker on the derived view. A marker is only a claim, and the byte
+   *    equality above is the real guarantee -- but a claim that disagrees with
+   *    the guarantee is worse than no claim, so the claim is held to it. */
+  {
+    const d = sealed.starter.derived;
+    ok("relation/derived-view-is-marked-non-canonical",
+       d.derived === true && d.canonical === false && d.inArtifactBytes === false &&
+       !W.serializeArtifact(sealed.starter.artifact).includes("rel-"),
+       `the derived view claims derived=${d.derived} canonical=${d.canonical} ` +
+       `inArtifactBytes=${d.inArtifactBytes}, or a relation id reached the ` +
+       `artifact bytes`);
+  }
+
+  /* -- and the property that makes the whole derivation usable: it is a
+   *    function of the sealed world, not of how the world was written.
+   *
+   * The comparison is deliberately NOT sorted. Sorted, this check could not
+   * fail: relation ids are minted from `artifact.edges`, which canonicalization
+   * has already ordered, so the SET is order-proof by construction and the
+   * check would be reporting a property of `canonicalizeGraph` rather than of
+   * this module. The list ORDER is the part that is not free -- a kernel that
+   * walked the parse instead of the artifact would produce the same set in a
+   * different sequence, and every consumer that holds a relation by position
+   * would be holding a different one for the same world. */
+  {
+    const lines = W.STARTER_WORLD.trim().split("\n");
+    const reordered = [lines[0], "", ...lines.slice(2).filter(Boolean).reverse()]
+      .join("\n") + "\n";
+    const other = await s.sealWithRelations(reordered);
+    const ids = (k) => k.derived.relations.map((r) => r.relation_id).join(",");
+    ok("relation/reordering-the-source-moves-nothing",
+       other.ok && other.semanticId === sealed.starter.semanticId &&
+       ids(other) === ids(sealed.starter),
+       other.ok
+         ? `a reordered source sealed to ${other.semanticId} and listed its ` +
+           `relations differently; a derivation that reads writing order is ` +
+           `not a derivation from the seal`
+         : `the reordered source was refused: ${other.code}`);
+  }
+
+  }
+
+  /* -- and one property of the FILES, not the values.
+   *
+   * This suite runs in Node, so it can only ever prove that the kernel works
+   * in Node -- yet the entire premise of this site is that its spine runs in a
+   * browser, unbundled, straight off the served path. That claim had no check
+   * at all, for `wrl.js` either: it was true because both modules happened to
+   * be written without Node built-ins, and "happens to be" is the state every
+   * other defect on this page started from. One `import { createHash } from
+   * "node:crypto"` -- the obvious way to write a digest -- would leave all 741
+   * checks green and every page on the site broken.
+   *
+   * So the module graph is walked from each shipped entry point and every
+   * import is required to be relative. The graph is walked rather than the two
+   * files scanned, because the failure would arrive in whatever the kernel
+   * imports NEXT, not in what it imports today. */
+  {
+    const seen = new Set();
+    const offenders = [];
+    const walk = (rel) => {
+      if (seen.has(rel)) return;
+      seen.add(rel);
+      const src = readFileSync(join(ROOT, rel), "utf8");
+      for (const m of src.matchAll(/\bfrom\s*["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']/g)) {
+        const spec = m[1] ?? m[2];
+        if (spec.startsWith("./") || spec.startsWith("../")) walk(spec.replace(/^\.\//, ""));
+        else offenders.push(`${rel} imports "${spec}"`);
+      }
+      /* the CommonJS globals a bundler would paper over and a browser will not */
+      for (const g of ["require(", "__dirname", "__filename", "process.env"])
+        if (src.includes(g)) offenders.push(`${rel} uses ${g}`);
+    };
+    for (const entry of ["wrl.js", "relation-identity.js"]) walk(entry);
+
+    ok("portability/shipped-modules-load-in-a-browser",
+       seen.size >= 2 && offenders.length === 0,
+       offenders.length
+         ? offenders.join("; ") + `. A served module may only import other ` +
+           `served modules; anything else is a page that 404s or throws on load.`
+         : `the module graph walk reached ${seen.size} file(s), so it did not ` +
+           `reach both entry points`);
+  }
+}
+
+/* ======================================= 21b. the part boundary wears a badge
+ *
+ * Part I is normative and Part II is draft, and the page says so in two
+ * vocabularies: `<span class="frozen">` for a settled status, `<span
+ * class="draft">` for an unsettled one. Nothing enforced the boundary between
+ * them, and it took about ten minutes to breach: §D8's implementation note
+ * was given a `frozen` badge reading EXECUTABLE, because the code really does
+ * run. Rendered, it landed at the end of a column of FROZEN / NORMATIVE /
+ * APPROVED and read as a peer of them.
+ *
+ * It is not one. Running is a fact about an implementation; frozen is a claim
+ * about a specification, and §D8 is a draft whose design is still being
+ * argued. That is the register's own two-axis lesson arriving in a second
+ * place -- surface availability and executable verification are independent
+ * there, and settledness and executability are independent here. The badge
+ * vocabulary had quietly collapsed them, so a section could earn a
+ * settled-looking mark by shipping code. */
+{
+  const spec = readFileSync(join(ROOT, "spec.html"), "utf8");
+  const boundary = spec.indexOf('<h2 id="part2"');
+  ok("parts/boundary-is-locatable", boundary > 0,
+     "spec.html has no #part2 heading, so Part I and Part II cannot be told apart");
+
+  if (boundary > 0) {
+    const partTwo = spec.slice(boundary);
+    const badged = [...partTwo.matchAll(/<h([234])\s+id="([^"]+)"[^>]*>([^]*?)<\/h\1>/g)]
+      .filter((m) => /<span class="frozen">/.test(m[3]))
+      .map((m) => m[2]);
+    ok("parts/draft-sections-wear-no-settled-badge", badged.length === 0,
+       `Part II section(s) [${badged.join(", ")}] carry a class="frozen" ` +
+       `status badge. Part II is draft; a badge in the settled vocabulary ` +
+       `there is read as a claim the section has not earned. Use ` +
+       `class="draft" -- an implementation that runs does not settle the ` +
+       `design it implements.`);
+  }
+}
+
+/* ===================================================== 22. the identity stack
+ *
+ * The stack block names every identity these sections mint, and the sentence
+ * above it counts them. That sentence went stale the moment a seventh name was
+ * added -- it still read "Six", and no check noticed, because a count in prose
+ * is invisible to every instrument on this page. Reviewers noticed instead,
+ * which is the expensive way to find it.
+ *
+ * A number stated in prose about a block directly beneath it is exactly the
+ * kind of claim that can be held against the block. */
+{
+  const spec = readFileSync(join(ROOT, "spec.html"), "utf8");
+
+  const NUMBER = new Map([
+    ["one", 1], ["two", 2], ["three", 3], ["four", 4], ["five", 5],
+    ["six", 6], ["seven", 7], ["eight", 8], ["nine", 9], ["ten", 10],
+  ]);
+
+  const block = spec.match(/<pre class="code" data-identity-stack><code>(.*?)<\/code><\/pre>/s);
+  ok("stack/block-is-present", !!block,
+     `no <pre data-identity-stack> block in spec.html. The identity stack is ` +
+     `the one place the seven names are gathered; without it each rule ` +
+     `introduces a name in isolation and nothing says how they compose.`);
+
+  if (block) {
+    /* every non-blank line names one layer, and may cite a frozen section it
+     * was borrowed from rather than minted in */
+    const layers = block[1].trim().split("\n")
+      .map((l) => l.trim()).filter(Boolean)
+      .map((l) => ({
+        name: l.split(/\s{2,}/)[0],
+        frozenIn: (l.match(/;\s*(§\S+)\s+frozen\s*$/) || [])[1],
+      }));
+    const names = layers.map((l) => l.name);
+    const borrowed = layers.filter((l) => l.frozenIn);
+    const minted = layers.filter((l) => !l.frozenIn);
+
+    const unique = new Set(names);
+    ok("stack/every-name-appears-once", unique.size === names.length,
+       `the identity stack lists a name twice. Each line is supposed to ` +
+       `answer a question none of the others can.`);
+
+    /* every name has to be one this page really uses, not a summary that
+     * quietly renames what the rules declared. This is the check that found
+     * AcceptanceReceipt: a CamelCase record coined in the summary for
+     * something §8 already owns and spells differently. */
+    const undeclared = names.filter(
+      (n) => !new RegExp(`\\b${n}\\b`).test(spec.slice(0, block.index)));
+    ok("stack/names-were-introduced-before-the-stack", undeclared.length === 0,
+       `identity stack name(s) [${undeclared.join(", ")}] appear nowhere ` +
+       `earlier in spec.html. The stack is a summary of what the sections ` +
+       `established; a name that debuts in the summary was never argued for.`);
+
+    /* the two counts in the prose, held against the block. Both are needed:
+     * the total alone would have been satisfied by writing "seven", which is
+     * the repair that would have hidden the real defect. */
+    const lead = spec.slice(0, block.index);
+    const newCount = lead.match(/only <b>(\w+)<\/b> of them are new/);
+    const frozenCount = lead.match(/other\s*\n?<b>(\w+)<\/b> are frozen/);
+    ok("stack/prose-states-both-counts",
+       !!newCount && NUMBER.has(newCount[1].toLowerCase()) &&
+       !!frozenCount && NUMBER.has(frozenCount[1].toLowerCase()),
+       `the sentence above the identity stack no longer states both a count ` +
+       `of new layers and a count of frozen ones. It once stated a single ` +
+       `number, and that number was wrong for four rounds because nothing ` +
+       `could read it.`);
+
+    if (newCount && frozenCount &&
+        NUMBER.has(newCount[1].toLowerCase()) &&
+        NUMBER.has(frozenCount[1].toLowerCase())) {
+      const claimedNew = NUMBER.get(newCount[1].toLowerCase());
+      const claimedFrozen = NUMBER.get(frozenCount[1].toLowerCase());
+      ok("stack/new-count-matches-the-block", claimedNew === minted.length,
+         `the prose says ${newCount[1]} (${claimedNew}) layers are new; the ` +
+         `block marks ${minted.length} as minted here ` +
+         `[${minted.map((l) => l.name).join(", ")}].`);
+      ok("stack/frozen-count-matches-the-block",
+         claimedFrozen === borrowed.length,
+         `the prose says ${frozenCount[1]} (${claimedFrozen}) layers are ` +
+         `frozen; the block marks ${borrowed.length} ` +
+         `[${borrowed.map((l) => `${l.name} ${l.frozenIn}`).join(", ")}]. ` +
+         `Claiming to have minted a frozen layer is the draft asserting ` +
+         `authority it does not have.`);
+    }
+
+    /* a borrowed layer has to cite a section this page really froze. Without
+     * this, "frozen" is a word a draft can write beside anything it would
+     * rather not have to defend.
+     *
+     * The badge class is NOT the test. `class="frozen"` is the wrapper for
+     * every status badge on this page, and it also carries "corrected",
+     * "normative", "recorded" and "status" -- so keying on the class would
+     * have accepted §14 and §16 as frozen. The badge's own text is the claim. */
+    for (const l of borrowed) {
+      const num = l.frozenIn.replace("§", "");
+      const heading = spec.match(new RegExp(`<h2 id="s${num}">[^]*?</h2>`));
+      const badge = heading &&
+        (heading[0].match(/<span class="frozen">([^<]*)</) || [])[1];
+      ok(`stack/${l.name.replace(/\s+/g, "-")}-cites-a-frozen-section`,
+         !!badge && /^frozen\b/.test(badge.trim()),
+         `the identity stack says "${l.name}" is frozen in ${l.frozenIn}, but ` +
+         `spec.html ${!heading ? `has no ${l.frozenIn} heading`
+            : badge ? `badges ${l.frozenIn} "${badge.trim()}", which is not frozen`
+                    : `gives ${l.frozenIn} no status badge at all`}. ` +
+         `A draft citing a frozen authority has to be citing a real one.`);
+    }
+  }
+}
+
+/* ============================================ 23. the pending-battery register
+ *
+ * Most of §D8 and §D9 cannot be executed yet -- and an unexecutable rule is the
+ * one kind this page has repeatedly shown it will reinterpret rather than break
+ * loudly. The register names the properties that would settle each rule. These
+ * checks keep it from becoming decoration: a row has to name a rule that is
+ * really stated, names have to be unique, and a row that claims to run has to
+ * name a check that really ran.
+ *
+ * A row carries two INDEPENDENT axes, because "not yet written" and "not yet
+ * possible" are different facts, and collapsing them misdirects the next
+ * milestone:
+ *
+ *   data-pending-stage    which layer the property lives at
+ *   data-pending-status   whether a check for it runs today
+ *
+ * Every row once read `awaiting-surface`, one word carrying both -- which
+ * asserted that nothing here was testable until syntax landed. That is false
+ * for the whole `model` layer, whose identities are determined by structure
+ * that is already sealed.
  *
  * This block is last on purpose. `ran` is only complete once every other check
  * has been called, so an earlier placement would let a genuine executable claim
@@ -1586,13 +2114,32 @@ for (const [id, entries] of futurePairs) {
 {
   const spec = readFileSync(join(ROOT, "spec.html"), "utf8");
 
-  const rows = [...spec.matchAll(/<tr\b([^>]*data-pending-law[^>]*)>/g)]
-    .map((m) => m[1])
-    .map((attrs) => ({
+  /* a ratchet, not a threshold. Model-layer properties are the ones nothing
+   * external blocks, so the only reason one stays awaiting is that it has not
+   * been written. Settling one lowers this number; nothing else may raise it
+   * without a deliberate edit here.
+   *
+   * It reached zero when the relation identity kernel landed, which is the
+   * useful state: a NEW model-layer row now has to arrive executable. That is
+   * not severity for its own sake. The model layer is defined as the layer
+   * with no external blocker, so a model row that says `awaiting` is saying
+   * "not written yet" in language that sounds like "not possible yet" -- and
+   * that substitution is the thing this whole register exists to prevent. */
+  const MODEL_DEBT_CAP = 0;
+
+  /* the whole row, not just its open tag: the printed layer cell has to be
+   * readable, so that what a reader sees can be held against what the suite
+   * reads */
+  const rows = [...spec.matchAll(/<tr\b([^>]*data-pending-law[^>]*)>(.*?)<\/tr>/gs)]
+    .map((m) => ({ attrs: m[1], body: m[2] }))
+    .map(({ attrs, body }) => ({
       law: (attrs.match(/data-pending-law="([^"]*)"/) || [])[1],
       rule: (attrs.match(/data-pending-for="([^"]*)"/) || [])[1],
       status: (attrs.match(/data-pending-status="([^"]*)"/) || [])[1],
+      stage: (attrs.match(/data-pending-stage="([^"]*)"/) || [])[1],
       check: (attrs.match(/data-pending-check="([^"]*)"/) || [])[1],
+      printed: ((body.match(/<td class="stage">(.*?)<\/td>/s) || [])[1] || "")
+        .replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim(),
     }));
 
   ok("pending/register-is-not-vacuous", rows.length > 0,
@@ -1617,13 +2164,39 @@ for (const [id, entries] of futurePairs) {
        .join(", ")}] name a rule spec.html does not state. A property that ` +
      `falsifies nothing is a wish.`);
 
-  const KNOWN_STATUS = new Set(["awaiting-surface", "executable"]);
+  const KNOWN_STATUS = new Set(["awaiting", "executable"]);
   const badStatus = rows.filter((r) => !KNOWN_STATUS.has(r.status));
   ok("pending/statuses-are-known", badStatus.length === 0,
      `pending propert(ies) [${badStatus.map((r) => `${r.law}=${r.status}`)
        .join(", ")}] declare a status outside ` +
      `{${[...KNOWN_STATUS].join(", ")}}. An invented status is one nobody ` +
      `has to honour.`);
+
+  /* the second axis. A missing stage fails here too, because `undefined` is
+   * not in the set -- a row with no declared layer is a row that can drift
+   * into whichever layer is convenient later. */
+  const KNOWN_STAGE = new Set(["model", "surface", "runtime", "film"]);
+  const badStage = rows.filter((r) => !KNOWN_STAGE.has(r.stage));
+  ok("pending/stages-are-known", badStage.length === 0,
+     `pending propert(ies) [${badStage.map(
+       (r) => `${r.law}=${r.stage === undefined ? "(none)" : r.stage}`)
+       .join(", ")}] declare a stage outside ` +
+     `{${[...KNOWN_STAGE].join(", ")}}. The stage is what says whether a ` +
+     `property is blocked on syntax or merely unwritten, and the two need ` +
+     `very different next moves.`);
+
+  /* a `model` property is provable from sealed structure alone, so it can
+   * never be excused by the absence of a surface. This is the check that keeps
+   * the axis split honest rather than decorative: without it, `model` would
+   * just be a nicer-sounding label for the same indefinite wait. */
+  const modelDebt = rows.filter(
+    (r) => r.stage === "model" && r.status === "awaiting");
+  ok("pending/model-debt-does-not-grow", modelDebt.length <= MODEL_DEBT_CAP,
+     `${modelDebt.length} model-layer propert(ies) are still awaiting ` +
+     `[${modelDebt.map((r) => r.law).join(", ")}], above the recorded cap of ` +
+     `${MODEL_DEBT_CAP}. A model property needs no new syntax to settle, so a ` +
+     `growing count here is not a blocked queue, it is a deferral. Lower the ` +
+     `cap when you settle one; raising it is the change worth arguing about.`);
 
   /* THE row that matters. A register is only worth writing if it cannot mark
    * itself green, and "executable" is the claim that would be tempting to make
@@ -1640,12 +2213,25 @@ for (const [id, entries] of futurePairs) {
   /* and the converse: a row that names a live check has no business still
    * claiming it is waiting for a surface */
   const understated = rows.filter(
-    (r) => r.status === "awaiting-surface" && r.check && ran.has(r.check));
+    (r) => r.status === "awaiting" && r.check && ran.has(r.check));
   ok("pending/awaiting-properties-name-no-live-check", understated.length === 0,
      `pending propert(ies) [${understated.map((r) => r.law).join(", ")}] say ` +
-     `they await a surface while naming a check that already runs. The ` +
-     `register would then understate coverage, and nobody re-reads a row that ` +
-     `looks unfinished.`);
+     `they are awaiting while naming a check that already runs. The register ` +
+     `would then understate coverage, and nobody re-reads a row that looks ` +
+     `unfinished.`);
+
+  /* the table is read by two audiences and only one of them parses attributes.
+   * If the printed cell and the machine-readable pair ever disagree, the page
+   * is telling a reader something the suite is not enforcing -- which is the
+   * shape of every defect the last three rounds turned up. */
+  const misprinted = rows.filter(
+    (r) => r.printed !== `${r.stage} · ${r.status}`);
+  ok("pending/printed-layer-matches-attributes", misprinted.length === 0,
+     `pending propert(ies) [${misprinted.map(
+       (r) => `${r.law}: prints "${r.printed}", declares ` +
+              `"${r.stage} · ${r.status}"`).join("; ")}] print a layer and ` +
+     `status that disagree with their attributes. A reader trusts the cell; ` +
+     `the suite trusts the attribute; only one of them can be right.`);
 
   /* every draft rule minted in the identity sections has to be reachable from
    * the register. This is the census direction -- a subset check cannot catch

@@ -175,6 +175,25 @@ the id the toolchain would produce.
 It deliberately stops at the seal. It does not lower to a backend, compile
 interaction-calculus terms, or reduce films — those belong to the runtime.
 
+### `relation-identity.js` — a derived view, one layer above
+
+`relation-identity.js` implements the executable part of
+[§D8](spec.html#d8-kernel): relation and revision identity for the relations
+that are already present when a world seals. V1 artifacts carry no authored
+relation name, so a period-0 relation's name **is** its frozen
+`(kind, src, dst)` edge key — which means the whole thing derives from worlds
+that seal today, and needs no new syntax.
+
+It imports `wrl.js`; `wrl.js` does not import it. That direction is the
+guarantee rather than a convention: the spine cannot reach the derived view, so
+no `rel-` or `rev-` value can enter a `sem-` preimage. The suite asserts that
+both pinned fixtures seal **byte-identically** through it, because a value
+marked *non-canonical* is a claim and byte equality is a fact.
+
+§D8 itself is still a draft. An implementation that runs does not settle the
+design it implements — §D8.4, §D8.6 and all of §D9 stay unexecuted rather than
+quietly reclassified.
+
 Run the self-check from a console:
 
 ```js

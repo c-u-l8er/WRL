@@ -127,6 +127,13 @@ td b{color:var(--ink);font-weight:600}
 .tier.partial{color:var(--brass-soft);border-color:var(--brass-soft)}
 .tier.exp{color:var(--ink-faint);border-color:var(--ink-faint)}
 .tier.prop{color:var(--ink-faint);border-color:var(--paper-3)}
+/* the pending register carries two independent axes: which layer a property
+   lives at, and whether a check for it runs today. They are printed together
+   because reading one without the other is how "not yet written" and "not yet
+   possible" get confused for each other. */
+.stage{white-space:nowrap;color:var(--ink-faint);font-size:12px}
+.stage .st-executable{color:var(--wire);font-weight:600}
+
 .machine .tier.core{color:var(--phosphor);border-color:var(--phosphor-dim)}
 .machine .tier.partial{color:var(--brass);border-color:var(--brass-soft)}
 .machine .tier.exp,.machine .tier.prop{color:#7C948B;border-color:var(--machine-edge)}
