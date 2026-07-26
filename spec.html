@@ -108,7 +108,9 @@
   <a href="#d8-identity-fork">D8.4 · Non-forking allocation</a>
   <a href="#d8-identity-scope">D8.5 · Identity is world-scoped</a>
   <a href="#d8-identity-burn">D8.6 · Allocations burn on use</a>
+  <a href="#d8-canonical">D8.7 · Canonical revision</a>
   <a href="#d8-kernel">D8 · What already runs</a>
+  <a href="#d8-migration">D8.8 · The V1 import contract</a>
   <a href="#d9">D9 · Dynamic topology</a>
   <a href="#d9-classify">D9 · Conflict classification</a>
   <a href="#d9-closure">D9.1 · Replay closure</a>
@@ -1403,7 +1405,7 @@ because it is genuinely optional — the table's own row says it is <b>absent</b
 for an acausal relation, and a record that prints a field it does not always
 carry is a record that will be implemented wrongly.</p>
 
-<div class="tbl"><table>
+<div class="tbl" id="d8-fields"><table>
 <thead><tr><th>Field</th><th>Range</th><th>Replaces</th></tr></thead>
 <tbody>
 <tr><td><code class="inline">domain</code></td><td>a profile-declared namespace — <code class="inline">signal</code>, <code class="inline">digital</code>, <code class="inline">mobility</code>, <code class="inline">electrical</code> (§D6)</td><td>— (new)</td></tr>
@@ -1526,6 +1528,86 @@ a reflexive <i>terminal</i>, it should declare that as an explicit feature with
 its own meaning, rather than receive it as an accident of a rule about
 uniqueness.</p>
 
+<h3 id="d8-canonical">The canonical form is a rule, because prose was not
+enough<span class="draft">draft · added after a review found the implementation
+disagreeing with this section</span></h3>
+
+<p>Everything above this heading was stated as prose and tables, and an
+implementation read it and got the central record backwards. The
+<a href="#d8-kernel">relation identity kernel</a> shipped endpoints spelled
+<code class="inline">{ terminal: "p0", role: "sig_out" }</code> — the object in
+the terminal slot and the <i>port name</i> in the role slot. It round-tripped
+every V1 edge exactly, it passed every check on the page, and it had implemented
+none of this section: no <code class="inline">source</code>, no
+<code class="inline">target</code>, endpoint order still semantic, terminals not
+unique, and an <code class="inline">undirected</code> orientation appearing in no
+table here.</p>
+
+<p>What makes that worth a numbered rule rather than a bug fix is <i>why nothing
+caught it</i>. The <a href="#d9-pending">pending register</a> holds model-layer debt
+at zero, and it was at zero and green the whole time — because a ratchet enforces
+zero debt among the properties it <b>knows about</b>, and none of these were
+registered. The obligations below are the missing rows. They restate what the
+paragraphs above already say, in the form the rest of this page requires of a
+claim: something a check can falsify.</p>
+
+<div class="note stop"><b>Draft rule D8.7 — canonical relation revision.</b> A
+<code class="inline">RelationRevision</code> has exactly one canonical form, and
+a conforming implementation reaches it by:
+<ol>
+<li><b>Port-qualified terminals.</b> A terminal identifies a <i>port</i> —
+<code class="inline">p0.sig_out</code>, not <code class="inline">p0</code>. Where
+a legacy V1 edge leaves the port implicit, it is recovered from the edge kind's
+frozen port pair.</li>
+<li><b>Semantic roles.</b> Every endpoint's role is one of
+<code class="inline">source</code>, <code class="inline">target</code>,
+<code class="inline">peer</code>, <code class="inline">terminal</code>. A port
+name is never a role.</li>
+<li><b>Role legality.</b> Each orientation admits only its own roles —
+<code class="inline">directed</code>: source and target;
+<code class="inline">symmetric</code>: peer; <code class="inline">acausal</code>:
+terminal. The orientation vocabulary is those three and no others.</li>
+<li><b>Role completeness.</b> A <code class="inline">directed</code> relation
+carries at least one <code class="inline">source</code> <i>and</i> at least one
+<code class="inline">target</code>. A hyperarc is an ordered pair of vertex sets;
+neither may be empty.</li>
+<li><b>Terminal uniqueness.</b> A terminal appears at most once per relation,
+regardless of role — the normative rule stated above.</li>
+<li><b>No texture on acausal.</b> An acausal connection has no writer, so a
+solver wall (<a href="#d4">§D4</a>) governs settlement and a texture would be a
+second, disagreeing account of it.</li>
+<li><b>A texture on directed.</b> The other half of the same row, and it is
+enforced on the same table. A <code class="inline">directed</code> relation
+states a texture, because <a href="#d5">§5</a>'s textures are guarantee classes
+and a relation that names none makes no statement about whether it settles
+within the period.</li>
+<li><b>Order-independent hashing.</b> Endpoints sort by role in the enumeration
+order declared above, then by terminal; the hash is taken only after
+normalisation. Reordering a source's endpoints must not move
+<code class="inline">revision_id</code>.</li>
+<li><b>Absent optionals absent.</b> A missing
+<code class="inline">texture</code> is a missing key, never a null.</li>
+</ol>
+A reverse projection to a V1 edge locates its endpoints <b>by role</b>, never by
+array position, and validates the port suffix against the kind rather than
+assuming it.</div>
+
+<p>That second texture rule was, for one version of this section, deliberately
+<i>not</i> in the list — filed instead as a <a href="#d8-owes">V2 obligation</a>
+on the argument that a frozen artifact's edge records no texture field, so
+inferring one from <code class="inline">--</code> being the only texture V1
+lowers would invent a value the artifact does not carry. The argument was
+careful and it was wrong, in a way worth leaving on the page: a V1 edge does not
+<i>omit</i> a texture, it <b>elides</b> one, because §5 gives V1 nothing else to
+mean. That is the same relationship the artifact has to
+<code class="inline">orientation</code>, which the adapter had been restoring
+throughout without anyone calling it authorship. What the mistake cost is the
+instructive part — a rule this page <i>states</i> was left with no
+implementation, so §D8's texture row shipped as one enforced half and one
+commented half, and a table with a commented row has stopped being a table.
+<a href="#d8-migration-map">The adapter's field map</a> records the correction
+at the point where it was actually made.</p>
+
 <h3 id="d8-identity">A relation needs a name that survives its value</h3>
 
 <p>Everything above describes what a relation <i>is</i>. It does not say how to
@@ -1628,6 +1710,30 @@ it until a relation name is something an author can write and a seal can carry.
 The two are separate variants rather than one parameterised case because they
 have different <i>availability</i>, and a union that hides an availability
 difference is how a name gets minted from a field that is not there.</div>
+
+<div class="note"><b>"Nothing may emit it" is a rule about writers, and it is
+not a rule about the hash.</b> These are three different authorities and the
+implementation keeps them in three places:
+<ol>
+<li><b>Which variants exist.</b> All three. The equations above are total: given
+a well-formed allocation of any variant, <code class="inline">relation_id</code>
+is defined, and it is defined the same way for everyone.</li>
+<li><b>Which a trusted importer may construct.</b> Only
+<code class="inline">legacy-edge</code>, because that is the only preimage a
+frozen artifact supplies every field of.</li>
+<li><b>Which an authoring surface may emit.</b> None, today — there is no
+syntax for a relation name and no machinery for a grant.</li>
+</ol>
+Folding these together — refusing to <i>compute</i> an id for a variant nobody
+may yet write — was the first implementation's mistake, and it is worse than it
+looks. It makes identity depend on <i>who is asking</i>, which is the property a
+content address exists to not have; and it silently marks two facts untestable
+that are not. That the same name in two worlds yields two ids, and that the same
+counter under two grants yields two ids, are statements about
+<a href="#d8-identity-mint">these equations</a>. Both are decidable today, and
+<a href="#d9-pending">both are now checked</a>. What is genuinely still missing
+is the surface and the runtime — which is a smaller claim, and the true
+one.</div>
 
 <div class="note"><b>‖ is a framing, not a concatenation.</b> Three fields joined
 by an unframed separator are ambiguous the moment any of them is variable-length:
@@ -2301,6 +2407,16 @@ ledger whose references have quietly stopped resolving. It is filed against the
 <a href="direction.html#ladder">ladder step 9</a>, which is where it will be
 answered.</p>
 
+<p>The checker the rule asks for is no longer hypothetical, and the reason is
+that the rule tests itself. Re-sealing is what moves a relation id, and
+re-sealing needs no new artifact version — so a world re-authored today already
+produces the break, and the map that is owed can be computed and checked
+against two V1 worlds. <a href="#d8-migration-identity">§D8.8</a> gives the
+record it produces; three rows of the register run against it, including the
+one that matters most here, which is that a relation with no counterpart is
+reported <i>unpaired</i> rather than handed one. Silence is not continuity is a
+sentence until something fails when it is violated.</p>
+
 <p>There is a second policy, and it is not obviously wrong — it is just a
 different trade, so it should be recorded as one rather than ruled out:</p>
 
@@ -2441,7 +2557,8 @@ a normative rule that a relation meeting the frozen profile's exact shape is
 <div class="note stop"><b>Normative — the ForgeSemanticArtifactV1 edge
 projection.</b> When a relation has <code class="inline">domain = signal</code>;
 <code class="inline">kind ∈ {SignalWire, SocketControl}</code>;
-<code class="inline">orientation = directed</code>; exactly one
+<code class="inline">orientation = directed</code>;
+<code class="inline">texture = solid</code>; exactly one
 <code class="inline">source</code> endpoint and one
 <code class="inline">target</code> endpoint; both terminals being the ports the
 kind <i>implies</i> for their objects' roles; and no attributes, policy or
@@ -2460,7 +2577,15 @@ directions</b>: it is exactly the condition under which
 <code class="inline">p0.sig_out</code> is recoverable from
 <code class="inline">p0</code>, because the kind and the role determine the
 terminal. Where that is not true, the old form genuinely cannot represent the
-relation, and pretending otherwise would be the actual breaking change.</div>
+relation, and pretending otherwise would be the actual breaking change.
+<br><br>
+Note which way the <code class="inline">domain</code> and
+<code class="inline">texture</code> clauses cut. They are not filters that
+happen to admit every V1 edge; they are the two places the projection says what
+a V1 edge <b>means</b>. An <code class="inline">electrical</code> relation and an
+<code class="inline">async</code> one each fail a clause and have no old form,
+which is why <a href="#d8-kernel-partition">the kernel's field partition</a>
+files both fields as <i>no V1 form</i> rather than as free.</div>
 
 <p>This is a testable claim rather than a promise, and it should be tested
 before D8 is called structurally closed. The golden test is a round trip with
@@ -2524,7 +2649,12 @@ it, and records which capabilities it waits on:</p>
 
 <p>Everything above is design. This subsection is not: it records what a
 working implementation established, and it is here because four rows of the
-register below stopped saying <i>awaiting</i> because of it.</p>
+register below stopped saying <i>awaiting</i> because of it. Twelve more rows
+arrived later, when <a href="#d8-canonical">D8.7</a> found that this same
+implementation had round-tripped every V1 edge while implementing almost none of
+the endpoint model above. Four more arrived after that, when the migration
+statement in <a href="#d8-migration-identity">§D8.8</a> turned out not to need
+the artifact version it had been filed behind.</p>
 
 <p>The obstacle was that §D8.1 mints a relation's identity from an authored
 name, and <b>V1 has no way to write one</b>. A frozen artifact's edge is
@@ -2547,6 +2677,52 @@ that both pinned fixtures seal <b>byte-identically</b> through the kernel and
 through <code class="inline">sealWorld</code>, because a marker reading
 <i>non-canonical</i> is a claim and byte equality is a fact.</p>
 
+<p>It also has a <b>consumer</b>. The <a href="playground.html">playground</a>
+seals with the frozen spine and then derives from the artifact that seal
+produced, printing each relation's ids and its endpoints <i>by role</i>. That is
+deliberate on both sides: a derivation nothing renders is one nobody finds out
+is wrong, and a page that adopted the derived <i>verdict</i> along with the view
+would have quietly changed V1's frozen error surface for every visitor. The
+suite requires the page to import the derivation and requires it not to import
+the verdict — <a href="#d8-migration">§D8.8</a>.</p>
+
+<h4 id="d8-kernel-trust">What the kernel refuses to take on trust</h4>
+
+<p>A world-scoped identity is only as scoped as the world id it is scoped
+<i>to</i>, and the first version of this kernel accepted that id as an argument.
+Callers passed the one <code class="inline">sealWorld</code> had just returned,
+so it was always right, and it was checked by nothing: an artifact handed over
+with <code class="inline">sem-000…0</code> beside it minted a full set of
+relation ids under that name. That is not a bug in a caller. A value whose
+meaning depends on an unverified claim travelling next to it has no meaning, and
+the failure mode is silent — every id well-formed, every round trip green, the
+whole set scoped to a world that does not exist. The kernel now <b>recomputes</b>
+the id from the artifact's own canonical bytes and treats any supplied
+<code class="inline">sem-</code> as a cross-check to be refused on mismatch. The
+recomputed path is the only path; there is no faster one to fall back to.</p>
+
+<p>Two smaller refusals follow the same shape, and it is the shape rather than
+the three instances that matters — <i>a rule the code states and the code can be
+talked out of</i>.</p>
+
+<ul>
+<li><b>The artifact's version is checked before its edges are read.</b> The
+adapter's constants — <code class="inline">directed</code>,
+<code class="inline">solid</code>, <code class="inline">signal</code>, the
+frozen port pairs — are <a href="#d8-migration-map">V1's elisions</a>. Applied
+to an artifact of some later version whose elisions differ, they would not fail;
+they would produce confident, wrong relations. So an
+<code class="inline">ir_version</code> outside the declared set is refused
+rather than assumed compatible.</li>
+<li><b>The declared vocabularies are deep-frozen.</b>
+<a href="#d8-roles">The role enumeration</a> is not merely a list, it is the
+<i>sort key</i> of the canonical form, and the orientation-to-role table is the
+legality rule. Exported as ordinary arrays, an importer could reverse the first
+and widen the second, and canonicalisation would obligingly produce a different
+id for the same relation. A closed enumeration a consumer can reopen is an open
+enumeration with a comment attached.</li>
+</ul>
+
 <h4 id="d8-kernel-partition">Two of seven fields are the name</h4>
 
 <p>The interesting result was not planned. §D8.1 says a relation's identity
@@ -2563,17 +2739,30 @@ in.</p>
 <thead><tr><th>Fields</th><th>Effect on <code class="inline">relation_id</code></th><th>What that means</th></tr></thead>
 <tbody>
 <tr><td><code class="inline">kind</code>, <code class="inline">endpoints</code></td><td><b>moves it</b></td><td>these two <i>are</i> the name in V1</td></tr>
-<tr><td><code class="inline">domain</code>, <code class="inline">policy</code></td><td>free</td><td>may change without touching identity — this is §D8.1's live content</td></tr>
-<tr><td><code class="inline">orientation</code>, <code class="inline">texture</code>, <code class="inline">attributes</code></td><td>no V1 form</td><td>a relation carrying any of these cannot be projected to a V1 edge at all</td></tr>
+<tr><td><code class="inline">policy</code></td><td>free</td><td>may change without touching identity — this is §D8.1's live content</td></tr>
+<tr><td><code class="inline">domain</code>, <code class="inline">orientation</code>, <code class="inline">texture</code>, <code class="inline">attributes</code></td><td>no V1 form</td><td>a relation carrying any value other than the one V1 implies cannot be projected to a V1 edge at all</td></tr>
 </tbody></table></div>
 
-<p>The third row is the one worth reading twice. It is not an implementation
-gap; it is the price of §D8 stated numerically. Three of the seven fields a
+<p>The second row is the one worth reading twice. It is not an implementation
+gap; it is the price of §D8 stated numerically. <b>Four</b> of the seven fields a
 relation revision carries have <b>no expression whatsoever</b> in a frozen V1
 artifact — so §D8's richer relation is not today's edge plus some unwritten
 extras. It is a record most of whose interesting content is inexpressible until
 the artifact version moves. <a href="#d8-identity-cost">§D8's cost note</a>
 argued that qualitatively. This is the count.</p>
+
+<p><code class="inline">domain</code> moved into that row, and how it moved is
+worth recording. It was filed <i>free</i> on the reading that a V1 edge does not
+write a domain, so changing one could not disturb the id — which is true, and
+irrelevant. A V1 edge does not write a domain because it is <i>entirely</i> a
+<code class="inline">signal</code>-domain encoding: its two kinds are the two
+kinds of that one domain. An <code class="inline">electrical</code> relation is
+therefore not a relation whose domain V1 forgets to mention; it is a relation V1
+cannot represent, exactly like an <code class="inline">acausal</code> one. The
+field was classified by what the <i>encoding</i> omits rather than by what the
+encoding <i>means</i>, and those come apart precisely on the elided fields —
+which is the same confusion, in the same table, that put
+<code class="inline">texture</code> in the wrong row.</p>
 
 <p>A matched pair falls out of the same seam, and neither half means much
 alone. The same edge key in two different worlds yields two <b>different</b>
@@ -2619,11 +2808,198 @@ kernel mints a grant, schedules a transition, or survives a crash. §D8.4 and
 settled when a check can falsify <i>it</i>; handing a pending row a check that
 tests something adjacent and easier is how a register becomes decoration.</div>
 
+<h3 id="d8-migration">What the V1 adapter is, permanently<span class="draft">draft</span></h3>
+
+<p>The kernel above is finished, and it is not the destination. §D8's relation
+is a record with named instances, general arity, attributes, textures and three
+orientations, and none of that can live in an <code class="inline">ir_version
+1.0</code> artifact. Reaching it takes a new artifact version, and that is the
+next milestone rather than this one.</p>
+
+<p>So what happens to the kernel? It becomes the <b>import adapter</b> — the
+one supported path by which a world already sealed acquires relation identity.
+That is a permanent job, not a scaffold, because worlds sealed under
+<code class="inline">ir_version 1.0</code> keep their
+<code class="inline">sem-</code> ids forever and must remain readable by
+relation-aware tooling that arrives afterwards. Writing the contract down
+<i>now</i>, before the richer artifact exists, is what stops the adapter from
+drifting into a second general relation format: every convenience added to it
+would be a feature V2 then has to keep bug-compatible.</p>
+
+<div class="note stop"><b>Draft rule D8.8 — the V1 import contract.</b> An
+implementation importing an <code class="inline">ir_version 1.0</code> artifact:
+<ol>
+<li><b>Reads only the sealed artifact.</b> The source text, its formatting, its
+sugar and its declaration order are not inputs. An adapter that reads the parse
+produces a relation view that two byte-identical worlds can disagree about.</li>
+<li><b>Invents nothing.</b> Four of a revision's seven fields have no V1
+source; each is supplied as a fixed constant that is the only thing V1 can
+mean, and the constants are enumerated below rather than chosen per call.</li>
+<li><b>Mints one allocation variant.</b>
+<code class="inline">LegacyEdgeAllocation</code> only.
+<code class="inline">NamedInitialAllocation</code> and grants stay refused —
+they are Path B's, and an adapter that could mint them would be asserting a
+surface and a grant machinery that do not exist.</li>
+<li><b>Decides nothing.</b> V1's error surface is frozen. The adapter may
+describe a world that sealed; it may not be the thing that decides whether one
+seals. Where the derived layer has a better diagnostic than the spine — and
+<a href="#d8-kernel-duplicate">it does</a> — that is an argument for a spine
+version, not a licence to change V1's answers underneath existing
+programs.</li>
+<li><b>Moves no <code class="inline">sem-</code>.</b> Checked as byte equality
+against <code class="inline">sealWorld</code>, for every fixture, before
+anything else in the suite runs.</li>
+<li><b>Round-trips exactly.</b> Every imported relation projects back to the
+byte-identical V1 edge, with its endpoints located <b>by role</b>
+(<a href="#d8-canonical">§D8.7</a>).</li>
+</ol></div>
+
+<h4 id="d8-migration-map">Where each field comes from</h4>
+
+<div class="tbl"><table>
+<thead><tr><th>Revision field</th><th>V1 source</th><th>Under V2</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">domain</code></td><td><b>resolved</b> — the namespace the profile <i>declares</i>: <code class="inline">signal</code></td><td>inherited or authored</td></tr>
+<tr><td><code class="inline">kind</code></td><td>read — <code class="inline">edge.kind</code></td><td>authored</td></tr>
+<tr><td><code class="inline">endpoints</code></td><td>read — <code class="inline">edge.src</code> and <code class="inline">edge.dst</code>, each qualified by the kind's frozen port pair</td><td>authored terminals, general arity</td></tr>
+<tr><td><code class="inline">policy</code></td><td>read — <code class="inline">semantic_policies.rulepack_id</code></td><td>inherited</td></tr>
+<tr><td><code class="inline">orientation</code></td><td><b>supplied</b> — always <code class="inline">directed</code></td><td>authored, one of three</td></tr>
+<tr><td><code class="inline">texture</code></td><td><b>supplied</b> — always <code class="inline">solid</code>, which V1 <i>elides</i> rather than lacks</td><td>authored; required for <code class="inline">directed</code></td></tr>
+<tr><td><code class="inline">attributes</code></td><td><b>supplied</b> — always empty</td><td>authored, typed and united (<a href="#d8-owes">§D8 owes</a>)</td></tr>
+</tbody></table></div>
+
+<p>The third column is the whole reason to write the second one down. Every
+<i>supplied</i> row is a place where V2's importer has to know that the value
+came from the adapter and not from an author. And two of these rows are here
+because the first version of this table got them wrong in opposite
+directions.</p>
+
+<p><code class="inline">domain</code> read <code class="inline">artifact.profile_id</code>,
+which put <code class="inline">forge.world.core.v1</code> in the slot
+<a href="#d8-fields">§D8's field table</a> reserves for a profile-declared
+<i>namespace</i>. A profile <b>declares</b> domains; it is not one. The adapter
+was reading the nearest available string rather than resolving the value the
+section describes, and because nothing in V1 round-trips a domain, no test
+noticed. The correction is a declared map from profile to default domain —
+which for the one frozen profile is <code class="inline">signal</code>, the same
+value <a href="#d8-recovery">the recovery table below</a> already stated, and
+which the adapter had been contradicting in the same file.</p>
+
+<p><code class="inline">texture</code> was filed <b>absent</b> — no key at all —
+with the argument that a missing <code class="inline">texture</code> and a
+<code class="inline">texture: null</code> are different claims, and that no V1
+world ever considered texture. That argument is sound and was applied to the
+wrong question. It answers <i>may the adapter invent a value?</i>, when the
+question is <i>what does this encoding mean?</i> — and a V1 structural edge
+means <code class="inline">--</code> solid, because
+<a href="#d5">§5</a> gives V1 no other texture to write. Restoring
+<code class="inline">solid</code> is therefore expansion of an elision, exactly
+like restoring <code class="inline">directed</code>, which the adapter had been
+doing all along without anyone calling it authorship. An encoding elides a value
+when the value is implied; the two cases are told apart by whether the omitted
+value is <i>determined</i>, not by whether the bytes contain it.</p>
+
+<p>Filing it absent had a cost beyond the field itself, and this is the part
+worth carrying forward. It made <i>texture required for directed</i> —
+a rule <a href="#d8-canonical">§D8.7</a> states — unenforceable, since the
+kernel's own relations violated it. So the rule was deferred to V2, and §D8's
+texture row went into the implementation as one enforced half and one commented
+half. A table with a commented row is not a table. Both halves are now driven
+from a single declaration and both are checked, which is only possible because
+the adapter stopped treating a determined elision as an absence.</p>
+
+<h4 id="d8-migration-identity">Migration is a correspondence, not preserved identity</h4>
+
+<p>V2 is an explicit semantic-ID version break: the artifact's canonical bytes
+change, so every world's <code class="inline">sem-</code> moves. And
+<code class="inline">relation_id</code> is minted from the world id
+(<a href="#d8-identity-scope">§D8.5</a>) — so every relation id moves with it.
+There is a tempting fix, and it is wrong.</p>
+
+<div class="note stop"><b>What must not be done.</b> Preserving relation ids
+across the break by keeping the <i>V1</i> world id in the V2 preimage. It buys
+continuity at the cost of both laws that make the id mean anything: the
+relation's name would no longer be derivable from the world it is in, and the
+fact that this world was imported from that one — pure provenance — would be
+sitting inside a value (<a href="#d8-identity-provenance">§D8.3</a>).</div>
+
+<p>So a V1 relation and its V2 import are two relations, and saying so is
+correct rather than unfortunate: they belong to two worlds, and §D8.5 already
+ruled what that means. What migration owes is not sameness but a
+<b>correspondence</b> — and, by <a href="#d8-identity-home">§D8.2</a>, it has
+exactly one home. The pairing is a <b>ledger fact</b>, of the same shape as
+every other lifecycle event:</p>
+
+<pre class="code"><code>RelationImported {
+  from_world:    SemanticArtifactID   ; the v1 world
+  from_relation: RelationID
+  to_world:      SemanticArtifactID   ; its v2 import
+  to_relation:   RelationID
+}</code></pre>
+
+<p>Two properties make it a fact rather than a note. It is <b>derivable</b>:
+given both sealed artifacts and the mapping above, the pairing is computed, not
+authored, so it cannot be maintained wrongly by hand. And it is
+<b>outside the value</b>: neither relation's id, and neither world's
+<code class="inline">sem-</code>, changes because the import happened. A
+consumer that wants continuity reads the ledger, which is where continuity has
+lived since §D8.2.</p>
+
+<div class="note"><b>Both properties run, and did not have to wait for V2.</b>
+They were first registered as awaiting it, which was one step too cautious. The
+break V2 causes — every <code class="inline">sem-</code> moves, so by §D8.5
+every relation id moves with it — is not new in V2. Re-authoring <i>any</i>
+world and re-sealing it does exactly the same thing at a smaller scale, inside
+the frozen corpus. So the law is testable against two V1 worlds today, and V2
+is one more instance of it rather than the first.
+<code class="inline">deriveLegacyEdgeCorrespondence(from, to)</code> in
+<a href="#d8-kernel">the kernel</a> computes the pairing from two sealed worlds;
+the four rows it turned executable are in the register below. The strong form
+of <i>outside the value</i> is the one checked: not merely that the artifacts
+are unmutated, but that the imported world derives the identical ids while
+having never heard of the world it was imported from — which is precisely the
+property the refused alternative above would break.</div>
+
+<div class="note warn"><b>The derived pairing is not the ledger fact, and the
+first implementation returned it as if it were.</b> Its output field was called
+<code class="inline">imported</code>, and each entry had the four fields of a
+<code class="inline">RelationImported</code>. Nothing was wrong with the
+arithmetic. What was wrong is that a derivation had produced a record whose
+whole content is <i>an operation was accepted</i> — from two artifacts, which
+know nothing about operations. Read strictly, it says two worlds are related by
+a migration because they happen to contain matching edge keys, and two
+unrelated worlds built from the same starter template would then be full of
+imports nobody performed.</div>
+
+<p>So the two are separated, and the separation is what makes the fact
+checkable at all:</p>
+
+<ul>
+<li><b>The correspondence is structural and derived.</b> It emits
+<code class="inline">pairs</code> — candidates — alongside
+<code class="inline">dropped</code> and <code class="inline">added</code>. It
+asserts nothing about intent, and it is <i>total</i>: a world with no relations
+mapped against itself reports identity-preserving with all three lists empty,
+which is the degenerate case a correspondence that fails by returning nothing
+would be indistinguishable from.</li>
+<li><b>The <code class="inline">RelationImported</code> fact is authored</b>,
+emitted by an accepted migration operation, and therefore — uniquely on this
+page — a thing that can be <i>maintained wrongly</i>. Which is exactly why it
+is the one thing joined against something derived: a fact naming a pair the two
+sealed artifacts do not produce is refused.</li>
+</ul>
+
+<p>That asymmetry is the general rule underneath the specific fix. Derived
+values do not need checking against their own inputs; asserted ones do. Merging
+the two loses the only join that could have caught a wrong assertion, and it
+loses it by making the assertion unfalsifiable rather than by making it
+false.</p>
+
 <h3 id="d8-owes">What D8 owes before it can ship</h3>
 
 <ol>
 <li><b>A canonical form</b> that leaves every existing <code class="inline">sem-</code> id where it is (the note above).</li>
-<li><b>An allocation surface.</b> The minting rule is specified (<a href="#d8-identity-mint">§D8.1</a>) and, for period-0 relations, <a href="#d8-kernel">implemented</a>. What is still missing is a way to <i>write</i> an authored relation name, which is why <code class="inline">NamedInitialAllocation</code> exists in the preimage block and is refused by the implementation.
+<li><b>An allocation surface.</b> The minting rule is specified (<a href="#d8-identity-mint">§D8.1</a>) and, for period-0 relations, <a href="#d8-kernel">implemented</a>. What is still missing is a way to <i>write</i> an authored relation name, which is why <code class="inline">NamedInitialAllocation</code> exists in the preimage block, mints an id like any other variant, and is refused at both <a href="#d8-identity-mint">writer boundaries</a> — the importer's and the authoring surface's.
 <div class="note">This item used to also demand a validator enforcing that
 (<code class="inline">kind</code>, <code class="inline">src</code>,
 <code class="inline">dst</code>) is unique within an
@@ -2637,7 +3013,15 @@ arguably worse than silence: a wrong diagnostic sends the author somewhere
 there is nothing to find.</div></li>
 <li><b>An attribute type system.</b> <code class="inline">capacity=3</code> is meaningless without a unit and a range. This is the same requirement as typed ports (§D2), and neither should ship without the other.</li>
 <li><b>Terminal-level validation.</b> Single-writer becomes a property of a terminal rather than a global law, so validation must move with it: an owned terminal with two <code class="inline">source</code> endpoints reaching it is still an error, and must still be caught before the seal. A terminal declaring <code class="inline">resolved(f)</code> is the one exemption, and the exemption is visible on the terminal.</li>
-<li><b>A well-formedness rule per orientation.</b> Roles and orientation can contradict each other and the checker must say so: <code class="inline">directed</code> requires at least one <code class="inline">source</code> and at least one <code class="inline">target</code> and admits no other role; <code class="inline">symmetric</code> admits only <code class="inline">peer</code>; <code class="inline">acausal</code> admits only <code class="inline">terminal</code> and carries no texture. Each violation needs its own code.</li>
+<li><b>A well-formedness rule per orientation.</b> Roles and orientation can contradict each other and the checker must say so: <code class="inline">directed</code> requires at least one <code class="inline">source</code> and at least one <code class="inline">target</code> and admits no other role; <code class="inline">symmetric</code> admits only <code class="inline">peer</code>; <code class="inline">acausal</code> admits only <code class="inline">terminal</code> and carries no texture. Each violation needs its own code.
+<div class="note">These rules now run — <a href="#d8-canonical">§D8.7</a>, with
+<code class="inline">WRL_ENDPOINT_ROLE_ILLEGAL</code>,
+<code class="inline">WRL_INCOMPLETE_ORIENTATION</code> and
+<code class="inline">WRL_ACAUSAL_TEXTURE</code> as the three codes. What remains
+of this item is the <i>other</i> half of the texture row: texture is required
+for <code class="inline">directed</code>, and no V1 artifact can supply one
+(<a href="#d8-migration-map">§D8.8</a>). It becomes enforceable when the
+artifact version moves, and not before.</div></li>
 <li><b>A settlement rule per orientation.</b> <code class="inline">directed</code> settles by the existing REACT pass — including into a resolved terminal, in one pass, provided the resolution is a pure, total, deterministic function of the canonical driver map with a declared empty value (<a href="#d2-two-resolutions">§D2.1</a>). Algebraic laws are <i>not</i> required: idempotence belongs to §9's join, and associativity and commutativity are priced separately as a <code class="inline">parallel_fold</code> opt-in). <code class="inline">acausal</code> does not settle by passing values at all and requires a solver wall (§D4). <code class="inline">symmetric</code> has no settlement rule yet, which is the honest state of it.</li>
 <li><b>A film schema.</b> A relation's attributes are state, and §10 requires every state variable that determines future behaviour to be serialised.</li>
 </ol>
@@ -3275,10 +3659,35 @@ still unproved.</p>
 
 <p>That is not hypothetical. Separating the axes is what produced
 <a href="#d8-kernel">the kernel</a>, and the <code class="inline">model</code>
-layer is now <b>empty of debt</b>: four rows run. The suite enforces that as a
+layer is now <b>empty of debt</b>: thirty-five rows run. The suite enforces that as a
 ratchet rather than a milestone — settling a model-layer property lowers the
 permitted count, and a <i>new</i> model row therefore has to arrive already
-executable. The severity is the point. The model layer is defined as the layer
+executable. That ratchet is exactly what turned
+<a href="#d8-canonical">D8.7</a> from prose into twelve tests in the same commit:
+the rule could not be <i>stated</i> here without them. It also works in the
+other direction, which is the less obvious half: four rows first filed as
+<i>awaiting</i> a future artifact version turned out to be testable against two
+V1 worlds, because <a href="#d8-migration-identity">the break they were waiting
+for</a> already happens every time a world is re-sealed. A row parked at the
+wrong stage is the same defect as a row parked at the wrong status, and it is
+harder to notice, because nothing about it looks unfinished.</p>
+
+<p>The sharpest version of that error is a row that is <i>half</i> misfiled, and
+two rows here were. "The same authored name in two worlds yields two ids" was
+filed <i>surface · awaiting</i>, and "two overlapping grants do not collide" was
+filed <i>runtime · awaiting</i> — both correctly, as far as it went, because
+there is no syntax for naming a relation and no machinery for issuing a grant.
+But an identity is a function of a <a href="#d8-identity-mint">preimage</a>, and
+both preimages are writable today: a <code class="inline">NamedInitialAllocation</code>
+carries its <code class="inline">world_id</code> and a
+<code class="inline">GrantedAllocation</code> carries its
+<code class="inline">grant_id</code>. The <i>arithmetic</i> was never blocked;
+only the way a person reaches it was. So each row is now two: a model row that
+runs, and a narrower awaiting row that names the surface or the runtime it is
+genuinely still waiting on. A single row covering both had the effect of hiding
+a settled property behind an unsettled one, and reported less than was known.</p>
+
+<p>The severity is the point. The model layer is defined as the layer
 with no external blocker, so a model row saying <i>awaiting</i> is saying
 "nobody wrote it" in language that sounds like "nobody could" — and that
 substitution is the entire failure this register exists to catch.</p>
@@ -3286,15 +3695,46 @@ substitution is the entire failure this register exists to catch.</p>
 <div class="tbl" data-pending-register="identity-stack"><table>
 <thead><tr><th>Property</th><th>Expected result</th><th>Falsifies</th><th>Layer · status</th></tr></thead>
 <tbody>
-<tr data-pending-law="revision-does-not-move-relation-id" data-pending-for="D8.1" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/only-the-key-names-the-relation"><td>every field of a revision mutated in turn, and the id re-derived through the projection</td><td>only <code class="inline">kind</code> and <code class="inline">endpoints</code> move <code class="inline">relation_id</code>; <code class="inline">domain</code> and <code class="inline">policy</code> are <b>free</b>; the other three have no V1 form at all</td><td><a href="#d8-identity-mint">D8.1</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="revision-does-not-move-relation-id" data-pending-for="D8.1" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/only-the-key-names-the-relation"><td>every field of a revision mutated in turn, and the id re-derived through the projection</td><td>only <code class="inline">kind</code> and <code class="inline">endpoints</code> move <code class="inline">relation_id</code>; <code class="inline">policy</code> is <b>free</b>; the other four — <code class="inline">domain</code>, <code class="inline">orientation</code>, <code class="inline">texture</code>, <code class="inline">attributes</code> — have no V1 form at all, and the partition is checked <i>total</i> so a new field cannot arrive unclassified</td><td><a href="#d8-identity-mint">D8.1</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="revision-references-no-other-revision" data-pending-for="D8.2" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/revision-has-no-backpointer"><td>a <code class="inline">RelationRevision</code> carrying a pointer to its predecessor</td><td><b>refused</b> as <code class="inline">WRL_REVISION_BACKPOINTER</code> — lifecycle has one home, and it is the ledger</td><td><a href="#d8-derived">D8.2</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="provenance-does-not-move-revision-id" data-pending-for="D8.3" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/revision-id-is-world-independent"><td>the same relation structure sealed into two <i>different</i> worlds</td><td>the <b>same</b> revision id — which world described it is provenance, and provenance rides the event, not the value</td><td><a href="#d8-identity-provenance">D8.3</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
-<tr data-pending-law="overlapping-grants-do-not-collide" data-pending-for="D8.4" data-pending-status="awaiting" data-pending-stage="runtime"><td>two grants issued with <i>overlapping</i> <code class="inline">counter_range</code>, both drawn from</td><td><b>no collision</b> — distinct <code class="inline">grant_id</code> is in the preimage, so this is the case allocator mutual exclusion was thought to be needed for</td><td><a href="#d8-identity-fork">D8.4</a></td><td class="stage">runtime · awaiting</td></tr>
-<tr data-pending-law="same-name-different-world-differs" data-pending-for="D8.5" data-pending-status="awaiting" data-pending-stage="surface"><td>the same authored name in two sealed worlds</td><td>two <b>different</b> <code class="inline">relation_id</code>s, and no migration implied between them</td><td><a href="#d8-identity-scope">D8.5</a></td><td class="stage">surface · awaiting</td></tr>
+<tr data-pending-law="granted-allocation-separates-grants" data-pending-for="D8.4" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/world-scoping/a-granted-allocation-separates-grants"><td>the same <code class="inline">local_counter</code> minted under two different <code class="inline">grant_id</code>s</td><td>two <b>different</b> <code class="inline">relation_id</code>s — the separation is a property of the preimage, and it holds before any allocator exists to exploit it</td><td><a href="#d8-identity-fork">D8.4</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="overlapping-grants-do-not-collide" data-pending-for="D8.4" data-pending-status="awaiting" data-pending-stage="runtime"><td>two grants <i>issued</i> with overlapping <code class="inline">counter_range</code>, both actually drawn from by a running world</td><td><b>no collision</b> — which needs issuance, validity and draw, none of which exist; the <i>arithmetic</i> half of this is the model row above</td><td><a href="#d8-identity-fork">D8.4</a></td><td class="stage">runtime · awaiting</td></tr>
+<tr data-pending-law="named-allocation-is-world-scoped" data-pending-for="D8.5" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/world-scoping/a-named-allocation-is-world-scoped"><td>the same <code class="inline">relation_name</code> allocated in two sealed worlds</td><td>two <b>different</b> <code class="inline">relation_id</code>s — a <code class="inline">NamedInitialAllocation</code> carries <code class="inline">world_id</code>, so world-scoping is decided by the preimage, not by the surface that types the name</td><td><a href="#d8-identity-scope">D8.5</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="same-name-different-world-differs" data-pending-for="D8.5" data-pending-status="awaiting" data-pending-stage="surface"><td>the same name as an <i>author</i> writes it, in two worlds they authored</td><td>two <b>different</b> <code class="inline">relation_id</code>s, and no migration implied between them — but there is no syntax for naming a relation, so what remains untested is the surface, not the arithmetic</td><td><a href="#d8-identity-scope">D8.5</a></td><td class="stage">surface · awaiting</td></tr>
 <tr data-pending-law="same-edge-key-different-world-differs" data-pending-for="D8.5" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/relation-id-is-world-scoped"><td>the same <code class="inline">(kind, src, dst)</code> edge key in two sealed worlds</td><td>two <b>different</b> <code class="inline">relation_id</code>s — and the <i>same</i> revision id, because identity is world-scoped and description is not</td><td><a href="#d8-identity-scope">D8.5</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="reseal-does-not-preserve-relation-identity" data-pending-for="D8.5" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/migration/identity-is-not-preserved-across-a-reseal"><td>a world re-authored and re-sealed, every edge key unchanged</td><td>a <b>different</b> <code class="inline">relation_id</code> for every one of them — and a world mapped against <i>itself</i> preserving all of them, so the first half is not passing because nothing ever pairs</td><td><a href="#d8-identity-scope">D8.5</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="an-unpaired-relation-is-not-carried-silently" data-pending-for="D8.5" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/migration/a-relation-with-no-counterpart-is-not-paired"><td>a relation present in one sealed world and absent from the other</td><td><b>reported unpaired</b>, in whichever direction it is missing — never handed a counterpart the map invented for it</td><td><a href="#d8-identity-scope">D8.5</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="different-birth-same-allocation-collides" data-pending-for="D8.6" data-pending-status="awaiting" data-pending-stage="runtime"><td>same allocation, different initial revision</td><td><b>allocation collision</b>, deterministically</td><td><a href="#d8-identity-burn">D8.6</a></td><td class="stage">runtime · awaiting</td></tr>
 <tr data-pending-law="grant-validity-has-a-replayable-basis" data-pending-for="D8.4" data-pending-status="awaiting" data-pending-stage="runtime"><td>a grant whose <code class="inline">validity</code> is evaluated against something the film does not record</td><td><b>refused</b> — a replayer must reach the same verdict about a draw as the original run</td><td><a href="#d8-identity-fork">D8.4</a></td><td class="stage">runtime · awaiting</td></tr>
 <tr data-pending-law="reservation-survives-crash" data-pending-for="D8.6" data-pending-status="awaiting" data-pending-stage="runtime"><td>local reservation, crash, restart</td><td>the <i>same</i> allocation and birth key are retried, never a fresh counter</td><td><a href="#d8-identity-burn">D8.6</a></td><td class="stage">runtime · awaiting</td></tr>
+<tr data-pending-law="terminals-are-port-qualified" data-pending-for="D8.7" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/terminals-are-port-qualified"><td>every endpoint of a relation derived from a sealed world</td><td>a terminal of the form <code class="inline">object.port</code> — never a bare object id, because a node has several ports and only one of them is on this wire</td><td><a href="#d8-canonical">D8.7</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="endpoint-roles-are-semantic-positions" data-pending-for="D8.7" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/roles-are-semantic-positions"><td>every endpoint's <code class="inline">role</code></td><td>one of the four declared roles — a <i>port name</i> in the role slot is the 0.1 defect, and it type-checks against nothing</td><td><a href="#d8-canonical">D8.7</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="endpoint-order-is-not-semantic" data-pending-for="D8.7" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/endpoint-order-is-not-semantic"><td>a revision whose <code class="inline">endpoints</code> array is written in reverse</td><td>the <b>same</b> <code class="inline">revision_id</code> — the roles carry the direction, so array position may not</td><td><a href="#d8-canonical">D8.7</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="canonical-order-is-role-then-terminal" data-pending-for="D8.7" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/canonical-order-is-role-then-terminal"><td>canonicalisation of a revision with endpoints in arbitrary order</td><td>endpoints sorted by role in the <i>declared enumeration</i> order, then by terminal — sorting roles alphabetically would put <code class="inline">peer</code> first and disagree with the table</td><td><a href="#d8-canonical">D8.7</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="terminal-appears-once-per-relation" data-pending-for="D8.7" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/duplicate-terminal-is-refused"><td>a revision naming the same terminal twice, in either the same or a different role</td><td><b>refused</b> as <code class="inline">WRL_DUPLICATE_TERMINAL</code> — the normative rule was stated and unenforced</td><td><a href="#d8-canonical">D8.7</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="directed-admits-only-source-and-target" data-pending-for="D8.7" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/directed-admits-only-source-and-target"><td>a <code class="inline">directed</code> relation carrying a <code class="inline">peer</code></td><td><b>refused</b> as <code class="inline">WRL_ENDPOINT_ROLE_ILLEGAL</code></td><td><a href="#d8-canonical">D8.7</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="symmetric-admits-only-peers" data-pending-for="D8.7" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/symmetric-admits-only-peers"><td>a <code class="inline">symmetric</code> relation carrying a <code class="inline">source</code></td><td><b>refused</b> — a symmetric relation with a writer is a directed one that has not admitted it</td><td><a href="#d8-canonical">D8.7</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="acausal-admits-only-terminals" data-pending-for="D8.7" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/acausal-admits-only-terminals"><td>an <code class="inline">acausal</code> relation carrying a <code class="inline">target</code></td><td><b>refused</b> — an acausal connection has no writer to name</td><td><a href="#d8-canonical">D8.7</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="acausal-carries-no-texture" data-pending-for="D8.7" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/acausal-carries-no-texture"><td>an <code class="inline">acausal</code> relation carrying a <code class="inline">texture</code></td><td><b>refused</b> as <code class="inline">WRL_ACAUSAL_TEXTURE</code> — the solver wall of <a href="#d4">§D4</a> already governs settlement, and a texture would be a second account of it</td><td><a href="#d8-canonical">D8.7</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="directed-carries-a-texture" data-pending-for="D8.7" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/directed-carries-a-texture"><td>a <code class="inline">directed</code> relation stating no <code class="inline">texture</code> at all</td><td><b>refused</b> as <code class="inline">WRL_MISSING_TEXTURE</code> — §D8's texture row is <i>required</i> for directed, and 0.1.1 enforced only the acausal half while filing this one as a V2 obligation, which is a table with one live row and one commented row</td><td><a href="#d8-canonical">D8.7</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="texture-vocabulary-is-closed" data-pending-for="D8.7" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/texture-vocabulary-is-the-specs"><td>the set of textures the implementation admits, against the one V1 can write</td><td>exactly <a href="#d5">§5</a>'s four — <code class="inline">solid</code>, <code class="inline">async</code>, <code class="inline">verified</code>, <code class="inline">fault</code> — with V1 encoding only <code class="inline">solid</code>. What the surface can <i>write</i> and what the model <i>declares</i> are different sets, and narrowing the second to the first deletes three guarantee classes while every other texture check still passes</td><td><a href="#d8-canonical">D8.7</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="declared-vocabularies-are-immutable" data-pending-for="D8.7" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/immutability/the-canon-cannot-be-moved-from-outside"><td>an importer that reverses the role enumeration and widens the legal role sets, then re-runs canonicalisation</td><td><b>unmoved</b> — the exported tables are deep-frozen, so canonical order and role legality are still the ones this page declares. A closed enumeration a consumer can reopen is an open one with a comment</td><td><a href="#d8-canonical">D8.7</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="directed-carries-both-halves" data-pending-for="D8.7" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/directed-needs-both-halves"><td>a <code class="inline">directed</code> relation with sources but no targets</td><td><b>refused</b> as <code class="inline">WRL_INCOMPLETE_ORIENTATION</code> — a hyperarc is an ordered pair of vertex sets and neither may be empty</td><td><a href="#d8-canonical">D8.7</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="orientation-vocabulary-is-closed" data-pending-for="D8.7" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/orientation-vocabulary-is-the-specs"><td>the set of orientations the implementation admits</td><td>exactly <code class="inline">directed</code>, <code class="inline">symmetric</code>, <code class="inline">acausal</code> — the 0.1 kernel branched on an <code class="inline">undirected</code> that appears in no table on this page</td><td><a href="#d8-canonical">D8.7</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="projection-locates-endpoints-by-role" data-pending-for="D8.7" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/starter/every-edge-projects-back-exactly"><td>every V1 edge of a sealed world taken to a revision and back</td><td>the <b>byte-identical</b> edge — with the reverse direction found <i>by role</i> and the port suffix checked against the kind, never <code class="inline">endpoints[0]</code> and <code class="inline">endpoints[1]</code></td><td><a href="#d8-canonical">D8.7</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="import-supplies-only-declared-constants" data-pending-for="D8.8" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/the-import-supplies-only-declared-constants"><td>every field of every relation imported from both pinned worlds, classified as read, <i>resolved</i>, supplied or absent</td><td>read fields equal a value the artifact carries; <code class="inline">domain</code> is <b>resolved</b> to the namespace the profile declares — <code class="inline">signal</code>, never the profile id, which is what <i>declares</i> domains; supplied fields equal the declared constant, including <code class="inline">texture = solid</code>, which V1 elides rather than lacks — and the four sets exhaust the field list</td><td><a href="#d8-migration">D8.8</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="import-mints-one-allocation-variant" data-pending-for="D8.8" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/unwritable-variants-are-refused"><td>a named-initial or granted allocation offered at the <i>importer</i>'s boundary, and again at the <i>authoring surface</i>'s</td><td><b>refused</b> at both as <code class="inline">WRL_UNWRITABLE_ALLOCATION</code>, while <code class="inline">relationIdFromAllocation</code> still mints all three — which variants <i>exist</i>, which a trusted importer may <i>construct</i>, and which a surface may <i>emit</i> are three authorities, and folding them into the hash made identity depend on who was asking</td><td><a href="#d8-migration">D8.8</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="import-decides-nothing" data-pending-for="D8.8" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/the-consumer-keeps-the-frozen-verdict"><td>a page that shows the derived view, given a world V1 refuses</td><td>V1's <i>frozen</i> answer — the derived layer describes a world that sealed and does not decide whether one seals, however much better its diagnostic is</td><td><a href="#d8-migration">D8.8</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="migration-correspondence-is-derivable" data-pending-for="D8.8" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/migration/the-correspondence-is-derived-not-authored"><td>the structural correspondence between two sealed worlds, recomputed from the two artifacts alone</td><td>every id in it <b>recomputable</b> by each side on its own — a correspondence that has to be authored is one that can be maintained wrongly</td><td><a href="#d8-migration-identity">D8.8</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="import-moves-no-relation-id-into-the-value" data-pending-for="D8.8" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/migration/recording-an-import-moves-no-id"><td>the imported world derived <i>in ignorance of the import</i>, and re-sealed after it</td><td>the <b>same</b> <code class="inline">relation_id</code>s and the same <code class="inline">sem-</code> — the import is a ledger fact, and a world whose ids shift because it was imported from is a value carrying provenance</td><td><a href="#d8-migration-identity">D8.8</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="allocation-variants-have-declared-fields" data-pending-for="D8.1" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/allocations/each-variant-has-exactly-its-declared-fields"><td>each of the three allocation variants, with a field added and a field removed</td><td><b>refused</b> as <code class="inline">WRL_BAD_ALLOCATION</code> in both directions — the preimage of an id is an <i>exact</i> field set, and a variant that tolerates an extra key hashes two different things to one name</td><td><a href="#d8-identity-mint">D8.1</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="relation-id-binds-to-the-artifact-it-claims" data-pending-for="D8.5" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/binding/a-forged-world-id-is-refused"><td>a well-formed artifact handed to the derivation alongside a <code class="inline">sem-</code> it does not hash to</td><td><b>refused</b> as <code class="inline">WRL_SEMANTIC_ID_MISMATCH</code> — a world-scoped id whose scope is a <i>claim</i> the caller supplies is world-scoped to whatever the caller says</td><td><a href="#d8-identity-scope">D8.5</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="world-id-is-recomputed-not-supplied" data-pending-for="D8.5" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/binding/the-world-id-is-recomputed-not-supplied"><td>the derivation run with <i>no</i> claimed id at all</td><td>the <b>same</b> ids as the checked call — the claim is a cross-check, not the source, so the two paths cannot disagree and there is no unchecked path in</td><td><a href="#d8-identity-scope">D8.5</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="import-admits-only-declared-artifact-versions" data-pending-for="D8.8" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/binding/an-unknown-ir-version-is-refused"><td>an artifact declaring an <code class="inline">ir_version</code> outside the frozen set</td><td><b>refused</b> as <code class="inline">WRL_UNSUPPORTED_IR_VERSION</code> — the adapter's constants are V1's, so applying them to a version whose elisions it has never seen is a silent reinterpretation rather than an import</td><td><a href="#d8-migration">D8.8</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="an-empty-world-corresponds-to-itself" data-pending-for="D8.5" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/migration/an-empty-world-still-corresponds-to-itself"><td>a world with no relations, mapped against itself</td><td><b>identity-preserving</b>, with nothing paired, dropped or added — the degenerate case, where a correspondence that reports failure by returning an empty pairing is indistinguishable from one that works</td><td><a href="#d8-identity-scope">D8.5</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="a-pairing-is-not-an-import-fact" data-pending-for="D8.8" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/migration/a-pairing-is-not-an-import-fact"><td>the derived correspondence, inspected for anything shaped like a <code class="inline">RelationImported</code></td><td><b>none</b> — the pairs are <i>candidates</i>, and a derived view that emitted the ledger fact itself would be asserting that a migration was accepted because two artifacts happen to agree</td><td><a href="#d8-migration-identity">D8.8</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="an-import-fact-is-backed-by-a-pairing" data-pending-for="D8.8" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/migration/an-unbacked-import-fact-is-refused"><td>a <code class="inline">RelationImported</code> fact naming a pair the two artifacts do not produce</td><td><b>refused</b> as <code class="inline">WRL_UNVERIFIED_IMPORT</code> — the fact is <i>asserted</i> by an accepted operation, which makes it the one thing here that can be maintained wrongly, which is exactly why it is the one thing checked against something derived</td><td><a href="#d8-migration-identity">D8.8</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="unpinned-reference-is-refused" data-pending-for="D9.1" data-pending-status="awaiting" data-pending-stage="film"><td>a package whose reference resolves only through a service it does not pin</td><td><b>refused</b> — replay must not depend on a contract the package never stated</td><td><a href="#d9-closure">D9.1</a></td><td class="stage">film · awaiting</td></tr>
 <tr data-pending-law="birth-key-survives-rescheduling" data-pending-for="D9.2" data-pending-status="awaiting" data-pending-stage="runtime"><td>same birth proposed at period 20 and at period 21</td><td>same <code class="inline">RelationBirthKey</code>, different <code class="inline">ScheduledTransition</code></td><td><a href="#d9-transition">D9.2</a></td><td class="stage">runtime · awaiting</td></tr>
 <tr data-pending-law="evidence-does-not-fork-structure" data-pending-for="D9.2" data-pending-status="awaiting" data-pending-stage="runtime"><td>same schedule, different <code class="inline">offered_evidence</code></td><td>one structural candidate, two proposal envelopes</td><td><a href="#d9-transition">D9.2</a></td><td class="stage">runtime · awaiting</td></tr>

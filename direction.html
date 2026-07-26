@@ -604,8 +604,19 @@ point of D8.1 — but <i>not</i> across a re-seal, because a re-sealed world is 
 different <code class="inline">sem-</code> id by construction. That is the same
 scope object ids already have, so it is consistency rather than a new
 restriction; what it costs is that carrying a relation across a redeploy becomes
-a <b>migration</b> claim, with an explicit map a checker can verify, and it is
-filed against that capability at <a href="#ladder">step 9</a>.</p>
+a <b>migration</b> claim, with an explicit map a checker can verify.</p>
+
+<p>That map is the part of step 9 that already exists, and it exists because
+the law tests itself: re-sealing is what moves a relation id, and re-sealing
+needs no new capability, so a world re-authored today already produces the
+break. The correspondence between two sealed worlds is <i>computed</i> from
+the two artifacts rather than authored, reports any relation with no
+counterpart as unpaired rather than inventing one for it, and is
+<a href="playground.html">visible in the playground</a> against the pinned
+fixture — edit one clock and watch every relation id move
+(<a href="spec.html#d8-migration-identity">§D8.8</a>). What remains at
+<a href="#ladder">step 9</a> is the harder half: carrying live <i>state</i>
+across that route with recorded evidence.</p>
 
 <p>Three unusual capabilities fall out of that one change, and none of them is
 reachable by improving actors:</p>

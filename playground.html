@@ -46,6 +46,16 @@
   #selfcheck{font-family:var(--mono);font-size:11.5px;color:var(--ink-faint)}
   #selfcheck.good{color:var(--wire)}
   #selfcheck.bad{color:var(--rust)}
+  .rel{font-family:var(--mono);font-size:11.5px;line-height:1.65}
+  .rel .rrow{padding:9px 0;border-top:1px solid var(--rule)}
+  .rel .rrow:first-child{border-top:0}
+  .rel .rid{color:var(--wire);font-weight:600;word-break:break-all}
+  .rel .ep{color:var(--ink-soft)}
+  .rel .role{color:var(--ink-faint);text-transform:uppercase;font-size:10px;
+    letter-spacing:.1em;font-weight:600}
+  .rel .none{color:var(--ink-faint)}
+  .derivednote{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;
+    color:var(--ink-faint);text-transform:uppercase;font-weight:600}
   @media (max-width:940px){.pgrid{grid-template-columns:minmax(0,1fr)}}
 </style>
 </head>
@@ -120,6 +130,18 @@
       <div class="panel">
         <header>Desugared source <span class="sp" id="sugar-note"></span></header>
         <pre class="out" id="out-desugar"></pre>
+      </div>
+      <div class="panel">
+        <header>Derived relations
+          <span class="sp derivednote">derived · not canonical · not in the bytes</span>
+        </header>
+        <div class="out rel" id="out-relations"></div>
+      </div>
+      <div class="panel">
+        <header>Correspondence with the pinned fixture
+          <span class="sp derivednote">§D8.5 · a migration claim, computed</span>
+        </header>
+        <div class="out rel" id="out-corr"></div>
       </div>
     </div>
   </div>
@@ -231,6 +253,12 @@
 
 <script type="module">
 import * as W from "./wrl.js";
+/* The derived relation view of §D8. It imports `wrl.js`; nothing in the spine
+   imports it back, which is why no `rel-` value can reach a `sem-` preimage.
+   The page's VERDICT still comes from `sealWorld` alone -- this module has a
+   sharper diagnostic for a doubled edge, and adopting it here would quietly
+   change V1's frozen error surface. */
+import * as R from "./relation-identity.js";
 
 const $ = (id) => document.getElementById(id);
 const src = $("src");
@@ -396,6 +424,59 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 }
 
+/* the derived view, rendered from the SEALED artifact and its id -- the same
+   two values `deriveRelations` takes, and the reason this panel cannot drift
+   from the seal it is describing. Endpoints are printed by role rather than by
+   position, because that is the property §D8.7 is about: a reader who learns
+   direction from array order has learned something the model does not say. */
+function renderRelations(rel) {
+  if (!rel.relations.length)
+    return `<div class="none">no relations — this world has no edges</div>`;
+  return rel.relations.map((r) => {
+    const eps = r.revision.endpoints.map((e) =>
+      `<span class="role">${escapeHtml(e.role)}</span> ` +
+      `<span class="ep">${escapeHtml(e.terminal)}</span>`).join("  ·  ");
+    return `<div class="rrow"><div class="rid">${escapeHtml(r.relation_id)}</div>` +
+           `<div class="ep">${escapeHtml(r.revision_id)}</div>` +
+           `<div>${escapeHtml(r.revision.kind)} · ` +
+           `${escapeHtml(r.revision.orientation)}</div><div>${eps}</div></div>`;
+  }).join("");
+}
+
+/* §D8.5 says a relation id is world-scoped and is NOT preserved by re-sealing,
+   and that any claim otherwise is a migration claim someone has to carry. That
+   is easy to nod at and hard to feel, so this panel makes it happen while you
+   type: the pinned fixture is one sealed world, the editor is another, and the
+   map between them is computed rather than asserted. Change one rotor lane and
+   every relation id below moves.
+
+   The unpaired counts are the part worth watching. A relation with no
+   counterpart is reported dropped or added -- never given one -- because a
+   migration that quietly invents a correspondence is the failure §D8.5 names.
+
+   What this panel shows is a STRUCTURAL correspondence and nothing more. It
+   pairs relations two sealed artifacts independently agree on; it does not
+   emit `RelationImported`, because that is a ledger fact an accepted migration
+   operation asserts, and a derived view is not allowed to assert it. The
+   candidates below are what such a fact would have to be backed by --
+   `checkRelationImported` is the join, and it lives in the kernel, not here. */
+let PINNED = null;
+
+async function renderCorrespondence(r) {
+  if (!PINNED) PINNED = await W.sealWorld(W.DEMO_WORLD);
+  const c = await R.deriveLegacyEdgeCorrespondence(PINNED, r);
+  const same = c.from_world === c.to_world;
+  return `<div class="rrow"><div class="ep">` +
+    `${c.pairs.length} paired · ${c.dropped.length} dropped · ` +
+    `${c.added.length} added</div>` +
+    `<div><span class="role">ids preserved</span> ` +
+    `<span class="rid">${c.identityPreserved ? "yes" : "no"}</span></div>` +
+    `<div class="none">${same
+      ? "the same sealed world, so the correspondence is the identity map"
+      : "a different sealed world — every paired relation is two relations, " +
+        "and this map is what a migration would have to carry"}</div></div>`;
+}
+
 let last = null;
 
 async function run() {
@@ -410,7 +491,21 @@ async function run() {
     $("out-desugar").textContent = r.desugared;
     $("sugar-note").textContent = r.sugared ? "sugar expanded" : "no sugar";
     $("diag").innerHTML = "";
+    try {
+      $("out-relations").innerHTML =
+        renderRelations(await R.deriveRelations(r.artifact, r.semanticId));
+      $("out-corr").innerHTML = await renderCorrespondence(r);
+    } catch (e) {
+      /* a derived view that fails on a world the spine accepted is a fact
+         about the derivation, and saying so is the point of shipping it. */
+      const said = `<div class="none">derivation failed: ` +
+        `${escapeHtml(e.code || "")} ${escapeHtml(e.message || String(e))}</div>`;
+      $("out-relations").innerHTML = said;
+      $("out-corr").innerHTML = said;
+    }
   } else {
+    $("out-relations").innerHTML = "";
+    $("out-corr").innerHTML = "";
     $("idbar").classList.add("err");
     $("semid").textContent = r.code;
     $("out-bytes").textContent = "";

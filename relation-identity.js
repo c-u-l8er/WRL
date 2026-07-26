@@ -1,6 +1,55 @@
 /**
- * Relation Identity Kernel 0.1
- * ============================
+ * Relation Identity Kernel 0.1.2
+ * ==============================
+ *
+ * 0.1.2 is the second repair, and its four defects share one shape with the
+ * first: the implementation and its own model agreed with each other while
+ * disagreeing with §D8. A battery written from the implementation cannot see
+ * that, so each repair below arrives with a property that would have.
+ *
+ *   1. WRONG SLOT, AGAIN. `domain` held `artifact.profile_id`. §D8's field
+ *      table says a domain is a profile-declared NAMESPACE -- `signal`,
+ *      `digital`, `mobility` -- and §D8.8's own recovery table writes
+ *      `domain = signal` for a frozen route. A profile DECLARES domains; it is
+ *      not one. Resolved through `PROFILE_DEFAULT_DOMAIN` now, and the mapping
+ *      is data so a second profile cannot arrive without one.
+ *
+ *   2. AN ELIDED DEFAULT IS NOT AN ABSENT VALUE. 0.1.1 left `texture` absent
+ *      and registered directed-requires-texture as a V2 obligation, reasoning
+ *      that a frozen edge records no texture field. That confused the ENCODING
+ *      with the MEANING. V1's only surface-grounded texture is solid (§5), and
+ *      the artifact elides it exactly the way it elides `orientation` and the
+ *      implied ports -- both of which this adapter already restores. So
+ *      `texture: "solid"` is restored too, the projection requires precisely
+ *      that value and elides it on the way back, and the directed half of §D8's
+ *      texture row becomes executable rather than deferred.
+ *
+ *   3. TWO SOURCES OF TRUTH FOR ONE HASH. `deriveRelations(artifact, id)`
+ *      TRUSTED the caller's id. Passing a real artifact with a forged
+ *      `sem-000…0` minted relation ids under the forgery without complaint,
+ *      which falsifies the central claim that relation identity is derived
+ *      from the sealed world. The world id is now computed from the artifact,
+ *      and a supplied claim is CHECKED -- `WRL_SEMANTIC_ID_MISMATCH`.
+ *
+ *   4. A MUTABLE CANON. `ENDPOINT_ROLES` and its siblings were ordinary
+ *      arrays. Reversing one after import reversed the canonical endpoint
+ *      order, so a consumer could move a `revision_id` without touching this
+ *      file. Every exported vocabulary is deep-frozen.
+ *
+ * And one confusion of KIND rather than of value: a structural pairing is not
+ * an import fact. See `deriveLegacyEdgeCorrespondence` below.
+ *
+ * 0.1.1 was itself a repair, and the thing it repaired is worth keeping in
+ * view: 0.1 built its endpoints as `{ terminal: "p0", role: "sig_out" }`.
+ * That reverses §D8's two concepts. `role` is the SEMANTIC position a
+ * participant holds -- `source`, `target`, `peer`, `terminal` -- and the
+ * terminal is the port itself, `p0.sig_out`. Writing the port name in the role
+ * slot meant the module round-tripped V1 edges correctly while proving nothing
+ * about the model it claimed to embed them into: endpoint order was semantic
+ * (reversing two endpoints moved `revision_id`), `orientation` admitted an
+ * invented `undirected`, and none of §D8's role-legality or terminal-
+ * uniqueness laws were enforced. The suite was green throughout, because none
+ * of those obligations had been registered as properties. See §D8.7.
  *
  * Core Part II §D8 states that a relation has a stable `relation_id` minted
  * from an allocation, and a separate content-addressed `revision_id` for its
@@ -45,58 +94,250 @@
 
 import * as W from "./wrl.js";
 
+/* ------------------------------------------------------------------ freeze */
+
+/**
+ * Every identity-critical table below is exported, and an exported array is a
+ * shared mutable object. That is not a theoretical hazard: reversing
+ * `ENDPOINT_ROLES` after importing this module reverses the canonical endpoint
+ * sort, which moves every `revision_id` this kernel mints -- from OUTSIDE the
+ * file that documents the order as normative. Widening `ORIENTATION_ROLES`
+ * likewise changes what the validator accepts.
+ *
+ * So the vocabularies are deep-frozen. Freezing does not make the ordering
+ * correct; it makes the ordering the only one there is, which is what a
+ * canonical form has to be to be worth hashing.
+ */
+const deepFreeze = (v) => {
+  if (v && (typeof v === "object" || typeof v === "function") &&
+      !Object.isFrozen(v)) {
+    Object.freeze(v);
+    for (const k of Object.getOwnPropertyNames(v)) deepFreeze(v[k]);
+  }
+  return v;
+};
+
 /* ------------------------------------------------------------------ codes */
 
 /* Codes this kernel raises. They are deliberately NOT added to `W.CODES`:
  * that catalogue is the frozen spine's, and a derived layer that grows the
  * frozen layer's error surface is no longer derived. */
-export const RELATION_CODES = {
+export const RELATION_CODES = deepFreeze({
   WRL_DUPLICATE_RELATION_KEY:
     "two relations in one world share the edge key that names them",
   WRL_UNWRITABLE_ALLOCATION:
-    "an allocation variant was used that no surface can yet produce",
+    "an allocation variant was constructed by an authority that may not",
+  WRL_BAD_ALLOCATION:
+    "an allocation does not have the shape its variant declares",
   WRL_BAD_RELATION_REVISION:
     "a relation revision has the wrong shape",
   WRL_REVISION_BACKPOINTER:
     "a relation revision points at another revision",
-};
+  WRL_ENDPOINT_ROLE_ILLEGAL:
+    "an endpoint holds a role its relation's orientation does not admit",
+  WRL_DUPLICATE_TERMINAL:
+    "one terminal appears twice in a single relation",
+  WRL_INCOMPLETE_ORIENTATION:
+    "an orientation's required roles are not all present",
+  WRL_ACAUSAL_TEXTURE:
+    "an acausal relation carries a texture, which a solver wall governs instead",
+  WRL_MISSING_TEXTURE:
+    "a directed relation states no texture, and §D8 requires one",
+  WRL_BAD_TERMINAL:
+    "a terminal is not the object.port form a V1 edge can name",
+  WRL_SEMANTIC_ID_MISMATCH:
+    "a claimed world id is not the id the supplied artifact hashes to",
+  WRL_UNSUPPORTED_IR_VERSION:
+    "an artifact's ir_version is outside the V1 family this adapter reads",
+  WRL_UNKNOWN_PROFILE_DOMAIN:
+    "a profile declares no default relation domain for this adapter to resolve",
+  WRL_UNVERIFIED_IMPORT:
+    "a RelationImported fact is not backed by the derived correspondence",
+});
 
 const fail = (code, message, opts) => {
   throw new W.WrlError(code, message, opts);
 };
 
+/* -------------------------------------------------- the V1 source family */
+
+/**
+ * The artifact versions this adapter admits, named rather than assumed.
+ *
+ * §D8.8 originally said "V1", which in this repository is two things: `1.0`,
+ * and `1.1` for a world carrying a mailbox. They share the structural edge
+ * representation this kernel reads -- `{ kind, src, dst }` in an `edges`
+ * array -- so both are admissible and the set is written down. A V2 artifact
+ * encodes relations under a `relations` key with structured terminals; reading
+ * one through this adapter would produce confident nonsense, so it is refused
+ * BY NAME rather than by whatever happens when `.edges` is undefined.
+ */
+export const V1_IR_VERSIONS = deepFreeze(["1.0", "1.1"]);
+
+/**
+ * A profile's DEFAULT relation domain.
+ *
+ * §D8's field table: a domain is a profile-declared namespace -- `signal`,
+ * `digital`, `mobility`, `electrical`. A profile declares domains; it is not
+ * itself one, and putting `forge.world.core.v1` in the domain slot was the
+ * same class of defect as putting a port name in the role slot. §D8.8's
+ * recovery table fixes the value for a frozen route: `domain = signal`, and
+ * both frozen edge kinds are kinds OF that domain.
+ *
+ * It is a table rather than a constant so that a second profile cannot arrive
+ * without stating its default -- the resolution below refuses an unmapped one
+ * instead of silently reaching for `signal`.
+ */
+export const PROFILE_DEFAULT_DOMAIN = deepFreeze({
+  "forge.world.core.v1": "signal",
+});
+
+export function profileDefaultDomain(profileId) {
+  const domain = Object.prototype.hasOwnProperty.call(
+    PROFILE_DEFAULT_DOMAIN, profileId) ? PROFILE_DEFAULT_DOMAIN[profileId]
+                                       : undefined;
+  if (typeof domain !== "string")
+    fail("WRL_UNKNOWN_PROFILE_DOMAIN",
+         `profile '${profileId}' declares no default relation domain. §D8's ` +
+         `domain is a profile-declared namespace, so it cannot be defaulted ` +
+         `by guessing and must not be filled with the profile id itself`,
+         { fieldPath: "profile_id" });
+  return domain;
+}
+
+/**
+ * Refuse an artifact this adapter cannot honestly read.
+ *
+ * "Honestly" is the operative word: `artifact.edges` is `undefined` on a V2
+ * artifact, and a loop over `undefined` throws a TypeError somewhere far from
+ * the cause. §D8.8's contract is that the importer reads only the sealed
+ * artifact and invents nothing, which includes not inventing an opinion about
+ * an encoding it has never seen.
+ */
+export function assertV1Artifact(artifact) {
+  if (!artifact || typeof artifact !== "object" || Array.isArray(artifact))
+    fail("WRL_MALFORMED_ARTIFACT", "an artifact must be a record");
+  if (!V1_IR_VERSIONS.includes(artifact.ir_version))
+    fail("WRL_UNSUPPORTED_IR_VERSION",
+         `ir_version ${JSON.stringify(artifact.ir_version)} is outside the V1 ` +
+         `family this adapter reads (${V1_IR_VERSIONS.join(", ")}). A later ` +
+         `artifact encodes relations directly; importing one through the ` +
+         `legacy-edge adapter would mint identity from a shape it does not have`,
+         { fieldPath: "ir_version" });
+  if (!Array.isArray(artifact.edges) || !Array.isArray(artifact.objects))
+    fail("WRL_MALFORMED_ARTIFACT",
+         "a V1 artifact carries objects and edges arrays");
+  profileDefaultDomain(artifact.profile_id);
+  return artifact;
+}
+
+/**
+ * The world id an artifact ACTUALLY hashes to.
+ *
+ * This exists because the alternative -- believing a caller -- was shipped and
+ * was wrong. `deriveRelations` took the id as a parameter and used it as the
+ * allocation preimage's `world_id`, so a real artifact paired with a forged
+ * `sem-000…0` minted relation ids under the forgery. The whole claim of this
+ * module is that relation identity is derived FROM THE SEAL; a function with
+ * two independent sources of truth about what the seal is does not make that
+ * claim, it asserts it.
+ */
+export async function worldIdOfArtifact(artifact) {
+  assertV1Artifact(artifact);
+  return "sem-" + await sha256Hex(W.serializeArtifact(artifact));
+}
+
 /* ------------------------------------------------------------- revisions */
 
 /* The field list is §D8's, and the order here is presentational only -- the
  * canonical form is key-sorted, so nothing downstream depends on it. */
-export const REVISION_FIELDS =
-  ["domain", "kind", "endpoints", "orientation", "texture", "attributes", "policy"];
+export const REVISION_FIELDS = deepFreeze(
+  ["domain", "kind", "endpoints", "orientation", "texture", "attributes", "policy"]);
+
+/* §D8's four roles, IN THE DECLARED ENUMERATION ORDER -- which is not
+ * decoration: canonicalisation sorts endpoints by role and then terminal, and
+ * the sort is by position in this list rather than alphabetically, so that the
+ * tail of a directed relation precedes its head the way the spec's table reads.
+ * Sorting these strings alphabetically would put `peer` before `source` and
+ * silently make the canonical form disagree with the section that defines it. */
+export const ENDPOINT_ROLES = deepFreeze(["source", "target", "peer", "terminal"]);
+
+export const ORIENTATIONS = deepFreeze(["directed", "symmetric", "acausal"]);
+
+/* §5's four irreducible textures, frozen as a SET. Only `--` solid is
+ * surface-grounded in 0.1.2; the other three have IR or runtime footholds and
+ * no construct. That is a fact about the surface, not about the vocabulary,
+ * which is why all four are here and only one is reachable from a V1 edge. */
+export const TEXTURES = deepFreeze(["solid", "async", "verified", "fault"]);
+
+/* The texture a V1 structural edge MEANS. `--` is the only texture V1 can
+ * write, and the artifact elides it the way it elides orientation and the
+ * implied ports. Restoring it is expansion, not authorship: see the header. */
+export const V1_TEXTURE = "solid";
+
+/* Which roles each orientation admits, and which it REQUIRES.
+ *
+ * `directed` requires both halves because a hyperarc is an ordered pair of
+ * disjoint vertex sets, and a pair with an empty tail is not one -- a relation
+ * with three targets and no source says something crosses it from nowhere.
+ * `symmetric` and `acausal` have a single role each, so requiring it is the
+ * same statement as admitting it; it is written out anyway so that adding a
+ * fourth orientation has an obvious place to declare both facts rather than
+ * inheriting whichever one the code happened to check. */
+export const ORIENTATION_ROLES = deepFreeze({
+  directed:  { admits: ["source", "target"], requires: ["source", "target"] },
+  symmetric: { admits: ["peer"],             requires: ["peer"] },
+  acausal:   { admits: ["terminal"],         requires: ["terminal"] },
+});
+
+/* §D8's texture row, as the other half of the same table: REQUIRED for
+ * directed, profile-defined for symmetric, ABSENT for acausal. Written as data
+ * so the two halves cannot drift apart -- 0.1.1 enforced the acausal half and
+ * filed the directed half as a V2 obligation, and a table with one enforced
+ * row and one commented row is how that happens. */
+export const ORIENTATION_TEXTURE = deepFreeze({
+  directed:  "required",
+  symmetric: "optional",
+  acausal:   "forbidden",
+});
 
 /* Fields whose presence would make a revision refer to its own history. §D8.2
  * puts lifecycle in exactly one home, the ledger, so a value that points at
  * its predecessor is not a tighter version of the rule -- it is a second home,
  * and two homes disagree. */
-const BACKPOINTER_FIELDS =
+const BACKPOINTER_FIELDS = deepFreeze(
   ["previous_revision", "prior_revision", "parent", "predecessor",
-   "expected_prior_revision", "previous", "history"];
+   "expected_prior_revision", "previous", "history"]);
 
 /**
  * A V1 edge, read as a §D8 relation revision.
  *
- * Everything here comes from the sealed artifact. `orientation` is `directed`
- * because both V1 edge kinds are; `texture` is absent because a V1 edge
- * carries none, and absent rather than null because §D8 writes it `texture?`;
- * `attributes` is empty because there is nowhere in V1 to put one.
+ * Everything here comes from the sealed artifact, either READ off it or
+ * RESOLVED from something frozen about V1:
  *
- * The endpoint ROLES are the port names -- the frozen `EDGE_PORTS` pair for
- * the kind. They are the reason two edges of different kinds between the same
- * two objects are different relations rather than a collision: `sig_out` is
- * not `socket`.
+ *   domain      RESOLVED  the profile's declared default -- `signal`. Not the
+ *                         profile id, which is what declares domains rather
+ *                         than being one.
+ *   orientation SUPPLIED  `directed`, because both V1 edge kinds are.
+ *   texture     SUPPLIED  `solid`. V1's only surface-grounded texture (§5).
+ *                         The artifact elides it exactly as it elides
+ *                         orientation and the implied ports; an elided default
+ *                         is a value the world states, not one it withholds.
+ *   attributes  SUPPLIED  empty, because there is nowhere in V1 to put one.
+ *
+ * A V1 edge names two OBJECTS and leaves their ports implicit, because the
+ * kind determines them: `EDGE_PORTS` is the frozen pair. §D8 terminals are
+ * ports, not objects, so the port is made explicit here -- `p0.sig_out`, not
+ * `p0`. That is what keeps two edges of different kinds between the same two
+ * objects distinct relations rather than a collision, and it is why the
+ * projection below can be a real inverse: the suffix it strips is recoverable
+ * from the kind, so nothing was invented on the way in.
+ *
+ * The ROLES are §D8's semantic positions. Both V1 edge kinds are directed, so
+ * every derived relation has one `source` and one `target`.
  */
 export function edgeToRelationRevision(artifact, edge) {
-  if (!artifact || !Array.isArray(artifact.objects))
-    fail("WRL_BAD_RELATION_REVISION",
-         "a relation revision needs the sealed artifact for its endpoints");
+  assertV1Artifact(artifact);
   if (!edge || typeof edge.kind !== "string")
     fail("WRL_BAD_RELATION_REVISION", "an edge must carry kind, src and dst");
 
@@ -115,11 +356,12 @@ export function edgeToRelationRevision(artifact, edge) {
   }
 
   return canonicalizeRelationRevision({
-    domain: artifact.profile_id,
+    domain: profileDefaultDomain(artifact.profile_id),
     kind: edge.kind,
-    endpoints: [{ terminal: edge.src, role: ports[0] },
-                { terminal: edge.dst, role: ports[1] }],
+    endpoints: [{ terminal: `${edge.src}.${ports[0]}`, role: "source" },
+                { terminal: `${edge.dst}.${ports[1]}`, role: "target" }],
     orientation: "directed",
+    texture: V1_TEXTURE,
     attributes: {},
     policy: artifact.semantic_policies.rulepack_id,
   });
@@ -155,17 +397,19 @@ export function validateRelationRevision(rev) {
            `relation revision field '${f}' must be a non-empty string`,
            { fieldPath: f });
   }
-  if (rev.orientation !== "directed" && rev.orientation !== "undirected")
+  if (!ORIENTATIONS.includes(rev.orientation))
     fail("WRL_BAD_RELATION_REVISION",
-         `orientation '${rev.orientation}' is neither directed nor undirected`,
-         { fieldPath: "orientation" });
+         `orientation '${rev.orientation}' is not one of ` +
+         ORIENTATIONS.join(", "), { fieldPath: "orientation" });
+  const { admits, requires } = ORIENTATION_ROLES[rev.orientation];
 
   if (!Array.isArray(rev.endpoints) || rev.endpoints.length < 2)
     fail("WRL_BAD_RELATION_REVISION",
          "a relation revision needs at least two endpoints",
          { fieldPath: "endpoints" });
   for (const [i, e] of rev.endpoints.entries()) {
-    if (!e || typeof e.terminal !== "string" || typeof e.role !== "string")
+    if (!e || typeof e.terminal !== "string" || !e.terminal ||
+        typeof e.role !== "string")
       fail("WRL_BAD_RELATION_REVISION",
            `endpoint ${i} must be { terminal, role }`,
            { fieldPath: `endpoints[${i}]` });
@@ -174,26 +418,102 @@ export function validateRelationRevision(rev) {
       fail("WRL_BAD_RELATION_REVISION",
            `endpoint ${i} carries unknown field(s) ${extra.join(", ")}`,
            { fieldPath: `endpoints[${i}].${extra[0]}` });
+
+    /* the two role checks are separate because they fail for different
+     * reasons and a reader needs to know which: an unknown role is a typo or
+     * an invented vocabulary, an unadmitted one is a legal role in the wrong
+     * kind of relation */
+    if (!ENDPOINT_ROLES.includes(e.role))
+      fail("WRL_ENDPOINT_ROLE_ILLEGAL",
+           `endpoint role '${e.role}' is not one of ${ENDPOINT_ROLES.join(", ")}`,
+           { fieldPath: `endpoints[${i}].role` });
+    if (!admits.includes(e.role))
+      fail("WRL_ENDPOINT_ROLE_ILLEGAL",
+           `a ${rev.orientation} relation does not admit role '${e.role}'; ` +
+           `it admits ${admits.join(", ")}`,
+           { fieldPath: `endpoints[${i}].role` });
   }
+
+  /* §D8's normative uniqueness rule: at most once per RELATION, not per role.
+   * The weaker per-role reading admits {(x, source), (x, target)} -- one
+   * terminal simultaneously in the tail and the head -- and also leaves the
+   * canonical sort key non-total, since role would have to break the tie
+   * between two entries that share a terminal. */
+  const seen = new Set();
+  for (const e of rev.endpoints) {
+    if (seen.has(e.terminal))
+      fail("WRL_DUPLICATE_TERMINAL",
+           `terminal '${e.terminal}' appears twice in one relation. A ` +
+           `terminal holds at most one position in a relation; a self-loop ` +
+           `uses two different terminals on the same object`,
+           { fieldPath: "endpoints" });
+    seen.add(e.terminal);
+  }
+
+  const roles = new Set(rev.endpoints.map((e) => e.role));
+  const absent = requires.filter((r) => !roles.has(r));
+  if (absent.length)
+    fail("WRL_INCOMPLETE_ORIENTATION",
+         `a ${rev.orientation} relation requires ${requires.join(" and ")}; ` +
+         `[${absent.join(", ")}] absent`, { fieldPath: "endpoints" });
 
   if (!rev.attributes || typeof rev.attributes !== "object" ||
       Array.isArray(rev.attributes))
     fail("WRL_BAD_RELATION_REVISION", "attributes must be a record",
          { fieldPath: "attributes" });
 
-  if ("texture" in rev && typeof rev.texture !== "string")
+  if ("texture" in rev &&
+      (typeof rev.texture !== "string" || !TEXTURES.includes(rev.texture)))
     fail("WRL_BAD_RELATION_REVISION",
-         "texture, where present, must be a string", { fieldPath: "texture" });
+         `texture, where present, is one of ${TEXTURES.join(", ")}; got ` +
+         JSON.stringify(rev.texture), { fieldPath: "texture" });
+
+  /* §D8's texture row, BOTH halves, read out of one table.
+   *
+   * ABSENT for acausal: an acausal connection has no writer, so there is
+   * nothing for a texture to describe the delivery of, and settlement is
+   * governed by a solver wall (§D4). A texture here would be a second,
+   * disagreeing account of how the connection settles.
+   *
+   * REQUIRED for directed. 0.1.1 declined to enforce this and registered it as
+   * a V2 obligation, on the grounds that a frozen artifact's edge records no
+   * texture field. That reasoning confused the encoding with the meaning: V1's
+   * only surface-grounded texture is `--` solid (§5), and the artifact elides
+   * it the same way it elides `orientation` -- which the adapter was already
+   * restoring without anyone calling it an invention. So the adapter restores
+   * `solid`, and the rule can be enforced on everything, including the
+   * relations this kernel derives. */
+  const demand = ORIENTATION_TEXTURE[rev.orientation];
+  if (demand === "forbidden" && "texture" in rev)
+    fail("WRL_ACAUSAL_TEXTURE",
+         "an acausal relation carries no texture -- it has no writer, and a " +
+         "solver wall governs settlement instead (§D4)",
+         { fieldPath: "texture" });
+  if (demand === "required" && !("texture" in rev))
+    fail("WRL_MISSING_TEXTURE",
+         `a ${rev.orientation} relation states a texture: §D8's field table ` +
+         `writes it required for directed, and §5's textures are guarantee ` +
+         `classes, so a directed relation with none makes no statement about ` +
+         `whether it settles within the period`, { fieldPath: "texture" });
 
   return rev;
 }
 
 /**
- * Canonical form: validated, with absent optionals absent rather than null.
+ * Canonical form: validated, endpoints SORTED, absent optionals absent rather
+ * than null.
  *
  * `texture: undefined` and no `texture` key are the same fact, and if one of
  * them survived into the hash the two spellings would be two revisions. The
- * serializer is key-sorted, so nothing else needs ordering.
+ * serializer is key-sorted, so no OBJECT needs ordering -- but `endpoints` is
+ * an array, and an array's order is in its bytes. §D8 says endpoints are an
+ * unordered SET, so the order has to be decided here or it is decided by
+ * whoever typed the relation. Six spellings of one three-terminal net would
+ * otherwise be six revisions of six different ids.
+ *
+ * The sort is by role position in `ENDPOINT_ROLES`, then terminal, and it is
+ * total because a terminal appears at most once per relation -- so no two
+ * entries can tie on both keys.
  */
 export function canonicalizeRelationRevision(rev) {
   validateRelationRevision(rev);
@@ -201,7 +521,11 @@ export function canonicalizeRelationRevision(rev) {
   for (const f of REVISION_FIELDS) {
     if (!(f in rev) || rev[f] === undefined) continue;
     out[f] = f === "endpoints"
-      ? rev.endpoints.map((e) => ({ terminal: e.terminal, role: e.role }))
+      ? rev.endpoints
+          .map((e) => ({ terminal: e.terminal, role: e.role }))
+          .sort((a, b) =>
+            ENDPOINT_ROLES.indexOf(a.role) - ENDPOINT_ROLES.indexOf(b.role) ||
+            (a.terminal < b.terminal ? -1 : a.terminal > b.terminal ? 1 : 0))
       : rev[f];
   }
   return out;
@@ -215,13 +539,133 @@ export async function relationRevisionId(rev) {
 
 /* ----------------------------------------------------------- allocations */
 
-export const ALLOCATION_VARIANTS = ["named-initial", "legacy-edge", "granted"];
+export const ALLOCATION_VARIANTS =
+  deepFreeze(["named-initial", "legacy-edge", "granted"]);
 
-/* Variants this build can actually mint. `named-initial` is known and refused,
- * not omitted: a reader who reaches for it gets a typed answer naming what is
- * missing, rather than the silence that reads like "not implemented yet" and
- * gets implemented locally. */
-export const MINTABLE_VARIANTS = ["legacy-edge"];
+/**
+ * The shape of each variant, exactly, from §D8.1's preimage block.
+ *
+ * Written as data because the preimages are the identity scheme: a variant
+ * that gained a field, or lost one, would mint different names for the same
+ * relations, and the difference between those two hashes is not visible in a
+ * round-trip test. `world_id` is absent from `granted` on purpose -- §D8.1
+ * says `grant_id` already covers it, and restating it would be the same fact
+ * in two places one line apart, in a section about not doing that.
+ */
+export const ALLOCATION_FIELDS = deepFreeze({
+  "named-initial": ["world_id", "relation_name"],
+  "legacy-edge":   ["world_id", "kind", "src", "dst"],
+  "granted":       ["grant_id", "local_counter"],
+});
+
+/* THREE AUTHORITIES, NOT ONE.
+ *
+ * 0.1.1 had a single `MINTABLE_VARIANTS`, and it conflated three different
+ * questions that happen to have the same answer in V1:
+ *
+ *   - which variants EXIST                    -> ALLOCATION_VARIANTS
+ *   - which a trusted IMPORTER may construct  -> IMPORTABLE_VARIANTS
+ *   - which an AUTHORING SURFACE may emit     -> AUTHORABLE_VARIANTS
+ *
+ * The conflation had a real cost: because `relationIdFromAllocation` refused
+ * the other two variants outright, §D8.1's preimage law for them -- that a
+ * named allocation is world-scoped, that two grants cannot collide -- could
+ * not be stated as a property at all, and both rows sat `awaiting` behind a
+ * runtime they do not actually need. Identity is a pure function of a
+ * preimage. WHO may construct that preimage is a separate rule, and it belongs
+ * at the boundary where the construction happens.
+ */
+export const IMPORTABLE_VARIANTS = deepFreeze(["legacy-edge"]);
+export const AUTHORABLE_VARIANTS = deepFreeze([]);
+
+/**
+ * The V1 importer's authority. A V1 artifact records only `{ kind, src, dst }`
+ * per edge and has no field for a relation name or a grant, so an adapter that
+ * produced either would be asserting a surface and a grant machinery that do
+ * not exist -- and two worlds with identical bytes could then mint different
+ * ids, which is the one thing sealing is for.
+ */
+export function assertImportableAllocation(allocation) {
+  validateAllocation(allocation);
+  if (!IMPORTABLE_VARIANTS.includes(allocation.variant))
+    fail("WRL_UNWRITABLE_ALLOCATION",
+         `the V1 importer may not construct a '${allocation.variant}' ` +
+         `allocation; it constructs ${IMPORTABLE_VARIANTS.join(", ")}. A V1 ` +
+         `artifact records only { kind, src, dst } per edge and has no field ` +
+         `for a relation name or a grant`, { fieldPath: "variant" });
+  return allocation;
+}
+
+/**
+ * An authoring surface's authority, which in 0.1.2 admits nothing.
+ *
+ * The empty list is the statement. There is no writable relation surface, so
+ * `named-initial` -- the variant a surface would emit -- has no producer, and
+ * saying so with a typed refusal is better than the silence that reads as "not
+ * implemented yet" and gets implemented locally.
+ */
+export function assertAuthorableAllocation(allocation) {
+  validateAllocation(allocation);
+  if (!AUTHORABLE_VARIANTS.includes(allocation.variant))
+    fail("WRL_UNWRITABLE_ALLOCATION",
+         `no authoring surface in this build may emit a ` +
+         `'${allocation.variant}' allocation` +
+         (AUTHORABLE_VARIANTS.length
+            ? `; it may emit ${AUTHORABLE_VARIANTS.join(", ")}`
+            : `. There is no writable relation surface yet, so period-0 ` +
+              `relations are named by the seal and not by an author`),
+         { fieldPath: "variant" });
+  return allocation;
+}
+
+/**
+ * A well-formed allocation of a KNOWN variant, or a typed refusal.
+ *
+ * Shape only. This says nothing about who was allowed to build the record --
+ * that is the two assertions above -- because a hash function that also
+ * enforced provenance would make §D8.1's preimage laws untestable for every
+ * variant no surface can yet produce.
+ */
+export function validateAllocation(allocation) {
+  if (!allocation || typeof allocation !== "object" ||
+      Array.isArray(allocation) || typeof allocation.variant !== "string")
+    fail("WRL_BAD_ALLOCATION", "an allocation must carry a variant tag",
+         { fieldPath: "variant" });
+
+  if (!ALLOCATION_VARIANTS.includes(allocation.variant))
+    fail("WRL_BAD_ALLOCATION",
+         `allocation variant '${allocation.variant}' is not one of ` +
+         ALLOCATION_VARIANTS.join(", "), { fieldPath: "variant" });
+
+  const want = ALLOCATION_FIELDS[allocation.variant];
+  const have = Object.keys(allocation).filter((k) => k !== "variant").sort();
+  if (W.serializeArtifact(have) !== W.serializeArtifact([...want].sort()))
+    fail("WRL_BAD_ALLOCATION",
+         `a ${allocation.variant} allocation is { ${want.join(", ")} }; got ` +
+         `{ ${have.join(", ")} }. An extra field is a value in the preimage ` +
+         `that §D8.1 does not name, and a missing one is a name that ` +
+         `collides with every other allocation missing the same field`,
+         { fieldPath: "variant" });
+
+  for (const f of want) {
+    if (f === "local_counter") {
+      if (!Number.isInteger(allocation[f]) || allocation[f] < 0)
+        fail("WRL_BAD_ALLOCATION",
+             `local_counter is a non-negative integer; got ` +
+             JSON.stringify(allocation[f]), { fieldPath: f });
+      continue;
+    }
+    if (typeof allocation[f] !== "string" || !allocation[f])
+      fail("WRL_BAD_ALLOCATION",
+           `allocation field '${f}' must be a non-empty string`,
+           { fieldPath: f });
+    if (f === "world_id" && !/^sem-[0-9a-f]{64}$/.test(allocation[f]))
+      fail("WRL_BAD_ALLOCATION",
+           `world_id must be a sem- id; got ${JSON.stringify(allocation[f])}`,
+           { fieldPath: f });
+  }
+  return allocation;
+}
 
 /**
  * The period-0 allocation a V1 world can actually produce.
@@ -231,15 +675,25 @@ export const MINTABLE_VARIANTS = ["legacy-edge"];
  * survives being carried into another world is a migration nobody wrote.
  */
 export function legacyEdgeAllocation(worldId, edge) {
-  if (typeof worldId !== "string" || !/^sem-[0-9a-f]{64}$/.test(worldId))
-    fail("WRL_MALFORMED_ARTIFACT",
-         `world_id must be a sem- id; got ${JSON.stringify(worldId)}`,
-         { fieldPath: "world_id" });
   if (!edge || typeof edge.kind !== "string" ||
       typeof edge.src !== "string" || typeof edge.dst !== "string")
-    fail("WRL_MALFORMED_ARTIFACT", "an edge must carry kind, src and dst");
-  return { variant: "legacy-edge", world_id: worldId,
-           kind: edge.kind, src: edge.src, dst: edge.dst };
+    fail("WRL_BAD_ALLOCATION", "an edge must carry kind, src and dst");
+  return assertImportableAllocation(
+    { variant: "legacy-edge", world_id: worldId,
+      kind: edge.kind, src: edge.src, dst: edge.dst });
+}
+
+/** The period-0 allocation a WRITABLE surface would produce. §D8.1. */
+export function namedInitialAllocation(worldId, relationName) {
+  return validateAllocation(
+    { variant: "named-initial", world_id: worldId,
+      relation_name: relationName });
+}
+
+/** The runtime allocation §D8.4 draws from a grant. §D8.1. */
+export function grantedAllocation(grantId, localCounter) {
+  return validateAllocation(
+    { variant: "granted", grant_id: grantId, local_counter: localCounter });
 }
 
 /**
@@ -254,23 +708,7 @@ export function legacyEdgeAllocation(worldId, edge) {
  * apart even if a world_id and a grant_id ever coincided as bytes.
  */
 export async function relationIdFromAllocation(allocation) {
-  if (!allocation || typeof allocation.variant !== "string")
-    fail("WRL_MALFORMED_ARTIFACT", "an allocation must carry a variant tag",
-         { fieldPath: "variant" });
-
-  if (!ALLOCATION_VARIANTS.includes(allocation.variant))
-    fail("WRL_MALFORMED_ARTIFACT",
-         `allocation variant '${allocation.variant}' is not one of ` +
-         ALLOCATION_VARIANTS.join(", "), { fieldPath: "variant" });
-
-  if (!MINTABLE_VARIANTS.includes(allocation.variant))
-    fail("WRL_UNWRITABLE_ALLOCATION",
-         `allocation variant '${allocation.variant}' has no surface that can ` +
-         `produce it in this build. A V1 artifact records only ` +
-         `{ kind, src, dst } per edge and has no field for a relation name, ` +
-         `so minting from one would let two worlds with identical bytes mint ` +
-         `different ids`, { fieldPath: "variant" });
-
+  validateAllocation(allocation);
   return "rel-" + await sha256Hex(
     W.serializeArtifact({ tag: "WRL_RELATION", ...allocation }));
 }
@@ -295,7 +733,7 @@ export function projectRelationRevisionToV1Edge(rev) {
          { fieldPath: "kind" });
   if (r.orientation !== "directed")
     fail("WRL_UNSUPPORTED_FEATURE",
-         "a V1 edge is directed; an undirected relation has no V1 form",
+         `a V1 edge is directed; a ${r.orientation} relation has no V1 form`,
          { fieldPath: "orientation" });
   if (r.endpoints.length !== 2)
     fail("WRL_UNSUPPORTED_FEATURE",
@@ -306,16 +744,57 @@ export function projectRelationRevisionToV1Edge(rev) {
          "a V1 edge carries no attributes, so a relation that has some " +
          "cannot be projected into one without losing them",
          { fieldPath: "attributes" });
-  if ("texture" in r)
-    fail("WRL_UNSUPPORTED_FEATURE",
-         "a V1 edge carries no texture", { fieldPath: "texture" });
 
-  const [src, dst] = r.endpoints;
-  if (src.role !== ports[0] || dst.role !== ports[1])
-    fail("WRL_ILLEGAL_PORT_PAIR",
-         `relation of kind ${r.kind} connects ${src.role} -> ${dst.role}, ` +
-         `but V1 pairs ${ports[0]} -> ${ports[1]}`,
+  /* §D8.8's normative projection names `domain = signal` as its first clause,
+   * so it is checked as one. A `mobility.occupies` relation with two frozen
+   * edge kinds' worth of shape is still not a V1 edge. */
+  const domain = profileDefaultDomain(W.PROFILE_ID);
+  if (r.domain !== domain)
+    fail("WRL_UNSUPPORTED_FEATURE",
+         `a V1 edge encodes the ${domain} domain; a ${r.domain} relation has ` +
+         `no V1 form`, { fieldPath: "domain" });
+
+  /* ELIDED, not absent -- and elision is only lossless if the value being
+   * dropped is the one the encoding implies. `--` solid is the whole of what a
+   * V1 structural edge can mean (§5), so a solid texture is dropped on the way
+   * out and any other texture is a relation V1 genuinely cannot represent. The
+   * 0.1.1 rule was the opposite -- refuse ANY texture -- which round-tripped
+   * only because the adapter had not restored one. */
+  if (r.texture !== V1_TEXTURE)
+    fail("WRL_UNSUPPORTED_FEATURE",
+         `a V1 edge encodes only the ${V1_TEXTURE} texture; a ` +
+         `${"texture" in r ? r.texture : "textureless"} relation has no V1 ` +
+         `form`, { fieldPath: "texture" });
+
+  /* found BY ROLE, never by position. Destructuring `const [src, dst] =
+   * r.endpoints` is what 0.1 did, and it reads correctly right up until
+   * canonicalisation reorders a set whose order was never meaning -- at which
+   * point the head and the tail swap silently and the projection produces a
+   * reversed edge that still round-trips through itself. */
+  const src = r.endpoints.find((e) => e.role === "source");
+  const dst = r.endpoints.find((e) => e.role === "target");
+  if (!src || !dst)
+    fail("WRL_INCOMPLETE_ORIENTATION",
+         `a V1 edge needs one source and one target endpoint`,
          { fieldPath: "endpoints" });
+
+  /* A V1 terminal is `object.port`, and object ids are `\w+`, so the form is
+   * unambiguous. The port is not carried into the edge: it is recoverable from
+   * the kind, and writing it down twice would let the two copies disagree. It
+   * is CHECKED against the kind instead, which is the same test the frozen
+   * validator applies to a written edge. */
+  const object = (e, port, half) => {
+    const m = /^(\w+)\.(\w+)$/.exec(e.terminal);
+    if (!m)
+      fail("WRL_BAD_TERMINAL",
+           `${half} terminal '${e.terminal}' is not the object.port form a ` +
+           `V1 edge names`, { fieldPath: "endpoints" });
+    if (m[2] !== port)
+      fail("WRL_ILLEGAL_PORT_PAIR",
+           `relation of kind ${r.kind} reaches ${m[2]} as its ${half}, but ` +
+           `V1 pairs ${ports[0]} -> ${ports[1]}`, { fieldPath: "endpoints" });
+    return m[1];
+  };
 
   /* Key order matches `graphToIr`'s edge record for readability only. It is
    * NOT what makes the round trip exact -- `serializeArtifact` sorts keys
@@ -324,7 +803,9 @@ export function projectRelationRevisionToV1Edge(rev) {
    * mutation test that scrambled it expecting red got green. The correction is
    * left visible because a comment asserting a guarantee that nothing enforces
    * is how the next reader learns to trust the wrong thing. */
-  return { kind: r.kind, src: src.terminal, dst: dst.terminal };
+  return { kind: r.kind,
+           src: object(src, ports[0], "source"),
+           dst: object(dst, ports[1], "target") };
 }
 
 /* ------------------------------------------------------ the duplicate key */
@@ -360,6 +841,222 @@ export function checkRelationKeys(graph) {
 /* ------------------------------------------------------- the derived view */
 
 /**
+ * The derivation itself, from a SEALED world: the artifact and the id it
+ * hashed to, nothing else.
+ *
+ * Taking the artifact rather than the source is the whole claim made
+ * elsewhere on this page -- a relation view is a function of the sealed
+ * world, not of how the world was written -- expressed as a signature, so a
+ * consumer holding only a `sealWorld` result can derive without re-parsing
+ * and without a second opinion about whether the world is admissible.
+ *
+ * That matters for the playground in particular. V1's error surface is
+ * frozen: a doubled edge is `WRL_CONTROLLER_CONFLICT` there, and the sharper
+ * `WRL_DUPLICATE_RELATION_KEY` this module can give is available only through
+ * `sealWithRelations`. A page that showed the derived view must not silently
+ * acquire the derived verdict along with it, so the two are separable.
+ */
+export async function deriveRelations(artifact, claimedSemanticId = null) {
+  const worldId = await worldIdOfArtifact(artifact);
+
+  /* The claim is OPTIONAL and CHECKED, and it used to be neither.
+   *
+   * 0.1.1 took the id as a parameter and put it straight into the allocation
+   * preimage. Handing it a real artifact and a forged `sem-000…0` minted
+   * relation ids under the forgery, silently -- so the module's central claim,
+   * that relation identity is derived from the sealed world, was true only of
+   * callers who were already telling the truth. A function with two
+   * independent sources of truth about one hash has no source of truth. */
+  if (claimedSemanticId !== null && claimedSemanticId !== worldId)
+    fail("WRL_SEMANTIC_ID_MISMATCH",
+         `the supplied artifact hashes to ${worldId}, and the caller claims ` +
+         `${claimedSemanticId}. Relation identity is derived from the seal, ` +
+         `so the seal is recomputed rather than believed`,
+         { fieldPath: "semantic_artifact_id" });
+
+  const relations = [];
+  for (const edge of artifact.edges) {
+    const allocation = legacyEdgeAllocation(worldId, edge);
+    const revision = edgeToRelationRevision(artifact, edge);
+    relations.push({
+      allocation,
+      relation_id: await relationIdFromAllocation(allocation),
+      revision,
+      revision_id: await relationRevisionId(revision),
+    });
+  }
+  return {
+    derived: true,
+    canonical: false,
+    inArtifactBytes: false,
+    world_id: worldId,
+    note: "InitialRelationDeclared facts for period 0. Not hashed into " +
+          "the artifact and not part of the SemanticArtifactID.",
+    relations,
+  };
+}
+
+/* ------------------------------------------------- the migration statement */
+
+/* The fields of a RelationImported fact, exactly. Named as data for the same
+ * reason REVISION_FIELDS is: a test can require the set to be exhausted, so a
+ * fifth field cannot arrive unclassified.
+ *
+ * WHO imported, WHEN, and UNDER WHAT AUTHORITY are deliberately not here.
+ * §D8.3 puts provenance on the ledger EVENT rather than in the value, and a
+ * four-field payload wrapped in an event envelope is that rule obeyed; five
+ * fields would be it broken. */
+export const RELATION_IMPORTED_FIELDS =
+  deepFreeze(["from_world", "from_relation", "to_world", "to_relation"]);
+
+/**
+ * The STRUCTURAL correspondence between the relations of two sealed worlds.
+ *
+ * §D8.5 says a relation id is world-scoped and is not preserved by re-sealing,
+ * and that any claim two relations across two sealed worlds are "the same
+ * relation" is a MIGRATION claim carried by an explicit map a checker can
+ * verify. This computes the CANDIDATE map, and the name says so.
+ *
+ * 0.1.1 called this `deriveCorrespondence` and had it emit records typed
+ * `RelationImported`, which was a category error worth spelling out because it
+ * looked like a naming quibble. Two independently authored worlds can contain
+ * the same V1 edge keys without either having been imported from the other. A
+ * derivation over two artifacts can see that the keys match; it cannot see
+ * that a migration happened, because that is a historical claim and neither
+ * artifact records history. So the derivation produces `pairs` -- candidates
+ * -- and an accepted migration OPERATION is what emits `RelationImported`
+ * facts, which `checkRelationImported` then verifies against these candidates.
+ *
+ * Why it can be built now rather than after V2: the break V2 will cause --
+ * every `sem-` moves, so by §D8.5 every relation id moves with it -- is not
+ * new in V2. Re-authoring any V1 world and re-sealing it does exactly the same
+ * thing, at a smaller scale, inside the frozen corpus.
+ *
+ * The properties that make the result usable:
+ *
+ *   DERIVABLE. Computed from the two sealed artifacts alone, with each side's
+ *   world id RECOMPUTED rather than taken on the caller's word. The pairing
+ *   key is the legacy edge key -- in V1 the only name a period-0 relation has.
+ *
+ *   OUTSIDE THE VALUE. Neither artifact is read for anything but its own
+ *   relations, and no id from one world enters a preimage in the other.
+ *   Recording an import moves no id, which is the whole reason it is a ledger
+ *   fact and not a field.
+ *
+ * An edge with no counterpart is NOT paired. It lands in `dropped` or `added`,
+ * because a migration that quietly invents a correspondence for a relation
+ * that stopped existing is the exact failure §D8.5 calls "silence is not
+ * continuity".
+ */
+export async function deriveLegacyEdgeCorrespondence(from, to) {
+  const index = async (field, w) => {
+    if (!w || typeof w !== "object" || !w.artifact)
+      fail("WRL_MALFORMED_ARTIFACT",
+           `the ${field} side must be a sealed world: ` +
+           `{ artifact, semanticId }`, { fieldPath: field });
+    /* the claim is passed THROUGH the checked boundary, so a sealed-looking
+     * record carrying a forged id is refused here too rather than only in the
+     * single-world path */
+    const view = await deriveRelations(
+      w.artifact, typeof w.semanticId === "string" ? w.semanticId : null);
+    const m = new Map();
+    for (const r of view.relations)
+      m.set(W.serializeArtifact({ kind: r.allocation.kind,
+                                  src: r.allocation.src,
+                                  dst: r.allocation.dst }), r);
+    return { world_id: view.world_id, byKey: m };
+  };
+
+  const a = await index("from_world", from);
+  const b = await index("to_world", to);
+  const pairs = [], dropped = [], added = [];
+
+  for (const key of [...a.byKey.keys()].sort()) {
+    if (b.byKey.has(key))
+      pairs.push({ key,
+                   from_relation: a.byKey.get(key).relation_id,
+                   to_relation: b.byKey.get(key).relation_id });
+    else
+      dropped.push({ key, relation_id: a.byKey.get(key).relation_id });
+  }
+  for (const key of [...b.byKey.keys()].sort())
+    if (!a.byKey.has(key))
+      added.push({ key, relation_id: b.byKey.get(key).relation_id });
+
+  return {
+    derived: true,
+    canonical: false,
+    inArtifactBytes: false,
+    from_world: a.world_id,
+    to_world: b.world_id,
+    /* From world identity, and from nothing else.
+     *
+     * 0.1.1 defined this as "every pair has equal ids AND there is at least
+     * one pair", which made two EMPTY worlds -- including one empty world
+     * compared with itself -- report that identity was not preserved. That is
+     * not what §D8.5 says. A relation id is meaningful relative to its sealed
+     * world; two different worlds cannot preserve one whether or not they have
+     * any relations to preserve, and one world trivially does. */
+    identityPreserved: a.world_id === b.world_id,
+    pairs, dropped, added,
+  };
+}
+
+/**
+ * The `RelationImported` facts a migration WOULD emit for this correspondence.
+ *
+ * Candidates. Calling this does not make a migration have happened; an
+ * accepted migration operation emits these into a ledger, wrapped in the event
+ * envelope that carries the authority and the timing.
+ */
+export function candidateImportedFacts(correspondence) {
+  return correspondence.pairs.map((p) => ({
+    from_world: correspondence.from_world,
+    from_relation: p.from_relation,
+    to_world: correspondence.to_world,
+    to_relation: p.to_relation,
+  }));
+}
+
+/**
+ * Verify emitted `RelationImported` facts against the derived candidates.
+ *
+ * This is the checker §D8.5 asks for. A migration claim is authored -- an
+ * operation asserted it -- so unlike the correspondence it CAN be maintained
+ * wrongly, and the correction is that every fact must be backed by a pairing
+ * the two sealed artifacts independently produce.
+ */
+export function checkRelationImported(facts, correspondence) {
+  if (!Array.isArray(facts))
+    fail("WRL_UNVERIFIED_IMPORT", "RelationImported facts are a list",
+         { fieldPath: "facts" });
+
+  const backed = new Set(candidateImportedFacts(correspondence)
+    .map((f) => W.serializeArtifact(f)));
+
+  for (const [i, f] of facts.entries()) {
+    if (!f || typeof f !== "object" || Array.isArray(f) ||
+        W.serializeArtifact(Object.keys(f).sort()) !==
+          W.serializeArtifact([...RELATION_IMPORTED_FIELDS].sort()))
+      fail("WRL_UNVERIFIED_IMPORT",
+           `RelationImported fact ${i} is not exactly ` +
+           `{ ${RELATION_IMPORTED_FIELDS.join(", ")} }`,
+           { fieldPath: `facts[${i}]` });
+    if (!backed.has(W.serializeArtifact({
+          from_world: f.from_world, from_relation: f.from_relation,
+          to_world: f.to_world, to_relation: f.to_relation })))
+      fail("WRL_UNVERIFIED_IMPORT",
+           `RelationImported fact ${i} claims ${f.from_relation} in ` +
+           `${f.from_world} became ${f.to_relation} in ${f.to_world}, and the ` +
+           `two sealed artifacts do not pair those relations. A migration ` +
+           `claim is asserted, not derived, so it is the one thing here that ` +
+           `can be maintained wrongly -- which is why it is checked`,
+           { fieldPath: `facts[${i}]` });
+  }
+  return facts;
+}
+
+/**
  * Seal a world and return its derived relation view alongside.
  *
  * The `derived` block is marked, at runtime and in one place, with the three
@@ -383,29 +1080,10 @@ export async function sealWithRelations(source) {
     const bytes = W.serializeArtifact(artifact);
     const semanticId = "sem-" + await sha256Hex(bytes);
 
-    const relations = [];
-    for (const edge of artifact.edges) {
-      const allocation = legacyEdgeAllocation(semanticId, edge);
-      const revision = edgeToRelationRevision(artifact, edge);
-      relations.push({
-        allocation,
-        relation_id: await relationIdFromAllocation(allocation),
-        revision,
-        revision_id: await relationRevisionId(revision),
-      });
-    }
-
     return {
       ok: true, source, desugared: mapped.text, origins, graph, artifact,
       bytes, semanticId, sugared: mapped.text !== source,
-      derived: {
-        derived: true,
-        canonical: false,
-        inArtifactBytes: false,
-        note: "InitialRelationDeclared facts for period 0. Not hashed into " +
-              "the artifact and not part of the SemanticArtifactID.",
-        relations,
-      },
+      derived: await deriveRelations(artifact, semanticId),
     };
   } catch (e) {
     if (e instanceof W.WrlError)
