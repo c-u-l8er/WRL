@@ -543,9 +543,9 @@ from a binary directed <code class="inline">Edge</code> to a general
 <code class="inline">Relation</code>, with today's route as its simplest
 specialisation.</p>
 
-<pre class="code"><code>RelationAllocation =
+<pre class="code" data-preimage="normative"><code>RelationAllocation =
     AuthoredAllocation { world_id, authored_name }        ; present at period 0
-  | LeasedAllocation   { lease_id, local_counter }        ; attached at runtime
+  | GrantedAllocation  { grant_id, local_counter }        ; attached at runtime
 
 RelationRevision   { domain, kind, endpoints, orientation,
                      texture?, attributes, policy }
@@ -553,7 +553,7 @@ RelationRevision   { domain, kind, endpoints, orientation,
 Endpoint { terminal, role }
 
 relation_id      = H("WRL_RELATION" ‖ "authored" ‖ world_id ‖ authored_name)
-relation_id      = H("WRL_RELATION" ‖ "leased"   ‖ lease_id ‖ local_counter)
+relation_id      = H("WRL_RELATION" ‖ "granted"  ‖ grant_id ‖ local_counter)
 current_revision = fold over the ledger prefix — derived, never stored</code></pre>
 
 <p>The split into a stable <code class="inline">relation_id</code> and a
@@ -577,13 +577,16 @@ none.</p>
 <p>The allocation is two variants rather than one flat record because the two
 cases get their uniqueness from different places: an authored name is unique by
 parse, checked when the world seals, while a runtime counter is unique only
-within a <b>lease</b> — a content-addressed value naming a range that no two live
-allocators can hold at once
-(<a href="spec.html#d8-identity-fork">§D8.4</a>). Why a lease was granted stays
-on its grant event and its acceptance receipt, never in the lease, which is
+within a <b>grant</b> — a content-addressed value naming a range, issued once and
+never restored. Two grants cannot collide whatever their ranges, because the
+grant's id is part of the name's preimage; the only pair that can contend is two
+draws from one grant, which is why recovering an allocator has to mean taking a
+new grant rather than reloading the old one
+(<a href="spec.html#d8-identity-fork">§D8.4</a>). Why a grant was issued stays
+on its issue event and its acceptance receipt, never in the grant, which is
 §D8.3 applied one level down. An allocation is also <b>spent by being seen</b>:
 once it appears in any observed proposal it is bound to that proposal's
-transition and can never name a second relation, whether the proposal was
+transition intent and can never name a second relation, whether the proposal was
 accepted, refused, or abandoned
 (<a href="spec.html#d8-identity-burn">§D8.6</a>) — the identity equivalent of
 never reusing a nonce.</p>

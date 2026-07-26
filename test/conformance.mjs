@@ -912,6 +912,406 @@ for (const cap of REGISTRY.keys()) {
      `relation is the failure this whole section exists to prevent.`);
 }
 
+/* THE PREIMAGE CLASSIFICATION. The check above asserts direction ⊆ spec. It
+ * therefore says nothing at all about an *extra* equation in spec.html, and an
+ * extra equation is exactly the failure that occurred: D8.5 went on printing
+ * the superseded flat triple long after D8.1 replaced it with a tagged union,
+ * and the suite reported green. Substituting a fabricated formula for it also
+ * reported green, which is the honest measure of how much the check was doing.
+ *
+ * A subset check cannot catch a surplus. The law that can is a *census*: every
+ * relation_id equation anywhere on the site is classified, and each allocation
+ * variant has exactly one normative equation. Then a stale formula is not a
+ * stale formula -- it is either an unclassified one, or a second normative
+ * statement for a variant that already has one, and both are failures. The
+ * classification is deliberately three-valued, because the page needs to keep
+ * publishing formulas that are not the rule: H(attach_event) is a cycle kept
+ * on purpose as the counterexample that motivates the whole design, and
+ * deleting it to satisfy a checker would destroy the argument. Marking is the
+ * fix, not removal. */
+{
+  const KINDS = new Set(["normative", "counterexample", "retired"]);
+  const EQ = /relation_id\s*=\s*H\(/g;
+  const norm = (s) => s.replace(/\s+/g, " ").trim();
+
+  const unclassified = [];   // equation lines outside any tagged block
+  const badKind = [];        // data-preimage with an unknown value
+  const normative = [];      // { file, text }
+
+  /* The equations live inside <pre><code>, so the first line of a block starts
+   * with markup rather than with the equation. An anchored line match silently
+   * skips exactly those, which made the first version of this check pass a
+   * reinstated stale formula -- the same class of one-directional blind spot it
+   * was written to remove. Strip the tags, then read lines. */
+  const equationsIn = (html) => html
+    .replace(/<[^>]*>/g, "\n")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => /^relation_id\s*=\s*H\(/.test(l))
+    .map(norm);
+
+  for (const f of htmlFiles) {
+    const src = readFileSync(join(ROOT, f), "utf8");
+    let accounted = 0;
+    for (const m of src.matchAll(/<pre\b([^>]*)>([\s\S]*?)<\/pre>/g)) {
+      const [, attrs, body] = m;
+      const lines = equationsIn(body);
+      accounted += lines.length;
+      if (lines.length === 0) continue;
+      const kind = (attrs.match(/data-preimage="([^"]*)"/) || [])[1];
+      if (kind === undefined) { unclassified.push(...lines.map((l) => `${f}: ${l}`)); continue; }
+      if (!KINDS.has(kind)) { badKind.push(`${f}: data-preimage="${kind}"`); continue; }
+      if (kind === "normative") normative.push(...lines.map((text) => ({ file: f, text })));
+    }
+    /* Reconciliation. Every occurrence in the file must have been read by the
+     * block walk above. A surplus means an equation in running prose, or a
+     * <pre> this regex failed to pair -- either way an equation nothing has
+     * classified, which is the condition being tested. */
+    const total = (src.match(EQ) || []).length;
+    if (total !== accounted) {
+      unclassified.push(
+        `${f}: ${total} relation_id equation(s) present, ${accounted} accounted ` +
+        `for inside <pre> blocks`);
+    }
+  }
+
+  ok("identity/preimages-are-classified", unclassified.length === 0,
+     `relation identity equation(s) published with no data-preimage ` +
+     `classification:\n    ${unclassified.join("\n    ")}\n  An unclassified ` +
+     `equation is indistinguishable from the current rule to a reader and ` +
+     `invisible to this suite, which is how the superseded flat triple ` +
+     `survived three revisions of §D8.`);
+
+  ok("identity/preimage-kinds-are-known", badKind.length === 0,
+     `data-preimage must be one of ${[...KINDS].join(", ")}: ` +
+     `${badKind.join(", ")}`);
+
+  /* The variants are read out of the union rather than listed here. A list in
+   * the test would be a fourth copy of the same fact and would drift the first
+   * time a third allocation source is added -- and drift silently, in the
+   * direction of not checking the new one. */
+  const specSrc = readFileSync(join(ROOT, "spec.html"), "utf8");
+  const variants = [...new Set(
+    [...specSrc.matchAll(/\b([A-Z]\w*)Allocation\s*\{/g)]
+      .map((m) => m[1])
+      .filter((v) => v !== "Relation")
+      .map((v) => v.toLowerCase()))];
+
+  ok("identity/allocation-variants-are-declared", variants.length >= 2,
+     `spec.html declares ${variants.length} allocation variant(s) ` +
+     `(${variants.join(", ") || "none"}); D8.1 states two, so either the union ` +
+     `was reshaped or this reader stopped matching it.`);
+
+  ok("identity/normative-preimages-name-a-variant",
+     normative.every((e) => variants.filter((v) => e.text.includes(`"${v}"`)).length === 1),
+     `every normative relation_id equation must carry exactly one variant tag ` +
+     `(${variants.map((v) => `"${v}"`).join(", ")}) in its preimage. Offenders:\n    ` +
+     `${normative.filter((e) => variants.filter((v) => e.text.includes(`"${v}"`)).length !== 1)
+        .map((e) => `${e.file}: ${e.text}`).join("\n    ")}\n  An equation with ` +
+     `no tag cannot be attributed to an allocation source, so nothing can tell ` +
+     `whether it is the current rule for one variant or a leftover for none.`);
+
+  const perVariant = variants.map((v) => {
+    const forV = normative.filter((e) => e.text.includes(`"${v}"`));
+    return { v, texts: [...new Set(forV.map((e) => e.text))], where: forV.map((e) => e.file) };
+  });
+
+  const wrongCount = perVariant.filter((p) => p.texts.length !== 1);
+  ok("identity/one-normative-preimage-per-variant", wrongCount.length === 0,
+     `each allocation variant must have exactly one distinct normative ` +
+     `equation sitewide. Violations:\n    ` +
+     `${wrongCount.map((p) => `${p.v}: ${p.texts.length} distinct — ${p.texts.join(" | ")}`).join("\n    ")}\n` +
+     `  Zero means a variant can be allocated with no stated preimage. Two ` +
+     `means two implementers mint two different names for one relation, which ` +
+     `is unrecoverable and invisible: neither page reads as wrong.`);
+
+  /* Republication is welcome and is the reason for "distinct" above: a summary
+   * page may restate the equations, byte for byte, as many times as it likes.
+   * What it may not do is restate them differently, and it may not be the only
+   * place they appear. */
+  const orphanVariant = perVariant.filter((p) => !p.where.includes("spec.html"));
+  ok("identity/normative-preimages-live-in-the-spec", orphanVariant.length === 0,
+     `variant(s) [${orphanVariant.map((p) => p.v).join(", ")}] state a normative ` +
+     `preimage only outside spec.html (${orphanVariant.map((p) => p.where.join(",")).join("; ")}). ` +
+     `A summary may republish the rule; it may not be the rule.`);
+}
+
+/* THE RETIRED VOCABULARY. Renaming a defined term is the same defect as the
+ * stale preimage above, one level up: the old name goes on reading like a
+ * current one everywhere it was not caught by hand. TransitionKey was retired
+ * because the period inside it contradicted D8.6's retry rule; the rename
+ * touched five places and there was no way to know it was five.
+ *
+ * The register is deliberately not a delete-list. This page's whole method is
+ * that a superseded idea is more useful visible, with the reason attached, than
+ * removed -- so a retired term MAY be named, and may only be named inside the
+ * element that explains its retirement. Everywhere else it is a failure. */
+{
+  const readable = (name) => name.replace(/_/g, "_");
+  const spanOf = (src, at) => {
+    /* Walk back to the opening '<' of the tag carrying the attribute, then
+     * forward with a depth counter. A non-greedy match to the first close tag
+     * would silently truncate the allowed region the first time a note gained
+     * a nested element, which would turn this check into a source of false
+     * failures rather than a source of true ones. */
+    const open = src.lastIndexOf("<", at);
+    const tag = (src.slice(open).match(/^<([a-zA-Z0-9]+)/) || [])[1];
+    if (!tag) return null;
+    const marks = [...src.matchAll(new RegExp(`</?${tag}\\b`, "g"))]
+      .filter((m) => m.index >= open);
+    let depth = 0;
+    for (const m of marks) {
+      depth += m[0][1] === "/" ? -1 : 1;
+      if (depth === 0) return src.slice(open, m.index + m[0].length);
+    }
+    return null;
+  };
+
+  const register = [];   // { term, file, allowed: string[] }
+  for (const f of htmlFiles) {
+    const src = readFileSync(join(ROOT, f), "utf8");
+    for (const m of src.matchAll(/data-retired-term="([^"]+)"/g)) {
+      const span = spanOf(src, m.index);
+      ok(`vocabulary/retired-register-span-parses[${f}]`, span !== null,
+         `a data-retired-term attribute in ${f} is on an element this reader ` +
+         `could not close; the register would silently allow nothing.`);
+      for (const term of m[1].split(",").map((s) => s.trim()).filter(Boolean)) {
+        const e = register.find((r) => r.term === term) ||
+                  (register.push({ term, allowed: [] }), register[register.length - 1]);
+        if (span) e.allowed.push(span);
+      }
+    }
+  }
+
+  ok("vocabulary/retired-register-is-not-vacuous", register.length > 0,
+     `no term is registered as retired anywhere on the site. This page retires ` +
+     `vocabulary as a matter of method -- the stale D8.5 preimage is what ` +
+     `happens when it does not -- so an empty register is far more likely to ` +
+     `mean the register was deleted than that nothing was ever renamed.`);
+
+  const escaped = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const leaks = [];
+  for (const { term, allowed } of register) {
+    const re = () => new RegExp(`\\b${escaped(term)}s?\\b`, "g");
+    let allowedHits = 0;
+    for (const span of allowed) allowedHits += (span.match(re()) || []).length;
+    let total = 0;
+    const where = [];
+    for (const f of htmlFiles) {
+      const n = (readFileSync(join(ROOT, f), "utf8").match(re()) || []).length;
+      total += n;
+      if (n > 0) where.push(`${f}×${n}`);
+    }
+    if (total !== allowedHits) {
+      leaks.push(`${readable(term)}: ${total} occurrence(s) [${where.join(", ")}], ` +
+                 `${allowedHits} inside the element that retires it`);
+    }
+  }
+
+  ok("vocabulary/retired-terms-stay-retired", leaks.length === 0,
+     `retired term(s) still in use outside the note that retires them:\n    ` +
+     `${leaks.join("\n    ")}\n  A retired name that is still spoken normally ` +
+     `is not retired; it is a second vocabulary, and a reader has no way to ` +
+     `tell which one the rule is written in.`);
+}
+
+/* SPLIT RULES. Two rules here now say two things at once: a law about the world
+ * that a replayer can establish from the ledger, and an obligation on one
+ * participant that nothing outside it can ever observe. Stated fused, the
+ * unverifiable half stands for the whole and the rule reads as aspiration --
+ * which is exactly the criticism both rules earned before they were split.
+ *
+ * What a checker can enforce is not that the classification is *true* -- no
+ * text-level check establishes that -- but that it is *complete and referred
+ * to*: a rule split into halves declares each half exactly once, declares both
+ * kinds, and every half named in prose is a half that exists. The last clause
+ * is the one that bites, because prose citing D8.6-c is how a third half gets
+ * invented without anyone stating it. */
+{
+  const KINDS = new Set(["replay", "participant"]);
+  const declared = new Map();      // "D8.4-a" -> { kind, file, count }
+
+  for (const f of htmlFiles) {
+    const src = readFileSync(join(ROOT, f), "utf8");
+    for (const m of src.matchAll(/data-rule-half="([^"]+)"[^>]*data-established-by="([^"]+)"/g)) {
+      const [, half, kind] = m;
+      const e = declared.get(half) || { kind, file: f, count: 0 };
+      e.count += 1;
+      declared.set(half, e);
+    }
+  }
+
+  ok("rules/split-rules-exist", declared.size > 0,
+     `no rule declares halves. D8.4 and D8.6 each state a replay-establishable ` +
+     `law beside a participant obligation; if neither is annotated any more, ` +
+     `the distinction has been dissolved back into prose.`);
+
+  const badKind = [...declared].filter(([, e]) => !KINDS.has(e.kind));
+  ok("rules/rule-half-kinds-are-known", badKind.length === 0,
+     `data-established-by must be one of ${[...KINDS].join(", ")}: ` +
+     `${badKind.map(([h, e]) => `${h}="${e.kind}"`).join(", ")}. The taxonomy ` +
+     `is two-valued on purpose -- a third value would be a place to file the ` +
+     `rules nobody wants to classify.`);
+
+  const twice = [...declared].filter(([, e]) => e.count !== 1);
+  ok("rules/rule-halves-are-declared-once", twice.length === 0,
+     `rule half/halves declared more than once: ` +
+     `${twice.map(([h, e]) => `${h}×${e.count}`).join(", ")}. Two declarations ` +
+     `is two homes for one fact, which is the defect §D8 exists to remove.`);
+
+  /* Group by the rule they belong to, and require both kinds present. A rule
+   * with only a replay half needs no split and should not claim one; a rule
+   * with only a participant half is the original defect wearing an
+   * annotation. */
+  const byRule = new Map();
+  for (const [half, e] of declared) {
+    const rule = half.replace(/-[a-z]$/, "");
+    (byRule.get(rule) || byRule.set(rule, []).get(rule)).push(e.kind);
+  }
+  const lopsided = [...byRule].filter(([, ks]) => ![...KINDS].every((k) => ks.includes(k)));
+  ok("rules/split-rules-state-both-kinds", lopsided.length === 0,
+     `rule(s) declaring halves without both kinds: ` +
+     `${lopsided.map(([r, ks]) => `${r} has only [${[...new Set(ks)].join(", ")}]`).join("; ")}\n` +
+     `  A rule that only has a replay half does not need splitting. A rule ` +
+     `that only has a participant half is the unverifiable-rule defect with a ` +
+     `label on it.`);
+
+  const cited = new Set();
+  for (const f of htmlFiles) {
+    for (const m of readFileSync(join(ROOT, f), "utf8").matchAll(/\bD\d+\.\d+-[a-z]\b/g)) {
+      cited.add(m[0]);
+    }
+  }
+  const phantom = [...cited].filter((h) => !declared.has(h));
+  ok("rules/cited-rule-halves-are-declared", phantom.length === 0,
+     `prose cites rule half/halves that nothing declares: ${phantom.join(", ")}. ` +
+     `A citation is how a half nobody wrote acquires authority.`);
+
+  const unused = [...declared.keys()].filter((h) => {
+    let n = 0;
+    for (const f of htmlFiles) {
+      n += (readFileSync(join(ROOT, f), "utf8").match(new RegExp(`\\b${h}\\b`, "g")) || []).length;
+    }
+    return n < 2;   /* the declaration itself, plus at least one reference */
+  });
+  ok("rules/declared-rule-halves-are-cited", unused.length === 0,
+     `rule half/halves declared and never referred to anywhere: ` +
+     `${unused.join(", ")}. A distinction nothing downstream uses is a ` +
+     `distinction that was drawn for the reviewer, not for the design.`);
+}
+
+/* THE NUMBERED LAWS. D9.3 rests its verifiability claim on one row of the
+ * objects table -- "law 3 makes rehydration verifiable rather than trusted" --
+ * and a citation by bare number is the cheapest thing on this page to break.
+ * Reorder the table, insert a row, and the sentence goes on reading fluently
+ * while pointing at a different law. Citations are therefore written as links
+ * carrying the number they mean, and the rows carry theirs; nothing checks that
+ * law 3 says what the sentence claims, but a citation can no longer point at a
+ * row that does not exist. draft.html has its own unrelated numbered laws,
+ * which is exactly why the citation form is explicit rather than a text match
+ * on "law N". */
+{
+  const src = readFileSync(join(ROOT, "spec.html"), "utf8");
+  const rows = new Set([...src.matchAll(/data-law-row="(\d+)"/g)].map((m) => m[1]));
+  const cites = [...src.matchAll(/data-law-cited="(\d+)"/g)].map((m) => m[1]);
+
+  ok("laws/object-table-is-numbered", rows.size > 0,
+     `the objects table publishes no data-law-row numbers, so every citation ` +
+     `into it is unverifiable.`);
+  ok("laws/citations-exist", cites.length > 0,
+     `nothing cites a numbered law; this check is vacuous. D9.3 cited law 3 ` +
+     `when it was written.`);
+
+  const phantom = [...new Set(cites)].filter((n) => !rows.has(n));
+  ok("laws/cited-laws-exist", phantom.length === 0,
+     `spec.html cites law(s) ${phantom.join(", ")} that the objects table does ` +
+     `not number. A rule resting on a law that is not there is a rule resting ` +
+     `on nothing, and it reads exactly like one that is not.`);
+
+  /* The numbers must also be dense and start at one, or "law 3" is ambiguous
+   * between the third row and the row labelled 3. */
+  const seq = [...rows].map(Number).sort((a, b) => a - b);
+  ok("laws/law-numbers-are-dense",
+     seq.every((n, i) => n === i + 1),
+     `the objects table numbers laws [${seq.join(", ")}]; they must be 1..n ` +
+     `with no gaps, or an ordinal citation and a labelled citation stop ` +
+     `meaning the same thing.`);
+}
+
+/* THE RECORD CENSUS. The preimage census above generalises, and it had to,
+ * because the check that caught the stale equation did not catch the stale
+ * *record*: §D8's own rule block went on declaring
+ * RelationAllocation { world_id, issuer, nonce } long after §D8.1 replaced it
+ * with a tagged union, and it was found by looking at the rendered page.
+ *
+ * Two definitions of one type is the same defect as two preimages for one
+ * variant, one level less severe only because a reader can sometimes tell which
+ * is newer. The law is the same: a type name is an identity, so it gets one
+ * definition. A page that wants to show a superseded shape may -- inside a
+ * block classified as a counterexample or a retirement, exactly as with the
+ * equations. Everywhere else, a second shape is a failure. */
+{
+  const DEFN = /^([A-Z][A-Za-z0-9]*)\s*(\{[^}]*\}|=)\s*$/;
+  const seen = new Map();     // TypeName -> Map<definitionText, [places]>
+
+  /* Three things share this syntax and only one of them is a declaration.
+   *   Name { a, b }        a declaration -- the shape of the type
+   *   Name { a = 1 }       an instance -- an example with values bound
+   *   Name { a, … }        a projection -- part of the record, shown to make
+   *                        a point about that part
+   * Only declarations are censused. Instances are how §D9's examples read and
+   * there may be many; a projection is an explicit promise that it is not the
+   * whole thing, which is the honest way to quote a record you are not
+   * defining, and is what the mint section should have used all along. */
+  const isDeclaration = (shape) =>
+    shape === "=" || !(/=/.test(shape) || /…|\.\.\./.test(shape));
+
+  const record = (line, f) => {
+    const d = line.replace(/;.*$/, "").trim().match(DEFN);
+    if (!d) return;
+    const [, name, shape] = d;
+    if (!isDeclaration(shape)) return;
+    const text = `${name} ${shape.replace(/\s+/g, " ")}`;
+    const byText = seen.get(name) || seen.set(name, new Map()).get(name);
+    byText.set(text, [...(byText.get(text) || []), f]);
+  };
+
+  for (const f of htmlFiles) {
+    const src = readFileSync(join(ROOT, f), "utf8");
+    for (const m of src.matchAll(/<pre\b([^>]*)>([\s\S]*?)<\/pre>/g)) {
+      const [, attrs, body] = m;
+      const kind = (attrs.match(/data-preimage="([^"]*)"/) || [])[1];
+      if (kind === "counterexample" || kind === "retired") continue;
+      /* Strip markup, then read only lines that are a whole declaration. A
+       * field line inside a multi-line record never matches, and a name merely
+       * mentioned in prose never reaches here. */
+      for (const raw of body.replace(/<[^>]*>/g, "\n").split("\n")) record(raw, f);
+    }
+    /* Inline spans too. The flat RelationAllocation survived in a <pre>, but
+     * the operations table restates records inline, and a check that only
+     * reads display blocks leaves the more numerous hiding place open. */
+    for (const m of src.matchAll(/<code class="inline">([^<]*)<\/code>/g)) {
+      record(m[1].replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">"), f);
+    }
+  }
+
+  ok("records/census-is-not-vacuous", seen.size > 0,
+     `no record declarations were found in any <pre> block. Either the record ` +
+     `syntax changed or this reader stopped matching it; both leave the ` +
+     `duplicate-shape defect unguarded.`);
+
+  const forked = [...seen].filter(([, byText]) => byText.size > 1);
+  ok("records/one-definition-per-type", forked.length === 0,
+     `type(s) declared in more than one shape:\n    ` +
+     `${forked.map(([n, byText]) => `${n}\n      ` +
+        [...byText].map(([t, ws]) => `${t}   [${[...new Set(ws)].join(", ")}]`)
+          .join("\n      ")).join("\n    ")}\n` +
+     `  A type name is an identity. Two shapes under one name means a reader ` +
+     `implements whichever they reached first, and the page cannot say which ` +
+     `of them is wrong -- which is exactly how the flat ` +
+     `RelationAllocation outlived the union that replaced it.`);
+}
+
 /* The falsification conditions are the other duplicated structure. Direction
  * states them at length; the spec states its own list. They drifted once
  * already -- Direction published a condition D9 had explicitly retired -- so

@@ -49,6 +49,18 @@
   .verdict code{font-family:var(--mono);color:inherit}
   .machine .verdict b{color:inherit}
 
+  /* ---- hero headline: two lines, not three ---- */
+  .hero h1{max-width:21ch}
+
+  /* ---- the where-it-stands strip under the workbench ---- */
+  .facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+    gap:1px;margin-top:30px;background:var(--machine-edge);
+    border:1px solid var(--machine-edge);border-radius:9px;overflow:hidden}
+  .fact{background:var(--machine-2);padding:16px 18px 18px}
+  .fact p{font-size:14px;line-height:1.62;color:#8FA79E;margin-top:9px;max-width:42ch}
+  .fact p b{color:#CFE3DA}
+  .fact .tier{font-size:10px}
+
   /* ---- glyphs shared by every diagram on the page ---- */
   .topo .gl{fill:none;stroke:var(--phosphor-dim);stroke-width:1.5}
   .topo .mk{fill:none;stroke:var(--phosphor);stroke-width:1.4;stroke-linecap:round}
@@ -142,34 +154,16 @@
 <main id="main">
 
 <!-- ============================================================== hero -->
-<section class="machine" style="padding-top:96px;padding-bottom:88px">
+<section class="machine hero" style="padding-top:72px;padding-bottom:80px">
   <div class="inner">
     <div class="slot">AN EXECUTABLE TOPOLOGY LANGUAGE</div>
-    <h1>The surface reads like a route map. The meaning is a hash.</h1>
-    <p class="lede">A WallRiderLang program is a network of <b>durable
-    identities</b> connected by <b>textured routes</b> and separated by
-    <b>boundaries</b>. The name is literal: programs are made of <b>riders</b> —
-    identities in motion along routes — and <b>walls</b> — the boundaries that
-    gate, commit, and seal what they do. The whole network is one content
-    address, and every run of it is a film that replays exactly.</p>
-
-    <div class="note" style="margin-top:26px"><b>Read this first.</b> WRL is a
-    <b>frozen small core inside a large design draft</b>. What you can write
-    today is five surface roles, two edge kinds, one profile, one route texture
-    (<code class="inline">--</code>) and the six-phase period cycle — that much
-    is implemented, property-tested and shipping inside TRVM Forge. Most of the
-    notation on the rest of this site describes <b>settled meaning that has no
-    writable surface yet</b>. Every page marks which is which, on three separate
-    axes. <a href="reference.html#tiers">See how to read the badges →</a></div>
-
-    <div class="note warn" style="margin-top:16px"><b>And read this second.</b>
-    Judged as an <i>actor language</i> — spawnable processes, mailboxes,
-    behaviour loops, supervision trees — WRL is weak, and will not catch up to
-    Erlang/OTP by imitating it. What it is actually good at is describing a
-    network of identities so precisely that the description is a hash and the
-    run is a film. <a href="direction.html">Direction</a> states the destination
-    that follows from that, the honest scorecard of where it is today, and the
-    ordered list of everything still missing.</div>
+    <h1>Write a map. Get a hash. Replay the film.</h1>
+    <p class="lede">The name is literal. A WallRiderLang program is a network of
+    <b>riders</b> — durable identities in motion along textured routes —
+    separated by <b>walls</b> that gate, commit and seal what they do. Rewrite
+    the text however you like: the meaning only moves when the network does,
+    because the network <i>is</i> its own content address, and every run of it
+    is a film that replays exactly.</p>
 
     <div class="wb">
       <div class="wb-pane">
@@ -213,6 +207,27 @@
       </div>
       <p class="verdict" id="wb-verdict">Nothing is sent anywhere — this is the
       real identity spine, ported to JavaScript, running in your tab.</p>
+    </div>
+
+    <div class="facts">
+      <div class="fact">
+        <span class="tier core">Shipping</span>
+        <p>Five roles, two edge kinds, one profile, one route texture
+        (<code class="inline">--</code>) and the six-phase period cycle.
+        Implemented, property-tested, running inside TRVM Forge.</p>
+      </div>
+      <div class="fact">
+        <span class="tier partial">Draft</span>
+        <p>Most notation on the rest of this site is <b>settled meaning with no
+        writable surface yet</b>. Every page badges which is which, on three
+        axes. <a href="reference.html#tiers">How to read the badges →</a></p>
+      </div>
+      <div class="fact">
+        <span class="tier exp">Not an actor language</span>
+        <p>No spawn, no mailboxes, no supervision trees — WRL will not out-OTP
+        Erlang and is not trying to.
+        <a href="direction.html">The honest scorecard →</a></p>
+      </div>
     </div>
 
     <div class="btnrow">
@@ -674,15 +689,25 @@ const GLYPH = {
   Orb:     '<circle class="gl" r="13"/><circle class="dot" r="5"/>',
 };
 
+/* The caption lines under a glyph. Only config that is part of the meaning
+   appears here, so an edit that moves the id is always visible on the diagram —
+   including the rotor, which by this point is the lowered lane vector rather
+   than the name the author typed. */
 function cfgLabel(role, cfg) {
   if (role === "Pulser") {
     const c = cfg.clock || [];
-    if (c[0] === "periodic") return c[2] ? `every ${c[1]}, +${c[2]}` : `every ${c[1]}`;
-    if (c[0] === "once") return `once @ ${c[1]}`;
-    return "";
+    if (c[0] === "periodic") return [c[2] ? `every ${c[1]}, +${c[2]}` : `every ${c[1]}`];
+    if (c[0] === "once") return [`once @ ${c[1]}`];
+    return [];
   }
-  if (role === "Spinner") return `w${cfg.w} n${cfg.n}`;
-  return "";
+  if (role === "Spinner") {
+    const lanes = Array.isArray(cfg.rotor) ? cfg.rotor : [];
+    const rot = lanes.length > 6
+      ? `${lanes.slice(0, 5).join(".")}.…`
+      : lanes.join(".");
+    return [`w${cfg.w} n${cfg.n}`].concat(rot ? [`rotor ${rot}`] : []);
+  }
+  return [];
 }
 
 const esc = (s) => String(s).replace(/[&<>]/g,
@@ -717,9 +742,12 @@ function renderTopo(svg, g, cw = 122, rh = 78) {
   }
   const keys = [...cols.keys()].sort((a, b) => a - b);
   const rows = Math.max(...keys.map((k) => cols.get(k).length));
-  const PX = 44, PY = 40;
+  /* the bottom pad has to clear up to two config caption lines (y+41, y+52)
+     plus a descender — otherwise the lines most edits actually move get cut in
+     half by the viewBox edge */
+  const PX = 44, PY = 40, PY_B = 60;
   const w = PX * 2 + (keys.length - 1) * cw;
-  const h = PY * 2 + (rows - 1) * rh;
+  const h = PY + PY_B + (rows - 1) * rh;
 
   const pos = new Map();
   keys.forEach((k, ci) => {
@@ -741,11 +769,12 @@ function renderTopo(svg, g, cw = 122, rh = 78) {
       `d="M${x1} ${a.y} C${x1 + bow} ${a.y} ${x2 - bow} ${b.y} ${x2} ${b.y}"/>`);
   }
   for (const [id, p] of pos) {
-    const sub = cfgLabel(p.role, p.cfg);
+    const sub = cfgLabel(p.role, p.cfg)
+      .map((line, i) => `<text class="cf" y="${41 + i * 11}" ` +
+        `text-anchor="middle">${esc(line)}</text>`).join("");
     out.push(`<g transform="translate(${p.x},${p.y})">${GLYPH[p.role] || ""}` +
       `<text class="nm" y="30" text-anchor="middle">${esc(id)}</text>` +
-      (sub ? `<text class="cf" y="41" text-anchor="middle">${esc(sub)}</text>` : "") +
-      "</g>");
+      sub + "</g>");
   }
   svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
   svg.innerHTML = out.join("");
