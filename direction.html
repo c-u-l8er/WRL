@@ -546,7 +546,7 @@ specialisation.</p>
 <pre class="code"><code>RelationAllocation { world_id, issuer, nonce }
 
 RelationRevision   { domain, kind, endpoints, orientation,
-                     texture?, attributes, policy, provenance }
+                     texture?, attributes, policy }
 
 Endpoint { terminal, role }
 
@@ -564,8 +564,24 @@ the event id is a hash over its arguments, and the id would be one of them. The
 revision carries no back-pointer to its predecessor, so lifecycle history has
 <a href="spec.html#d8-identity-home">exactly one home</a> — the ledger — and two
 relations that reach the same value by different routes share one revision id.
+<code class="inline">provenance</code> is gone from the value for the same
+reason and moves onto the event
+(<a href="spec.html#d8-identity-provenance">§D8.3</a>) — it is <i>how a value
+was produced</i>, which is the question a content address is not answering.
 <code class="inline">texture?</code> is optional because an acausal relation has
 none.</p>
+
+<p><code class="inline">world_id</code> sits in the allocation preimage on
+purpose, and it has a consequence worth naming here rather than leaving to be
+discovered at the first upgrade: relation identity is
+<a href="spec.html#d8-identity-scope"><b>world-scoped</b></a>. A relation keeps
+its name across every runtime attach, revision and retirement — that is the point
+of D8.1 — but <i>not</i> across a re-seal, because a re-sealed world is a
+different <code class="inline">sem-</code> id by construction. That is the same
+scope object ids already have, so it is consistency rather than a new
+restriction; what it costs is that carrying a relation across a redeploy becomes
+a <b>migration</b> claim, with an explicit map a checker can verify, and it is
+filed against that capability at <a href="#ladder">step 9</a>.</p>
 
 <p>Three unusual capabilities fall out of that one change, and none of them is
 reachable by improving actors:</p>

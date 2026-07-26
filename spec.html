@@ -104,7 +104,12 @@
   <a href="#d8">D8 · Relation, not Edge</a>
   <a href="#d8-identity">D8.1 · Relation identity</a>
   <a href="#d8-identity-home">D8.2 · One home for lifecycle</a>
+  <a href="#d8-identity-provenance">D8.3 · Provenance is not a value</a>
+  <a href="#d8-identity-fork">D8.4 · Non-forking allocation</a>
+  <a href="#d8-identity-scope">D8.5 · Identity is world-scoped</a>
   <a href="#d9">D9 · Dynamic topology</a>
+  <a href="#d9-classify">D9 · Conflict classification</a>
+  <a href="#d9-closure">D9.1 · Replay closure</a>
 </aside>
 
 <div class="docbody">
@@ -816,6 +821,17 @@ a directed pair (§D8), and what it means for the topology itself to change whil
 the world runs (§D9). If you want the language's designed feature set, read the
 draft; if you want these architectural arguments, read on.</div>
 
+<div class="note"><b>How the draft rules are numbered.</b> A rule keeps the
+number it was given when it was written, and a sub-rule is numbered in the order
+it was <i>added</i> to its section, not the order it ends up reading in. So §D8
+presents D8.1, then D8.4, then D8.2, D8.3 and D8.5 — because D8.4 answers a
+question raised by D8.1's first paragraph and belongs beside it. Renumbering for
+tidiness would silently break every citation of a published rule, including the
+reviews that produced several of them, so the numbers are treated as identities
+and the <b>index at the left is the ordered view</b>. This is the same
+distinction §D8.1 makes about relations, applied to the document that argues
+it.</div>
+
 <h3>D0.1 · The reframe that produced Part II</h3>
 
 <p>WRL has been evaluated as an <b>actor language</b> — process, mailbox,
@@ -973,8 +989,14 @@ than trusted. The two are not ranked: a <code class="inline">parallel_fold</code
 is the stronger claim and the weaker expression, and a profile that will never
 partition a bus of four drivers has no reason to make it.</p>
 
-<div class="note stop"><b>Every resolution table must answer the empty driver
-set.</b> A binary operation does not define the value of a terminal with no
+<div class="note stop"><b>Draft rule D2.1 — three resolver contracts.</b> A
+resolution is one of the three above, and a profile <b>declares which</b>. Only
+the join resolver owes §9's three laws; a canonical-map resolver owes purity,
+totality and determinism and nothing else, and a parallel-fold resolver buys an
+implementation freedom by paying associativity and commutativity for it. All
+three owe one thing in common, and it is the one most often left out:
+<b>every resolution table must answer the empty driver set.</b> A binary
+operation does not define the value of a terminal with no
 enabled drivers, and this is not an edge case — it is a floating bus, which is
 the normal state of a tri-state line between transactions.
 <code class="inline">std_logic</code> answers <code class="inline">'Z'</code>;
@@ -1349,7 +1371,7 @@ is renamed and broadened:</p>
 <pre class="code"><code>RelationAllocation { world_id, issuer, nonce }
 
 RelationRevision   { domain, kind, endpoints, orientation,
-                     texture?, attributes, policy, provenance }
+                     texture?, attributes, policy }
 
 Endpoint { terminal, role }</code></pre>
 
@@ -1374,7 +1396,7 @@ carry is a record that will be implemented wrongly.</p>
 <tr><td><code class="inline">texture</code></td><td>the four frozen textures (§5). Required for <code class="inline">directed</code>; profile-defined for <code class="inline">symmetric</code>; <b>absent</b> for <code class="inline">acausal</code>, where a solver wall governs settlement instead (§D4)</td><td><code class="inline">texture</code></td></tr>
 <tr><td><code class="inline">attributes</code></td><td>typed, unit-bearing values validated by the profile</td><td>— (new; this is §D3's requirement)</td></tr>
 <tr><td><code class="inline">policy</code></td><td>unchanged</td><td><code class="inline">policy</code></td></tr>
-<tr><td><code class="inline">provenance</code></td><td>unchanged</td><td><code class="inline">provenance</code></td></tr>
+<tr><td><i>(no <code class="inline">provenance</code>)</i></td><td><b>removed from the value</b> and carried by the ledger event instead — <a href="#d8-identity-provenance">§D8.3</a></td><td><code class="inline">provenance</code></td></tr>
 </tbody></table></div>
 
 <p><code class="inline">payload</code> leaves the relation deliberately. What
@@ -1560,22 +1582,75 @@ the defect <a href="#d8-derived">§D8 rejects for cardinality</a> and
 <a href="#d8-identity-ledger">again below</a> for revision history. A validator
 computes the id from the allocation; there is nothing to disagree with.</div>
 
-<p>The nonce does not need to be random, and <b>must not be</b>: a random or
-clock-derived nonce is not replayable, and replay is the one property this
-language actually has today. It needs only to be unique within an issuer, and the
-two cases have different natural answers:</p>
-
 <div class="tbl"><table>
 <thead><tr><th>Relation</th><th><code class="inline">issuer</code></th><th><code class="inline">nonce</code></th></tr></thead>
 <tbody>
 <tr><td><b>Present at period 0</b> — authored in the sealed world</td><td>the world itself</td><td>the <b>authored relation name</b>, where the surface provides one. Where it does not, the triple (<code class="inline">kind</code>, <code class="inline">src</code>, <code class="inline">dst</code>) — legal <i>only</i> where that triple is unique, which is the <a href="#d8-identity-cost">same precondition</a> the V1 projection already depends on. One condition, stated once, doing both jobs</td></tr>
-<tr><td><b>Attached at runtime</b> — §D9 operation 3</td><td>the proposing claimant identity</td><td>a <b>claimant-owned monotonic sequence</b>. Uniqueness is then local and needs no coordination, which matters because §D9 operation 3 must remain proposable under partition</td></tr>
+<tr><td><b>Attached at runtime</b> — §D9 operation 3</td><td>an <b>issuer incarnation</b>, not a bare claimant — see below</td><td>a <b>lease-scoped counter</b>: <code class="inline">namespace_prefix ‖ local_counter</code></td></tr>
 </tbody></table></div>
 
-<p>Other issuers are admissible under the same shape and are named here so the
-mechanism is not read as narrower than it is: a deterministic spawn path, a
-capability-issued lease id, or a parent identity plus a local allocation index.
-What is <b>not</b> admissible is any nonce a replay cannot reproduce.</p>
+<h4 id="d8-identity-fork">A monotonic counter is not an allocation source</h4>
+
+<p>The first version of the runtime row said <i>"a claimant-owned monotonic
+sequence — uniqueness is then local and needs no coordination"</i>. That is the
+standard move, and it is wrong here for the standard reason: a counter is unique
+per <b>owner</b>, and a claimant identity does not name an owner, it names a
+<i>role</i> that a failure can leave two processes playing at once.</p>
+
+<pre class="code"><code>claimant C, counter at 42, durably recorded
+partition; C is restored from that record on two hosts
+
+host A allocates (world, C, 43)  → relation_id X   ; a power line
+host B allocates (world, C, 43)  → relation_id X   ; a different power line</code></pre>
+
+<p>Two distinct relations, one id. This is not an exotic failure — it is stale
+restoration, which is an ordinary consequence of the partitions §D9 is explicitly
+written to survive, and it destroys the exact property D8.1 exists to provide.
+The counter must be scoped by something that <b>cannot be duplicated by
+restoring a snapshot</b>:</p>
+
+<pre class="code"><code>AllocationLease { issuer, namespace_prefix, valid_range, authority_receipt }
+
+nonce = namespace_prefix ‖ local_counter        ; local_counter ∈ valid_range</code></pre>
+
+<div class="note stop"><b>Draft rule D8.4 — non-forking allocation.</b> An
+allocation nonce is valid only within a <b>namespace no two live allocators can
+hold at once</b>. A lease supplies one: disjoint ranges are handed out
+<i>before</i> a partition, so each side allocates locally and collision is
+impossible rather than unlikely. Equivalent sources are a replica identity plus a
+restart incarnation, a deterministic spawn path, or a preallocated namespace
+range. What is <b>not</b> a source is any counter recoverable by restoring
+state, because restoring state is how the second allocator is created.</div>
+
+<p>This has a consequence worth stating plainly rather than discovering later:
+under D8.4, attaching a relation during a partition requires a lease obtained
+<i>before</i> it. That is a real restriction, and it is the honest one — the
+alternative is not "attach freely", it is "attach freely and discover the
+collision at merge", which the escrow discussion in §D9 already rejects for
+bounded resources for the same reason.</p>
+
+<h4 id="d8-identity-nonce">What "deterministic" has to mean here</h4>
+
+<p>An earlier version of this rule said a nonce "must not be random", which is
+too strong and misstates the requirement. <a href="draft.html#effects">Draft
+§21</a> already specifies <code class="inline">/entropy</code> as <b>seeded
+streams whose seeds are recorded</b>, so a random value drawn through that
+boundary <i>is</i> replayable. The prohibition is narrower and different:</p>
+
+<div class="note"><b>The nonce law.</b> A nonce must never depend on ambient,
+unrecorded randomness or wall-clock state. It must be reproducible from sealed
+state or from prior recorded observations.</div>
+
+<p>Recorded entropy passes that law and is still a <b>poor</b> choice, for a
+reason that has nothing to do with replay: an unpredictable nonce cannot be
+recomputed by the proposer, so a retried proposal allocates a <i>second</i>
+relation instead of being recognised as the same one. What an allocation source
+actually needs is stronger than replayability: the proposer must be able to
+<b>reproduce the same nonce for a retry of the same proposal</b>, so that
+proposing twice is idempotent rather than doubling. A lease-scoped counter
+satisfies that by being held with the pending proposal until it settles; a fresh
+entropy draw per attempt does not. That is the real argument for the counter, and
+it is not the argument the first version gave.</p>
 
 <p>This is not a new mechanism invented for relations. It is the mechanism every
 other entity in the ontology already has, and writing the four out together shows
@@ -1601,9 +1676,18 @@ part.</p>
 <p>Three of §D9's eight operations act on a relation, and each becomes
 expressible only once both ids exist:</p>
 
-<pre class="code"><code>RelationAttached { allocation, revision_id }
-RelationRevised  { relation_id, expected_prior_revision, next_revision }
-RelationRetired  { relation_id, expected_prior_revision }</code></pre>
+<pre class="code"><code>RelationAttached { allocation, revision_id,  provenance, offered_evidence }
+RelationRevised  { relation_id, expected_prior_revision, next_revision,
+                                             provenance, offered_evidence }
+RelationRetired  { relation_id, expected_prior_revision,
+                                             provenance, offered_evidence }</code></pre>
+
+<p>The last two fields on each are <a href="#d8-identity-provenance">§D8.3</a>:
+<code class="inline">provenance</code> records how the operation came to be
+proposed, and <code class="inline">offered_evidence</code> is what the
+<i>proposer</i> put forward to justify it. Both are arguments of the operation
+and are therefore covered by the event id. What the <i>checker</i> concluded is
+not here; it is in the acceptance receipt.</p>
 
 <p>Each still obeys §D9's eight obligations unchanged, and two of them get
 sharper rather than harder. <b>Canonical event identity</b> is a content address
@@ -1666,6 +1750,145 @@ Without it, they share one revision id. History is not lost: it is in the ledger
 and in the film, which is where §10 already says the record of what occurred
 belongs. The revision hash goes back to answering the question a content address
 should answer — <i>what is this?</i> — rather than <i>how did it get here?</i></div>
+
+<h4 id="d8-identity-provenance">…and <code class="inline">provenance</code> was still in the preimage</h4>
+
+<p>The paragraph above is true and the record it described was not. The field
+list inherited from <code class="inline">Edge</code> ended in
+<code class="inline">provenance</code>, and <code class="inline">provenance</code>
+is <i>how a value was produced</i> — the same information
+<code class="inline">predecessor?</code> carried, arriving through the door left
+open by "unchanged" in the migration table. A capacity reduced from 3 and a
+capacity raised to 1 would still have hashed differently, for a different reason,
+one line further down the same record. Removing the back-pointer while leaving
+provenance in the preimage bought exactly nothing.</p>
+
+<p>What makes this unambiguous rather than a matter of taste is that the rule is
+already written down, and already <b>executable</b>, elsewhere in this
+toolchain. <code class="inline">wrl.js</code> says it of the rounding policy on a
+named rotor:</p>
+
+<pre class="code"><code>/** The build-provenance policy governing a named rotor, or null when exact.
+ *  The policy id is provenance only -- it never enters the artifact bytes. */</code></pre>
+
+<p>Two identical rotors seal identically whether one was written exactly and the
+other rounded under a named policy; the policy id is reported and not hashed.
+That is the shipped behaviour of the frozen spine, verified by the battery, and
+§D8's record contradicted it.</p>
+
+<div class="note stop"><b>Draft rule D8.3 — provenance is not part of a value.</b>
+<code class="inline">RelationRevision</code> carries no
+<code class="inline">provenance</code>. How a revision came to be proposed is
+carried by the <b>ledger event</b>, which is where §10 already keeps the record
+of what occurred. If a piece of so-called provenance genuinely changes future
+behaviour — a trust class, an authority, a source constraint — then it is not
+provenance, it is <b>semantics wearing a provenance label</b>, and it must be
+promoted to a named field of the value (most often
+<code class="inline">policy</code>) where the hash covers it.</div>
+
+<div class="tbl"><table>
+<thead><tr><th>Information</th><th>Home</th><th>Hashed into</th></tr></thead>
+<tbody>
+<tr><td>what the relation currently means</td><td><code class="inline">RelationRevision</code></td><td>the revision id</td></tr>
+<tr><td>how the revision came to be proposed</td><td>the ledger event</td><td>the event id</td></tr>
+<tr><td>evidence the <i>proposer</i> supplied to justify it</td><td>the ledger event, as an operation argument</td><td>the event id</td></tr>
+<tr><td>evidence the <i>checker</i> produced in deciding</td><td>the acceptance receipt (§8)</td><td>the receipt</td></tr>
+<tr><td>how the relation evolved over time</td><td>the ledger sequence</td><td>— (an ordering, not a value)</td></tr>
+<tr><td>what a replay actually observed</td><td>the film</td><td>— (evidence, not identity)</td></tr>
+</tbody></table></div>
+
+<p>The two evidence rows are one distinction, not a hedge, and getting them the
+wrong way round rebuilds the defect this section exists to remove. Evidence
+<i>supplied</i> with a proposal is an argument of the operation: it must be
+inside the event preimage, or the event id fails to cover something the proposer
+asserted. Evidence <i>produced</i> while deciding belongs to the decision, and
+§8 already has a home for it — the immutable acceptance receipt, kept
+deliberately separate from the monotone fact set. Putting checker evidence on the
+event would be a back-pointer from a proposal to a decision that had not been
+made when the proposal was hashed.</p>
+
+<h4 id="d8-identity-scope">How far the name reaches</h4>
+
+<p>D8.1 says <code class="inline">relation_id</code> survives its value. It does
+not say for how long, and the allocation preimage answers that question whether
+or not anyone asks it:</p>
+
+<pre class="code"><code>relation_id = H("WRL_RELATION" ‖ world_id ‖ issuer ‖ nonce)
+                                 ^^^^^^^^</code></pre>
+
+<p><code class="inline">world_id</code> is in the preimage on purpose — it is
+what makes two independently authored worlds unable to mint the same relation id
+by accident, and what lets a validator check an id against a sealed artifact
+rather than against a global service. The consequence is that relation identity
+is <b>world-scoped</b>, and the precise scope is worth stating because two
+different things are both loosely called "changing the world":</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Change</th><th>Does <code class="inline">world_id</code> move?</th><th>Do relation ids survive?</th></tr></thead>
+<tbody>
+<tr><td>Attach, revise or retire a relation at runtime — §D9 operations 3–5</td><td><b>No.</b> §D9's central move is that structure changes while identity does not</td><td>Yes. This is the whole point of D8.1</td></tr>
+<tr><td>Re-author the source and re-seal</td><td><b>Yes</b> — a different artifact is a different <code class="inline">sem-</code> id, by construction</td><td><b>No</b>, unless something carries them across</td></tr>
+</tbody></table></div>
+
+<p>So the scope is exactly <b>one sealed world version</b>, and the boundary that
+moves it is re-sealing, not running. A relation attached in period 4000 and
+revised in period 900 000 keeps its name the entire time; the same relation after
+a redeploy is, absent a migration, a different relation with the same meaning.</p>
+
+<p>Before treating that as a defect, it is worth noticing that it is the
+<b>existing</b> property of every other name in the language, not a new one that
+relations introduce. Object ids are already world-scoped in the shipped
+implementation: the canonical bytes reference an object as a bare name
+—</p>
+
+<pre class="code"><code>"edges": [{"dst": "r0", "kind": "SignalWire", "src": "p0"}]</code></pre>
+
+<p>— and <code class="inline">r0</code> means something only inside the artifact
+that declares it. Two worlds can both contain an <code class="inline">r0</code>
+and they are unrelated. Scoping relations the same way is <b>consistency</b>;
+scoping them globally would make the relation the only entity in the ontology
+whose identity outlives the world it lives in, and that is the choice that would
+need an argument.</p>
+
+<div class="note stop"><b>Draft rule D8.5 — relation identity is world-scoped.</b>
+A <code class="inline">relation_id</code> is meaningful relative to the
+<code class="inline">world_id</code> in its allocation, and only relative to it.
+It is stable across every runtime topology change and is <b>not</b> preserved by
+re-sealing. Any claim that a relation "is the same relation" across two sealed
+world versions is a <a href="draft.html#evolution">migration</a> claim, and must
+be carried by an explicit <code class="inline">old_relation_id →
+new_relation_id</code> map that the migration produces and a checker can verify.
+Silence is not continuity.</div>
+
+<p>Stating it now is the point. This is exactly the kind of consequence that is
+cheap to write down while it is a design and expensive to discover during the
+first upgrade of a running system, when the discovery arrives as an external
+ledger whose references have quietly stopped resolving. It is filed against the
+<code class="inline">migration</code> capability at
+<a href="direction.html#ladder">ladder step 9</a>, which is where it will be
+answered.</p>
+
+<p>There is a second policy, and it is not obviously wrong — it is just a
+different trade, so it should be recorded as one rather than ruled out:</p>
+
+<div class="tbl"><table>
+<thead><tr><th></th><th>World-local <span class="cite">(D8.5, the default)</span></th><th>Domain-stable</th></tr></thead>
+<tbody>
+<tr><td>Allocation scope</td><td>the sealed world</td><td>a longer-lived namespace — an asset registry, a fleet, an organisation</td></tr>
+<tr><td>Verifiable against</td><td>the artifact alone</td><td>the artifact <i>and</i> an external authority</td></tr>
+<tr><td>Survives re-sealing</td><td>only through a migration map</td><td>yes, by construction</td></tr>
+<tr><td>Failure mode</td><td>references break loudly at upgrade</td><td>two worlds can claim the same relation, and nothing in either artifact detects it</td></tr>
+</tbody></table></div>
+
+<p>The domain-stable policy is admissible, but only under a condition this
+section already has a precedent for. The <a href="#d9-open">open-world admission
+table</a> below seals <i>the namespace rules</i> in the artifact while letting
+<i>the allocated name</i> appear in the ledger — that is precisely the shape
+needed here. A registry outside the world may supply relation identity if the
+artifact seals, by content address, the rules that govern it, so that a replaying
+host <b>checks</b> the registry's allocation rather than trusting it. A registry
+that is merely named and believed reintroduces the property D8.4 was written to
+remove: an id whose uniqueness depends on something no replay can verify.</p>
 
 <h4 id="d8-identity-cost">What it costs the frozen artifact</h4>
 
@@ -1766,9 +1989,8 @@ world's own canonical bytes:</p>
 <p>Now remove every defaulted field from the general record —
 <code class="inline">domain</code>, <code class="inline">orientation</code>,
 default <code class="inline">texture</code>, empty
-<code class="inline">attributes</code>, <code class="inline">policy</code>,
-<code class="inline">provenance</code>, and the derived cardinality that was
-never a field. Three differences survive elision, because none of them is a
+<code class="inline">attributes</code>, <code class="inline">policy</code>, and
+the derived cardinality that was never a field. Three differences survive elision, because none of them is a
 field that could be elided:</p>
 
 <div class="tbl"><table>
@@ -1971,6 +2193,14 @@ of it. The verb <code class="inline">AttributesReplaced</code> is renamed
 <code class="inline">RelationRevised</code> to match: what happens is a relation
 gaining a new revision, not a free-floating attribute set being swapped.</div>
 
+<p>The three relation facts above show the fields that <i>distinguish</i> them,
+not their full field lists. Each also carries
+<code class="inline">provenance</code> and
+<code class="inline">offered_evidence</code>, which are common to all three and
+are specified once, in <a href="#d8-identity-provenance">§D8.3</a>, rather than
+restated here. The rule that put them there is the same rule that keeps them from
+being written down twice.</p>
+
 <h3 id="d9-derived">The ledger grows; the active view does not</h3>
 
 <p>Notice that the fourth column has no verb that means <i>delete</i>. Retiring
@@ -2000,12 +2230,143 @@ None of them is optional, and each one is a way for two hosts to diverge:</p>
 <tr><td><b>Authorisation</b></td><td>which capability permits it, and which wall grants that capability. An unauthorised operation is a diagnostic, not a silent no-op — a world where a change failed and nothing said so is a world whose film lies</td></tr>
 <tr><td><b>Canonical event identity</b></td><td>a content address over (operation, arguments, period, proposer). Two hosts proposing the same change must produce the same event id, or the ledgers differ and replay fails</td></tr>
 <tr><td><b>Timing semantics</b></td><td>the configuration boundary above, stated normatively rather than by convention. There is one rule and each operation must be shown to obey it, not given its own</td></tr>
-<tr><td><b>Conflict rules</b></td><td>what happens when two operations in one period touch the same object. Ordering by canonical event id makes the outcome deterministic; it does not make it <i>right</i>, so incompatible pairs (two transfers of one terminal, attach-and-retire of one identity) must be a diagnostic and not a race that the smaller hash wins</td></tr>
+<tr><td><b>Conflict rules</b></td><td>what happens when two operations in one period touch the same object. Ordering by canonical event id makes the outcome deterministic; it does not make it <i>right</i>, so incompatible pairs (two transfers of one terminal, attach-and-retire of one identity) must be a diagnostic and not a race that the smaller hash wins. For relations this is <a href="#d9-classify">classified before acceptance</a>, because §8's acceptance law is <i>MIN CandidateKey</i> — which is precisely the smaller hash winning</td></tr>
 <tr><td><b>Historical representation</b></td><td>a retired identity is not a deleted one. §10 requires that a film from period 40 still resolve every identity it names, so retirement appends a fact and never erases one</td></tr>
 <tr><td><b>Film consequences</b></td><td>the operation appears in the ledger with enough detail to reconstruct the configuration, and the film records the configuration digest at each period so a diverged replay is detected at the period it diverged, not at the end</td></tr>
 <tr><td><b>Replication behaviour</b></td><td>which of the five classes below the operation falls into — <b>at the granularity of the relation kind and the invariant it is subject to</b>, not of the verb</td></tr>
 <tr><td><b>Archival behaviour</b></td><td>when a retired identity's state may be dropped without changing any future observation. Nothing may be collected while a reachable film still requires it — which makes garbage collection a property of the evidence, not of the runtime's convenience</td></tr>
 </tbody></table></div>
+
+<h3 id="d9-classify">Two valid preconditions can still be a conflict</h3>
+
+<p><a href="#d8-identity-ledger">§D8.1</a> gave one concurrent-revision example —
+two <code class="inline">RelationRevised</code> facts naming the same relation
+with <i>different</i> <code class="inline">expected_prior_revision</code>s — and
+that is the easy case, because one precondition is simply stale. The hard case is
+the common one, and it was not stated:</p>
+
+<pre class="code"><code>RelationRevised { relation_id = L, expected_prior_revision = R0, next_revision = R1 }
+RelationRevised { relation_id = L, expected_prior_revision = R0, next_revision = R2 }</code></pre>
+
+<p>Both observed the same current revision. <b>Both preconditions are
+individually valid.</b> They disagree only about the result. Nothing in a
+compare-and-set rule rejects either one, so the outcome is decided by whichever
+is applied first — and §8's pinned acceptance law is
+<code class="inline">MIN CandidateKey / first receipt</code>, which is the smaller
+key winning. That is deterministic and it is exactly what the
+<a href="#d9-obligations">conflict obligation</a> says is not good enough. A
+lane closure and a lane reopening, proposed in the same period from the same
+observed state, must not be settled by a hash comparison.</p>
+
+<div class="note stop"><b>Classification precedes acceptance.</b> For one
+<code class="inline">relation_id</code> within one configuration boundary, all
+proposed lifecycle operations are <b>classified as a set before any is
+applied</b>. §8 already separates <i>recognition</i> (distinct-CandidateKey
+count) from <i>acceptance</i> (MIN CandidateKey), and this is a recognition-stage
+law: the acceptance policy never sees a pair it should have refused. That is the
+same discipline §9 states for conflicting receipts — <i>recognized evidence for
+later settlement, never blindly merged</i> — applied to structure.</div>
+
+<div class="tbl"><table>
+<thead><tr><th>Pair, same <code class="inline">relation_id</code>, one boundary</th><th>Outcome</th></tr></thead>
+<tbody>
+<tr><td>identical attach events</td><td><b>deduplicate</b> — one proposal retried, not two relations</td></tr>
+<tr><td>same allocation, different initial revision</td><td><b>allocation collision</b> — two allocators held one namespace (<a href="#d8-identity-fork">§D8.4</a> was violated upstream)</td></tr>
+<tr><td>identical revision events</td><td><b>deduplicate</b></td></tr>
+<tr><td>same <code class="inline">expected_prior_revision</code>, different <code class="inline">next_revision</code></td><td><b>competing-revision conflict</b> — the case above</td></tr>
+<tr><td>different <code class="inline">expected_prior_revision</code>s</td><td><b>stale / branched-revision conflict</b></td></tr>
+<tr><td>revision and retirement from the same current revision</td><td><b>lifecycle conflict</b> — the relation cannot both continue and end</td></tr>
+<tr><td>identical retirements</td><td><b>deduplicate</b></td></tr>
+<tr><td>attach after a prior retirement</td><td><b>reject</b>, unless an explicit reactivation operation exists — and it does not. Retirement is not deletion (<a href="#d9-obligations">historical representation</a>), so the id is still addressable, and silently reusing it would make two different relations share one name across time</td></tr>
+</tbody></table></div>
+
+<p>Deduplication earns its three rows: without it, a retried proposal under
+partition is indistinguishable from a second intent, which is the failure
+<a href="#d8-identity-nonce">the nonce law</a> is written to prevent from the
+other side. The two rules are one property approached from the proposer and from
+the acceptor.</p>
+
+<div class="note"><b>The conservative first version.</b> <i>At most one distinct
+lifecycle transition per relation may be accepted for one configuration
+boundary.</i> Everything else in the table is a diagnostic. That is more
+restrictive than the eventual rule needs to be — commuting revisions on disjoint
+attributes could safely merge — but it is deterministic, it is stateable today,
+and it can be relaxed later without invalidating a film. A rule that starts
+permissive cannot be tightened without breaking replays that already
+happened.</div>
+
+<h3 id="d9-closure">A digest detects divergence; it does not reconstruct a world</h3>
+
+<p>The <a href="#d9-obligations">film obligation</a> above asks for a
+configuration digest per period, and the surrounding sections have been treating
+that as sufficient. It is not, and the reason is the one D8.2 created: once
+lifecycle history is <b>only</b> in the ledger, the ledger's references have to
+resolve, and a ledger of relations references far more than object ids —
+allocations, revision ids, policy ids, admission evidence, acceptance receipts.
+A digest proves two replicas disagree. It cannot tell either of them what a
+<code class="inline">revision_id</code> stood for.</p>
+
+<div class="note stop"><b>Draft rule D9.1 — replay closure.</b> Every content id
+referenced transitively by the initial artifact, the accepted ledger events, the
+frames, the policies, the receipts, the admission decisions, the allocations or
+the topology revisions <b>must resolve</b> — either inside the replay package, or
+through a content store whose identity <i>and retrieval contract</i> are pinned
+by the package. A package containing an unresolved referenced hash is not a
+smaller package; it is an <b>incomplete</b> one, and it must fail as such rather
+than replay until it reaches the missing byte.</div>
+
+<p>This is where a design draft has to be careful, because §10 does not leave
+the shape open:</p>
+
+<pre class="code"><code>ReplayBundle { initial_artifact, initial_state, event_ledger, frames, policy_ids }
+
+; §10: "Frozen: the three-way distinction and the ReplayBundle shape.
+;       Not frozen: byte layouts -- they are the Film serialization."</code></pre>
+
+<div class="tbl"><table>
+<thead><tr><th>Way to satisfy D9.1</th><th>What it costs</th></tr></thead>
+<tbody>
+<tr><td><b>Carry the canonical bytes inside <code class="inline">event_ledger</code></b> — it is already defined as "accepted events, receipts, effects, outcomes", and its byte layout is explicitly <i>not</i> frozen</td><td><b>nothing frozen changes.</b> This is the default, and it is available precisely because §10 froze the shape and released the layout</td></tr>
+<tr><td><b>Add a sixth field</b>, an <code class="inline">object_closure</code> of canonical bytes for every referenced semantic object</td><td>a <b>new field on a frozen record</b>. That is a spec revision with a version bump, not an editorial change, and Part II cannot make it. It is cleaner, and cleanliness is not a reason that outranks a freeze</td></tr>
+<tr><td><b>Pin an external content store</b> — the package names the store and its retrieval contract</td><td>replay stops being self-contained. Legitimate for large effect and solver artifacts, and it moves the failure from "hash missing" to "store unreachable", which must then be a stated failure mode rather than a hang</td></tr>
+</tbody></table></div>
+
+<p>Stating the three is the deliverable here. The draft's job is to make the
+choice visible before something is built on the assumption that a digest was
+enough, and to record that the tidiest option is the one that costs a freeze.</p>
+
+<h4 id="d9-period-film">What a period has to record about structure</h4>
+
+<p>The second half of closure is not about bytes but about what is worth
+recording, and §8 has already answered it for claims. The frozen blockquote says
+the phase distinction is what determines <b>"which claims were seen, which
+candidate was accepted, whether a retransmission retries an effect"</b> — so a
+film that recorded only accepted claims would already be non-conforming.
+Structure gets held to the same standard:</p>
+
+<pre class="code"><code>PeriodFilm { period,
+             observed_proposals, accepted_events, rejected_events,
+             conflict_outcomes, effective_topology_events,
+             configuration_digest, world_frame_digest }</code></pre>
+
+<p><code class="inline">rejected_events</code> is the row that looks redundant
+and is not. A rejected topology change does not affect future state, so a purely
+state-oriented film would drop it — and dropping it means a film cannot answer
+<i>"did anything try to attach a writer to that terminal?"</i> An attempt that
+was refused is an observable fact about the world, and for authority and
+admission it is frequently the fact that matters most. It is also the only
+evidence that <a href="#d9-classify">classification</a> ran at all: a period in
+which two competing revisions were proposed and one diagnostic was raised looks,
+in an accepted-only film, exactly like a period in which one revision was
+proposed.</p>
+
+<div class="note warn"><b>The cost, stated rather than discovered.</b> A film
+that records refusals grows with <i>load</i>, not with state, so a component
+retrying a forbidden operation in a loop inflates the film without changing the
+world. That is a real operational problem and this draft does not solve it. It is
+named here because the alternative — discovering it in production and quietly
+dropping refusals — converts an audit record into a record of successes, which is
+the one thing it must not become.</div>
 
 <h3 id="d9-merge">Replication is a property of the invariant, not of the verb</h3>
 

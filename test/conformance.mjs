@@ -808,6 +808,64 @@ for (const cap of REGISTRY.keys()) {
   }
 }
 
+/* THE DRAFT RULE INDEX. Part II states that a rule keeps the number it was
+ * given, so §D8 reads D8.1, D8.4, D8.2, D8.3, D8.5 -- and that the sidebar is
+ * therefore the ordered view. That is a promise about a hand-maintained list,
+ * which is exactly the shape of promise this suite exists to stop trusting: a
+ * rule added without a nav entry would be invisible to every reader who
+ * navigates rather than scrolls, and nothing would say so. Both halves are
+ * checkable, so both are checked. */
+{
+  const spec = readFileSync(join(ROOT, "spec.html"), "utf8");
+
+  /* the rules as they are actually stated, in document order */
+  const stated = [...spec.matchAll(/<b>Draft rule (D\d+\.\d+)\b/g)]
+    .map((m) => m[1]);
+
+  /* the sidebar index, which is everything before the first </aside> */
+  const aside = spec.slice(0, spec.indexOf("</aside>"));
+  const indexed = [...aside.matchAll(
+    /<a href="#([^"]+)">(D\d+\.\d+) · /g)]
+    .map((m) => ({ anchor: m[1], rule: m[2] }));
+
+  ok("rules/some-are-stated", stated.length > 0,
+     "spec.html states no numbered sub-rules; this check is vacuous. If the " +
+     "rules were reworded, teach the check the new spelling rather than " +
+     "deleting it.");
+
+  const num = (r) => r.slice(1).split(".").map(Number);
+  const missing = stated.filter((r) => !indexed.some((i) => i.rule === r));
+  ok("rules/every-rule-is-indexed", missing.length === 0,
+     `spec.html states rule(s) [${missing.join(", ")}] that the sidebar index ` +
+     `does not list. A rule a reader cannot navigate to is a rule that will be ` +
+     `restated somewhere else instead.`);
+
+  const invented = indexed.filter((i) => !stated.includes(i.rule));
+  ok("rules/index-invents-nothing", invented.length === 0,
+     `the sidebar lists rule(s) [${invented.map((i) => i.rule).join(", ")}] ` +
+     `that spec.html does not state. Either the rule was retired and the index ` +
+     `kept it, or the index is aspirational.`);
+
+  /* the index is only useful as an ordered view if it is ordered */
+  const order = indexed.map((i) => i.rule);
+  const want = [...order].sort((a, b) => {
+    const [x, y] = [num(a), num(b)];
+    return x[0] - y[0] || x[1] - y[1];
+  });
+  ok("rules/index-is-in-number-order",
+     order.every((r, i) => want[i] === r),
+     `the sidebar publishes rules as [${order.join(", ")}]. Part II claims the ` +
+     `index is the ordered view precisely because the prose is not; if the ` +
+     `index is unsorted too, that claim is false. Expected [${want.join(", ")}].`);
+
+  /* and each entry must point at an anchor that exists, or the ordered view
+     is a list of dead ends */
+  const dead = indexed.filter((i) => !spec.includes(`id="${i.anchor}"`));
+  ok("rules/index-anchors-resolve", dead.length === 0,
+     `sidebar entr(ies) [${dead.map((i) => `${i.rule}→#${i.anchor}`).join(", ")}] ` +
+     `point at anchors spec.html does not define.`);
+}
+
 /* The falsification conditions are the other duplicated structure. Direction
  * states them at length; the spec states its own list. They drifted once
  * already -- Direction published a condition D9 had explicitly retired -- so
