@@ -32,7 +32,13 @@ const ROOT = join(HERE, "..");
 let pass = 0, fail = 0;
 const failures = [];
 
+/* every check name that actually ran, so the pending-battery register at the
+ * bottom can tell a property that claims to be executable from one that merely
+ * says so */
+const ran = new Set();
+
 function ok(name, cond, detail) {
+  ran.add(name);
   if (cond) { pass++; return true; }
   fail++; failures.push(`${name}\n      ${detail}`);
   return false;
@@ -1563,6 +1569,95 @@ for (const [id, entries] of futurePairs) {
          `either known id at both ends`);
     }
   }
+}
+
+/* ============================================ 21. the pending-battery register
+ *
+ * §D8 and §D9 have no writable surface, so their rules cannot be executed --
+ * and an unexecutable rule is the one kind this page has repeatedly shown it
+ * will reinterpret rather than break loudly. The register names the properties
+ * that would settle each rule. These checks keep it from becoming decoration:
+ * a row has to name a rule that is really stated, names have to be unique, and
+ * a row that claims to run has to name a check that really ran.
+ *
+ * This block is last on purpose. `ran` is only complete once every other check
+ * has been called, so an earlier placement would let a genuine executable claim
+ * read as a phantom. */
+{
+  const spec = readFileSync(join(ROOT, "spec.html"), "utf8");
+
+  const rows = [...spec.matchAll(/<tr\b([^>]*data-pending-law[^>]*)>/g)]
+    .map((m) => m[1])
+    .map((attrs) => ({
+      law: (attrs.match(/data-pending-law="([^"]*)"/) || [])[1],
+      rule: (attrs.match(/data-pending-for="([^"]*)"/) || [])[1],
+      status: (attrs.match(/data-pending-status="([^"]*)"/) || [])[1],
+      check: (attrs.match(/data-pending-check="([^"]*)"/) || [])[1],
+    }));
+
+  ok("pending/register-is-not-vacuous", rows.length > 0,
+     `no rows carry data-pending-law. Either the register was deleted or this ` +
+     `reader stopped matching it; both leave every unexecutable draft rule ` +
+     `with no stated way to ever settle it.`);
+
+  const dupes = rows.map((r) => r.law)
+    .filter((l, i, a) => a.indexOf(l) !== i);
+  ok("pending/property-names-are-unique", dupes.length === 0,
+     `pending propert(ies) [${[...new Set(dupes)].join(", ")}] are registered ` +
+     `more than once. A name is an identity here too.`);
+
+  /* the rules the spec really states -- same source the rule index uses, so
+   * the two cannot drift apart */
+  const statedRules = new Set(
+    [...spec.matchAll(/<b>Draft rule (D\d+\.\d+)\b/g)].map((m) => m[1]));
+
+  const phantom = rows.filter((r) => !statedRules.has(r.rule));
+  ok("pending/properties-name-a-stated-rule", phantom.length === 0,
+     `pending propert(ies) [${phantom.map((r) => `${r.law} -> ${r.rule}`)
+       .join(", ")}] name a rule spec.html does not state. A property that ` +
+     `falsifies nothing is a wish.`);
+
+  const KNOWN_STATUS = new Set(["awaiting-surface", "executable"]);
+  const badStatus = rows.filter((r) => !KNOWN_STATUS.has(r.status));
+  ok("pending/statuses-are-known", badStatus.length === 0,
+     `pending propert(ies) [${badStatus.map((r) => `${r.law}=${r.status}`)
+       .join(", ")}] declare a status outside ` +
+     `{${[...KNOWN_STATUS].join(", ")}}. An invented status is one nobody ` +
+     `has to honour.`);
+
+  /* THE row that matters. A register is only worth writing if it cannot mark
+   * itself green, and "executable" is the claim that would be tempting to make
+   * early -- when a surface half-lands and a property looks nearly covered. */
+  const unbacked = rows.filter(
+    (r) => r.status === "executable" && !ran.has(r.check));
+  ok("pending/executable-properties-name-a-check-that-ran", unbacked.length === 0,
+     `pending propert(ies) [${unbacked.map((r) => `${r.law} -> ` +
+       `${r.check || "(no data-pending-check)"}`).join(", ")}] are marked ` +
+     `executable but name no check that ran in this suite. That is the ` +
+     `register claiming coverage it does not have, which is the one failure ` +
+     `mode a register introduces that the page did not already have.`);
+
+  /* and the converse: a row that names a live check has no business still
+   * claiming it is waiting for a surface */
+  const understated = rows.filter(
+    (r) => r.status === "awaiting-surface" && r.check && ran.has(r.check));
+  ok("pending/awaiting-properties-name-no-live-check", understated.length === 0,
+     `pending propert(ies) [${understated.map((r) => r.law).join(", ")}] say ` +
+     `they await a surface while naming a check that already runs. The ` +
+     `register would then understate coverage, and nobody re-reads a row that ` +
+     `looks unfinished.`);
+
+  /* every draft rule minted in the identity sections has to be reachable from
+   * the register. This is the census direction -- a subset check cannot catch
+   * a rule that shipped with no test story at all. */
+  const IDENTITY_RULES = [...statedRules].filter((r) => /^D[89]\./.test(r));
+  const covered = new Set(rows.map((r) => r.rule));
+  const untested = IDENTITY_RULES.filter((r) => !covered.has(r));
+  ok("pending/every-identity-rule-has-a-property", untested.length === 0,
+     `identity rule(s) [${untested.join(", ")}] are stated but no pending ` +
+     `property names them, so nothing on this page says what would settle ` +
+     `them. Draft rules without a falsifier are the ones that get ` +
+     `reinterpreted rather than broken.`);
 }
 
 /* ==================================================================== report */

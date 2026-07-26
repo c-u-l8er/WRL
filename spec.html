@@ -113,6 +113,8 @@
   <a href="#d9-closure">D9.1 · Replay closure</a>
   <a href="#d9-transition">D9.2 · Transition vs proposal</a>
   <a href="#d9-object-table">D9.3 · One canonical film</a>
+  <a href="#d9-schedule">D9.4 · Schedule says when, not what</a>
+  <a href="#d9-effect-wall">D9.5 · Closure stops at the effect wall</a>
 </aside>
 
 <div class="docbody">
@@ -1844,8 +1846,8 @@ whole ledger and invisible to every rule that reads a period.</p>
 <div class="note stop"><b>Draft rule D8.6 — an allocation burns on first
 observation.</b> Once an allocation appears in <i>any</i> observed proposal it is
 permanently bound to that proposal's
-<a href="#d9-transition">transition intent</a> — the relation's <b>birth key</b>,
-which carries no period. It may be re-proposed for that same intent, at any later
+<a href="#d9-transition"><code class="inline">RelationBirthKey</code></a>, which
+carries no period. It may be re-proposed under that same birth key, at any later
 boundary, and may <b>never</b> be recycled for another relation — regardless of
 acceptance, rejection, timeout, crash, or later retirement. Observation consumes
 the allocation; acceptance is a different question and does not govern this
@@ -1854,11 +1856,14 @@ one.</div>
 <div class="tbl"><table>
 <thead><tr><th>Situation</th><th>Outcome</th></tr></thead>
 <tbody>
-<tr><td>re-proposed with the same intent key, at any boundary</td><td><b>permitted</b> — this is the retry the nonce law is designed to make idempotent, and it is why <a href="#d9-transition">the intent key has no period in it</a></td></tr>
-<tr><td>same allocation, a different intent key</td><td><b>allocation collision</b> — a diagnostic, never a race</td></tr>
+<tr><td>same attach retried at a later boundary</td><td><b>permitted</b> — same birth key, new schedule. This is the retry the nonce law is designed to make idempotent, and it is why <a href="#d9-transition">the birth key has no period in it</a></td></tr>
+<tr><td>same attach, more evidence attached</td><td><b>permitted</b> — same birth key <i>and</i> schedule, a different <a href="#d9-transition">proposal envelope</a>. An audit trail is not a lifecycle event</td></tr>
+<tr><td>same allocation, a different initial revision</td><td><b>allocation collision</b> — a different birth key, so a diagnostic, never a race</td></tr>
+<tr><td>attach succeeds, then the same birth appears again</td><td><b>refused</b> — not as a collision but because the relation already exists. Same birth, already spent</td></tr>
 <tr><td>proposal rejected</td><td>allocation stays <b>consumed</b>. A refusal is an outcome, not an erasure</td></tr>
 <tr><td>proposal times out or the proposer crashes</td><td>allocation stays <b>consumed</b>, for the same reason</td></tr>
 <tr><td>relation later retired</td><td>allocation stays <b>consumed</b> — retirement is not deletion (<a href="#d9-obligations">historical representation</a>)</td></tr>
+<tr><td>a retired relation is later reactivated</td><td>a <b>separate operation</b>, not another birth. It does not spend a name, and it may not reuse the retired relation's allocation to avoid pretending it is one</td></tr>
 </tbody></table></div>
 
 <p>As first written, D8.6 was one sentence doing two jobs of very different
@@ -1873,7 +1878,33 @@ unverifiable, which is worse than either half deserves:</p>
 <tr data-rule-half="D8.6-b" data-established-by="participant"><td><b>D8.6-b</b><br>the proposer obligation</td><td>A proposal must not be externally emitted before its reservation is <b>durable</b></td><td><b>Nothing external, ever.</b> It is unobservable by construction — the trace of a correct proposer and the trace of one that records after emitting and happens not to crash are identical</td></tr>
 </tbody></table></div>
 
-<pre class="code"><code>AllocationReserved { allocation, intent_key }    ; durable, proposer-side, BEFORE emit</code></pre>
+<pre class="code"><code>AllocationReserved { grant_id, local_counter, birth_key }
+
+; durable, proposer-side, written BEFORE emit — and written ONCE,
+; because drawing the counter and binding it are the same fact</code></pre>
+
+<div class="note warn" data-retired-term="AllocationReserved { allocation, intent_key }"><b>This record
+was first written as <code class="inline">{ allocation, intent_key }</code>, and
+the shape hid a crash window.</b> An <code class="inline">allocation</code> is a
+<code class="inline">GrantedAllocation</code> that has <i>already drawn</i> a
+counter, so the pairing implied two steps: take the next counter from the grant,
+then bind it to an intent. A proposer that persisted those separately can crash
+between them, and both orders lose:
+<b>counter advances, reservation is lost</b> — the name is spent and nothing
+records what for, so recovery cannot tell a burnt name from a free one; or
+<b>reservation persists, counter is offered again</b> — and the proposer hands
+the same name to a second birth, manufacturing the collision
+<a href="#d8-identity-burn">D8.6-a</a> will correctly diagnose and cannot undo.
+Flattening the record makes the two a single append-only write.</div>
+
+<div class="note"><b>The next free counter is <i>derived</i>, not stored.</b> A
+grant's next available <code class="inline">local_counter</code> is read off the
+durable reservation set — the smallest value in
+<code class="inline">counter_range</code> that no
+<code class="inline">AllocationReserved</code> record claims. Keeping a separate
+authoritative integer beside that set would be a second home for one fact, and
+the two can disagree after exactly the crash this record was reshaped to
+survive. One fact, one home: the reservation log <i>is</i> the counter.</div>
 
 <p>D8.6-b being unverifiable is not a weakness in it, because it is not a safety
 property of the world. D8.6-a is that, and D8.6-a holds whatever proposers do.
@@ -2575,6 +2606,8 @@ decision, which is the same category error §D8.3 was written to stop.</p>
 <pre class="code"><code>TransitionIntentKey = H(operation core, target,
                         expected_prior_revision, next_revision)
 
+RelationBirthKey    = TransitionIntentKey where operation = Attach
+
 ScheduledTransition { intent_key, effective_period }
 
 ProposalEvent       { scheduled, proposer, provenance, offered_evidence }
@@ -2626,13 +2659,53 @@ pair. A period-free key is complete inside the scope it is used in, and
 proposal is in.</p>
 
 <p>The allocation burn is <i>not</i> boundary-scoped — it is permanent — so the
-objection has to be answered again, and differently, there. It answers itself:
-the only operation that consumes an allocation is <b>attach</b>, and an attach
-intent cannot recur. If it succeeds the relation exists, and a second attach on
-that id is refused by the last row of the table below; if it never succeeds,
-re-proposing it <i>is</i> the retry. So the one intent key D8.6 binds to — the
-relation's <b>birth key</b> — is once-only by construction rather than by
-scoping. Revisions can repeat; births cannot, and only births spend a name.</p>
+objection has to be answered again, and differently, there. It answers itself,
+but the first way I wrote the answer was too strong. It said <i>an attach intent
+cannot recur</i>, and that is false as stated: a proposal can be emitted any
+number of times. The exact claim is narrower and is the one the rule needs:</p>
+
+<div class="note"><b>A relation birth is single-use.</b> Later observations of
+the same <code class="inline">RelationBirthKey</code> are <b>retries</b> before
+attachment and <b>invalid duplicates</b> after it. The <i>proposal</i> may recur;
+the <i>birth</i> cannot happen twice. That is what makes a period-free key safe
+for a permanent burn — once-only by construction rather than by scoping.
+Revisions can repeat; births cannot, and only births spend a name.</div>
+
+<p>Because that distinction is load-bearing, the burn now binds to a
+<b>named specialization</b> rather than to the general intent identity by way of
+a sentence in a paragraph. <code class="inline">RelationBirthKey</code> is
+<code class="inline">TransitionIntentKey</code> at
+<code class="inline">operation = Attach</code>, and nothing else. Writing it as
+its own name makes <a href="#d8-identity-burn">D8.6</a>'s permanent burn
+<i>visibly</i> narrower than the reusable intent identity a revision uses: a
+reader who wonders whether revising a relation twice spends two names can see
+from the type that it does not. Prose that only one operation consumes an
+allocation would have to be re-derived on every reading, and this page has
+already shown what happens to facts that live in prose alone.</p>
+
+<h4 id="d9-schedule">The schedule may say <i>when</i>, never <i>what</i></h4>
+
+<p>One condition has to hold for any of the above to be sound, and it is easier
+to state as a rule than to keep as an assumption.</p>
+
+<div class="note stop"><b>Draft rule D9.4 — the schedule may say
+<i>when</i>, never <i>what</i>.</b> An
+<code class="inline">effective_period</code> may control when a relation becomes
+active. It must <b>not</b> silently change what the relation means. Where the
+activation time is itself semantic — a contract that begins on a date, a rate
+that depends on the activation period, a reservation with a window — that value
+belongs <b>explicitly</b> in the revision or the attach arguments, where it is
+part of the birth key and the content address. It may not leak in indirectly
+through scheduling.</div>
+
+<p>Without D9.4 the split is not merely incomplete, it is <i>unsound</i>. The
+whole argument for a period-free birth key is that rescheduling changes the
+schedule and not which relation is being born. An implementation that lets the
+boundary reach into the meaning — a lease whose rate is read from the period it
+activates in — falsifies that premise directly: two schedules would then be two
+different relations wearing one birth key, which is the collision D8.6 exists to
+prevent, arriving by the one door the split leaves open. The rule closes it by
+requiring the semantic part to be written down where identity can see it.</p>
 
 <p>Two more things fall out that are worth having on the record. The first is that the
 conservative rule at the end of this section was <i>already</i> written in terms
@@ -2808,6 +2881,177 @@ smaller thing and a plain statement of what the smaller thing cannot do.
 Compression, deduplication across films and shared content stores all remain
 available; none of them is a film until it is closed, and being closed is the
 entire property <a href="#d9-closure">§D9.1</a> exists to require.</p>
+
+<p>The promise D9.3 is protecting is one sentence, and it is worth isolating from
+the machinery, because everything above is only a way of keeping it true:</p>
+
+<blockquote><b>Possessing a valid film is sufficient to reconstruct its replay
+inputs, without trusting the continued availability of an outside
+service.</b></blockquote>
+
+<p>That is also the test for whether some other artifact is a film. Four things
+get called one, and only two of them pass:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Artifact</th><th>What it contains</th><th>Replays alone?</th></tr></thead>
+<tbody>
+<tr><td><b>Canonical film</b></td><td>the complete canonical object closure</td><td><b>Yes</b></td></tr>
+<tr><td><b>Compressed film</b></td><td>a losslessly compressed canonical film</td><td><b>Yes</b>, after decompression — the bytes are recovered exactly</td></tr>
+<tr><td><b>Transport pack</b></td><td>a film minus objects held remotely or shared</td><td><b>No</b>, until rehydrated</td></tr>
+<tr><td><b>Manifest</b></td><td>ids and retrieval information</td><td><b>No</b>, and no amount of local work changes that</td></tr>
+</tbody></table></div>
+
+<p>Physical storage need not be monolithic, and D9.3 is often misread as saying
+it must be. Shared content-addressed chunks, deduplicated object stores,
+Merkleized storage, streaming and pack files are all available, and a deployment
+using every one of them can still be conforming. What is fixed is the
+<b>canonical logical bytes</b>: they are uniquely defined, and rehydration has to
+reproduce them exactly. The optimizations are permitted precisely because
+<a href="#d9-object-table" data-law-cited="3">law 3</a> makes their result
+checkable.</p>
+
+<h4 id="d9-effect-wall">Closure stops at the effect wall</h4>
+
+<p>Read without a boundary, D9.3 is not merely expensive but absurd. If a period
+consults an external model behind a gate, and a film must contain everything
+needed to reconstruct its replay inputs, then a naive reading demands the
+provider's weights, its inference cluster, its operating system and the packets
+on the wire. No such film has ever been produced and none ever will be. The rule
+needs to say where the closure ends, and the honest place is the point where WRL
+stops making decisions:</p>
+
+<pre class="code"><code>request  →  authorized effect  →  observed response  →  effect receipt
+|                                                                    |
++------------------------- inside the film --------------------------+
+
+        the wall is the effect itself, not what lies behind it</code></pre>
+
+<div class="tbl"><table>
+<thead><tr><th>The film needs</th><th>The film does not need</th></tr></thead>
+<tbody>
+<tr><td>the canonical request</td><td>the provider's model weights</td></tr>
+<tr><td>the adapter and policy identities</td><td>its inference cluster or operating system</td></tr>
+<tr><td>the observed response</td><td>the physical network packets</td></tr>
+<tr><td>the acceptance and effect receipts</td><td>any state private to the far side</td></tr>
+<tr><td>any state WRL used <i>after</i> the response</td><td>a guarantee the provider still exists</td></tr>
+</tbody></table></div>
+
+<p>Replay reconstructs the world from the <b>recorded outcome</b> of an effect.
+It does not rerun the external universe, and it never claimed to. This is not a
+weakening: the outcome is what the world's subsequent decisions were actually
+made from, so a film containing it can reproduce every one of those decisions.
+An effect is a wall in the ordinary WRL sense — a boundary that commits and seals
+what crosses it — and closure stops at walls for the same reason everything else
+in this language does.</p>
+
+<p>There is one case where the wall moves, and it moves because the promise
+changes. Where WRL claims a derivation is deterministic and independently
+re-executable, the recorded outcome is no longer sufficient — the point of the
+claim is that someone else can recompute it — so the solver program and the
+artifacts it needs <b>do</b> enter the closure. Two different promises are being
+made in the two cases, and a single word for both would let a film advertise the
+stronger one while carrying evidence for only the weaker:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Level</th><th>The promise</th><th>Required of</th></tr></thead>
+<tbody>
+<tr><td><b>Replay-complete</b></td><td>reconstruct every WRL state transition from recorded observations and outcomes</td><td><b>every conforming film</b></td></tr>
+<tr><td><b>Re-execution-complete</b></td><td>recompute designated derivations from their implementations and inputs</td><td>particular <b>profiles</b>, for the derivations they designate</td></tr>
+</tbody></table></div>
+
+<div class="note stop"><b>Draft rule D9.5 — closure stops at the effect wall,
+and two levels say where.</b> Every conforming film is
+<b>replay-complete</b>: its closure contains the request, the adapter and policy
+identities, the observed response, the receipts, and everything WRL read
+afterwards — but not the internals of whatever produced the response. A profile
+may additionally declare designated derivations <b>re-execution-complete</b>,
+which pulls their implementations and inputs into the closure and is the only
+way to claim independent recomputation. A film must not be described as
+re-execution-complete for a derivation whose implementation it does not
+carry.</div>
+
+<div class="note"><b>Why this keeps D9.3 strong rather than qualifying it
+away.</b> The two levels are not two grades of closure — both are fully closed,
+and neither permits a dangling reference. They differ in <i>what was promised
+about the far side of a wall</i>. A film that consulted a model is complete with
+respect to every decision WRL made, and says nothing about whether the model
+would answer the same way twice; a re-execution-complete derivation says exactly
+that and carries the code to prove it. Without the distinction, D9.3 forces
+hundreds of gigabytes of weights into every film that ever consulted a model
+behind a gate, which is how a correct rule gets abandoned rather than
+followed.</div>
+
+<h4 id="d9-identity-stack">The identity stack these rules add up to</h4>
+
+<p>Six sections have each introduced a name, and the reason it is not six ways of
+saying one thing is that each answers a question none of the others can:</p>
+
+<pre class="code"><code>AllocationGrant       authorizes a namespace
+RelationAllocation    selects one name within that namespace
+RelationBirthKey      binds that name to one semantic birth
+ScheduledTransition   proposes when that birth becomes effective
+ProposalEvent         records who proposed it, and with what evidence
+AcceptanceReceipt     records why the world accepted or refused it
+Film                  closes the complete replay-visible history</code></pre>
+
+<p>Read downward it is an authority chain, and read upward it is a provenance
+chain. The test for whether a layer is redundant is whether removing it forces
+another to answer two questions — and every collapse tried in these sections did
+exactly that. Putting the period in the intent made one key answer <i>what</i>
+and <i>when</i>, and D8.6 and D9.2 immediately disagreed. Putting evidence in the
+structural identity made one key answer <i>what</i> and <i>with what
+justification</i>, and an inspection report became a lifecycle conflict. Letting
+a manifest be a film made one artifact answer <i>what happened</i> and <i>where
+to find out</i>, and D9.1's own opening sentence ruled against it.</p>
+
+<h4 id="d9-pending">What has to be proved when this becomes writable</h4>
+
+<p>None of §D8 or §D9 has a writable surface, so none of it is executable, and a
+draft rule that is never reduced to a falsifiable property is a rule that will be
+quietly reinterpreted instead. The register below is the decisive battery: each
+row states a property, names the rule it would falsify, and declares whether it
+runs today. A row may not claim to run without naming a check that exists.</p>
+
+<div class="tbl" data-pending-register="identity-stack"><table>
+<thead><tr><th>Property</th><th>Expected result</th><th>Falsifies</th></tr></thead>
+<tbody>
+<tr data-pending-law="revision-does-not-move-relation-id" data-pending-for="D8.1" data-pending-status="awaiting-surface"><td>a relation is revised, repeatedly</td><td><code class="inline">relation_id</code> is <b>unchanged</b>; only the revision id moves</td><td><a href="#d8-identity-mint">D8.1</a></td></tr>
+<tr data-pending-law="revision-references-no-other-revision" data-pending-for="D8.2" data-pending-status="awaiting-surface"><td>a <code class="inline">RelationRevision</code> carrying a pointer to its predecessor</td><td><b>refused</b> — lifecycle has one home, and it is the ledger</td><td><a href="#d8-derived">D8.2</a></td></tr>
+<tr data-pending-law="provenance-does-not-move-revision-id" data-pending-for="D8.3" data-pending-status="awaiting-surface"><td>identical revision content, different <code class="inline">provenance</code></td><td>the <b>same</b> revision id — provenance rides the event, not the value</td><td><a href="#d8-identity-provenance">D8.3</a></td></tr>
+<tr data-pending-law="overlapping-grants-do-not-collide" data-pending-for="D8.4" data-pending-status="awaiting-surface"><td>two grants issued with <i>overlapping</i> <code class="inline">counter_range</code>, both drawn from</td><td><b>no collision</b> — distinct <code class="inline">grant_id</code> is in the preimage, so this is the case allocator mutual exclusion was thought to be needed for</td><td><a href="#d8-identity-fork">D8.4</a></td></tr>
+<tr data-pending-law="same-name-different-world-differs" data-pending-for="D8.5" data-pending-status="awaiting-surface"><td>the same authored name in two sealed worlds</td><td>two <b>different</b> <code class="inline">relation_id</code>s, and no migration implied between them</td><td><a href="#d8-identity-scope">D8.5</a></td></tr>
+<tr data-pending-law="different-birth-same-allocation-collides" data-pending-for="D8.6" data-pending-status="awaiting-surface"><td>same allocation, different initial revision</td><td><b>allocation collision</b>, deterministically</td><td><a href="#d8-identity-burn">D8.6</a></td></tr>
+<tr data-pending-law="reservation-survives-crash" data-pending-for="D8.6" data-pending-status="awaiting-surface"><td>local reservation, crash, restart</td><td>the <i>same</i> allocation and birth key are retried, never a fresh counter</td><td><a href="#d8-identity-burn">D8.6</a></td></tr>
+<tr data-pending-law="unpinned-reference-is-refused" data-pending-for="D9.1" data-pending-status="awaiting-surface"><td>a package whose reference resolves only through a service it does not pin</td><td><b>refused</b> — replay must not depend on a contract the package never stated</td><td><a href="#d9-closure">D9.1</a></td></tr>
+<tr data-pending-law="birth-key-survives-rescheduling" data-pending-for="D9.2" data-pending-status="awaiting-surface"><td>same birth proposed at period 20 and at period 21</td><td>same <code class="inline">RelationBirthKey</code>, different <code class="inline">ScheduledTransition</code></td><td><a href="#d9-transition">D9.2</a></td></tr>
+<tr data-pending-law="evidence-does-not-fork-structure" data-pending-for="D9.2" data-pending-status="awaiting-surface"><td>same schedule, different <code class="inline">offered_evidence</code></td><td>one structural candidate, two proposal envelopes</td><td><a href="#d9-transition">D9.2</a></td></tr>
+<tr data-pending-law="pack-rehydrates-byte-identically" data-pending-for="D9.3" data-pending-status="awaiting-surface"><td>transport pack plus object store</td><td>rehydrates to a <b>byte-identical</b> canonical film</td><td><a href="#d9-object-table">D9.3</a></td></tr>
+<tr data-pending-law="missing-object-is-never-a-film" data-pending-for="D9.3" data-pending-status="awaiting-surface"><td>a closure object is absent</td><td>an incomplete package — <b>never</b> a valid film</td><td><a href="#d9-object-table">D9.3</a></td></tr>
+<tr data-pending-law="schedule-carries-no-meaning" data-pending-for="D9.4" data-pending-status="awaiting-surface"><td>a value that depends on the activation period, left implicit in the schedule</td><td><b>refused</b> — two schedules must not share a birth key while meaning different things</td><td><a href="#d9-schedule">D9.4</a></td></tr>
+<tr data-pending-law="re-execution-claim-needs-the-code" data-pending-for="D9.5" data-pending-status="awaiting-surface"><td>a film claims a derivation is re-execution-complete but omits its implementation</td><td><b>refused</b> — replay-complete is the most it may advertise</td><td><a href="#d9-effect-wall">D9.5</a></td></tr>
+</tbody></table></div>
+
+<div class="note"><b>The register is checked, which is the only reason to write
+one.</b> The suite verifies that every row names a rule this page actually
+states, that no two rows share a name, and — the row that matters — that a row
+declaring itself executable names a check that <i>ran</i>. Without that last
+condition the table would be free to mark itself green as the surface lands,
+which is precisely the drift every other instrument on this page exists to
+prevent. Today <b>every</b> row reads
+<code class="inline">awaiting-surface</code>, and the honest claim is that these
+are the properties that would settle the rules, not that anything has settled
+them.</div>
+
+<div class="note warn"><b>Six of these rows exist because the check demanded
+them, not because I thought of them.</b> The register began with the eight
+properties that came out of review, all of them about the newest rules — and the
+coverage check immediately failed with
+<code class="inline">D8.1, D8.2, D8.3, D8.4, D8.5, D9.1</code>: six rules,
+several of them the oldest and most load-bearing on the page, stated with
+nothing anywhere saying what would falsify them. That is the same asymmetry that
+let a retired equation survive four reviews. Attention goes to what was most
+recently argued about, and a subset check only ever confirms what its author
+already had in mind; only a census counts what is missing.</div>
 
 <h4 id="d9-period-film">What a period has to record about structure</h4>
 
