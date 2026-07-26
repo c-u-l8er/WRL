@@ -107,9 +107,11 @@
   <a href="#d8-identity-provenance">D8.3 · Provenance is not a value</a>
   <a href="#d8-identity-fork">D8.4 · Non-forking allocation</a>
   <a href="#d8-identity-scope">D8.5 · Identity is world-scoped</a>
+  <a href="#d8-identity-burn">D8.6 · Allocations burn on use</a>
   <a href="#d9">D9 · Dynamic topology</a>
   <a href="#d9-classify">D9 · Conflict classification</a>
   <a href="#d9-closure">D9.1 · Replay closure</a>
+  <a href="#d9-transition">D9.2 · Transition vs proposal</a>
 </aside>
 
 <div class="docbody">
@@ -1559,11 +1561,28 @@ arguments (§D9), and the id being minted is one of those arguments. Neither has
 can be computed first. An identity scheme needs an <b>allocation source</b> that
 is prior to the event, not derived from it:</p>
 
-<pre class="code"><code>RelationAllocation { world_id, issuer, nonce }
+<pre class="code"><code>RelationAllocation =
+    AuthoredAllocation { world_id, authored_name }        ; present at period 0
+  | LeasedAllocation   { lease_id, local_counter }        ; attached at runtime
 
-relation_id = H("WRL_RELATION" ‖ world_id ‖ issuer ‖ nonce)
+relation_id = H("WRL_RELATION" ‖ "authored" ‖ world_id ‖ authored_name)
+relation_id = H("WRL_RELATION" ‖ "leased"   ‖ lease_id ‖ local_counter)
 
 RelationAttached { allocation, revision_id }</code></pre>
+
+<div class="note"><b>Two variants, not one overloaded record.</b> The first
+version of this was a single <code class="inline">{ world_id, issuer, nonce }</code>
+triple, with <code class="inline">issuer</code> meaning "the world itself" at
+period 0 and a claimant at runtime. That is a tagged union wearing a flat record,
+and it hides the fact that the two cases have different <i>preconditions</i>: an
+authored name is unique by parse, a leased counter is unique by
+<a href="#d8-identity-fork">§D8.4</a>. Writing the tag makes the variant part of
+the preimage, so the two families cannot collide even if a
+<code class="inline">world_id</code> and a <code class="inline">lease_id</code>
+ever coincided as bytes. <code class="inline">world_id</code> is absent from the
+leased form because <a href="#d8-identity-fork"><code class="inline">lease_id</code>
+already covers it</a> — restating it would be the same fact in two places,
+one line apart, in a section about not doing that.</div>
 
 <p>The cycle is broken because <code class="inline">relation_id</code> is a
 function of the allocation, and the allocation is an ordinary argument of the
@@ -1583,10 +1602,10 @@ the defect <a href="#d8-derived">§D8 rejects for cardinality</a> and
 computes the id from the allocation; there is nothing to disagree with.</div>
 
 <div class="tbl"><table>
-<thead><tr><th>Relation</th><th><code class="inline">issuer</code></th><th><code class="inline">nonce</code></th></tr></thead>
+<thead><tr><th>Relation</th><th>Variant</th><th>Where uniqueness comes from</th></tr></thead>
 <tbody>
-<tr><td><b>Present at period 0</b> — authored in the sealed world</td><td>the world itself</td><td>the <b>authored relation name</b>, where the surface provides one. Where it does not, the triple (<code class="inline">kind</code>, <code class="inline">src</code>, <code class="inline">dst</code>) — legal <i>only</i> where that triple is unique, which is the <a href="#d8-identity-cost">same precondition</a> the V1 projection already depends on. One condition, stated once, doing both jobs</td></tr>
-<tr><td><b>Attached at runtime</b> — §D9 operation 3</td><td>an <b>issuer incarnation</b>, not a bare claimant — see below</td><td>a <b>lease-scoped counter</b>: <code class="inline">namespace_prefix ‖ local_counter</code></td></tr>
+<tr><td><b>Present at period 0</b> — authored in the sealed world</td><td><code class="inline">AuthoredAllocation</code></td><td>the <b>authored relation name</b>, where the surface provides one. Where it does not, the triple (<code class="inline">kind</code>, <code class="inline">src</code>, <code class="inline">dst</code>) — legal <i>only</i> where that triple is unique, which is the <a href="#d8-identity-cost">same precondition</a> the V1 projection already depends on. One condition, stated once, doing both jobs. Either way it is checked <b>at seal time</b>, by the validator that already walks the artifact</td></tr>
+<tr><td><b>Attached at runtime</b> — §D9 operation 3</td><td><code class="inline">LeasedAllocation</code></td><td>a counter drawn from a lease's range, where the lease is the thing no two live allocators can hold — <a href="#d8-identity-fork">§D8.4</a></td></tr>
 </tbody></table></div>
 
 <h4 id="d8-identity-fork">A monotonic counter is not an allocation source</h4>
@@ -1607,20 +1626,78 @@ host B allocates (world, C, 43)  → relation_id X   ; a different power line</c
 restoration, which is an ordinary consequence of the partitions §D9 is explicitly
 written to survive, and it destroys the exact property D8.1 exists to provide.
 The counter must be scoped by something that <b>cannot be duplicated by
-restoring a snapshot</b>:</p>
+restoring a snapshot</b>.</p>
 
-<pre class="code"><code>AllocationLease { issuer, namespace_prefix, valid_range, authority_receipt }
+<div class="note warn"><b>The first version of that scope repeated the mistake
+D8.3 had just corrected.</b> It read
+<code class="inline">AllocationLease { issuer, namespace_prefix, valid_range,
+authority_receipt }</code> — and <code class="inline">authority_receipt</code> is
+a <i>checker's conclusion that the lease may exist</i>, which is precisely the
+thing §D8.3 removes from a value one section earlier. In the same commit. The
+consequences are the same ones D8.3 lists: two authorities granting the same
+range would produce different lease identities; re-signing the evidence would
+change the lease; and a receipt that names the lease it justifies is another
+hash cycle of the kind <a href="#d8-identity-mint">the mint section</a> exists to
+break. A rule is not learned until it is applied to the case that was not in
+front of you when you wrote it.</div>
 
-nonce = namespace_prefix ‖ local_counter        ; local_counter ∈ valid_range</code></pre>
+<pre class="code"><code>AllocationLease { world_id, allocator_incarnation, namespace_prefix,
+                  counter_range, validity, granting_policy_id }
 
-<div class="note stop"><b>Draft rule D8.4 — non-forking allocation.</b> An
-allocation nonce is valid only within a <b>namespace no two live allocators can
-hold at once</b>. A lease supplies one: disjoint ranges are handed out
+lease_id = H(canonical AllocationLease)
+
+LeaseGranted { lease_id, provenance, offered_evidence }     ; the ledger event
+
+LeasedAllocation { lease_id, local_counter }                ; local_counter ∈ counter_range</code></pre>
+
+<p>Every field left in the lease affects <b>what future allocations are legal</b>
+— which is §D8.3's own test for what belongs in a value rather than on an event.
+<code class="inline">counter_range</code> is spelled out rather than left as
+<code class="inline">valid_range</code> beside a <code class="inline">validity</code>
+field, because two fields whose names are near-synonyms for different things is
+how a reader ends up checking the wrong one.
+<code class="inline">granting_policy_id</code> stays in the value for the reason
+D8.3 gives about semantics wearing a provenance label: the governing policy is
+not a record of how the lease was obtained, it is a constraint on what the lease
+permits.</p>
+
+<div class="note stop"><b>Draft rule D8.4 — non-forking allocation.</b> A
+relation allocation is drawn from a <b>lease</b>, and a lease is a
+content-addressed value carrying only what governs future allocation. Its
+<code class="inline">counter_range</code> is valid only within a namespace <b>no
+two live allocators can hold at once</b>. Disjoint ranges are handed out
 <i>before</i> a partition, so each side allocates locally and collision is
-impossible rather than unlikely. Equivalent sources are a replica identity plus a
+impossible rather than unlikely. Why a lease was granted lives in the
+<code class="inline">LeaseGranted</code> event and its §8 acceptance receipt, never
+in the lease. What is <b>not</b> an allocation source is any counter recoverable
+by restoring state, because restoring state is how the second allocator is
+created.</div>
+
+<p>Three fixes come with the content address, and the third is the one that was
+actually missing. <code class="inline">lease_id</code> is now <b>named by the
+allocation</b>. The earlier <code class="inline">{ world_id, issuer, nonce }</code>
+form obliged a validator to <i>infer</i> which grant authorised a given
+allocation by scanning history — which is unambiguous only until an issuer holds
+two ranges, or a renewed lease overlaps an old one, or a grant is replayed. An
+allocation now says which lease it came from, and checking it is a lookup rather
+than a search. <code class="inline">world_id</code> can leave the relation
+preimage for the same reason: it is inside <code class="inline">lease_id</code>
+already, so <a href="#d8-identity-scope">§D8.5's world-scoping</a> survives
+without the field being written twice.</p>
+
+<div class="note warn"><b>Three of the "equivalent sources" were not
+equivalent.</b> An earlier sentence here offered a replica identity plus a
 restart incarnation, a deterministic spawn path, or a preallocated namespace
-range. What is <b>not</b> a source is any counter recoverable by restoring
-state, because restoring state is how the second allocator is created.</div>
+range as interchangeable ways to satisfy D8.4. Only the last is inherently
+non-overlapping. A restart incarnation is safe only if incarnation numbers
+cannot themselves fork under stale restoration — which is the original failure,
+one level down. A deterministic spawn path is safe only if the parent's spawn
+operation is itself serialised or deduplicated; otherwise two live parents
+compute the same path. So the list is replaced by the obligation it was standing
+in for: <b>these may serve as allocation sources only where the system separately
+proves that no two live allocators can hold the same source identity.</b> The
+rule is the guarantee; an example does not inherit it by being named alongside
+one that has it.</div>
 
 <p>This has a consequence worth stating plainly rather than discovering later:
 under D8.4, attaching a relation during a partition requires a lease obtained
@@ -1628,6 +1705,17 @@ under D8.4, attaching a relation during a partition requires a lease obtained
 alternative is not "attach freely", it is "attach freely and discover the
 collision at merge", which the escrow discussion in §D9 already rejects for
 bounded resources for the same reason.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Fact</th><th>Home</th></tr></thead>
+<tbody>
+<tr><td>what range exists, and until when</td><td><code class="inline">AllocationLease</code></td></tr>
+<tr><td>which policy governs allocations from it</td><td><code class="inline">AllocationLease</code> — it constrains future behaviour</td></tr>
+<tr><td>who proposed the grant, and why</td><td><code class="inline">LeaseGranted</code> — <code class="inline">provenance</code></td></tr>
+<tr><td>evidence offered for the grant</td><td><code class="inline">LeaseGranted</code> — <code class="inline">offered_evidence</code></td></tr>
+<tr><td>why the checker accepted it</td><td>the §8 acceptance receipt</td></tr>
+<tr><td>which lease minted a given relation</td><td><code class="inline">LeasedAllocation.lease_id</code></td></tr>
+</tbody></table></div>
 
 <h4 id="d8-identity-nonce">What "deterministic" has to mean here</h4>
 
@@ -1651,6 +1739,67 @@ proposing twice is idempotent rather than doubling. A lease-scoped counter
 satisfies that by being held with the pending proposal until it settles; a fresh
 entropy draw per attempt does not. That is the real argument for the counter, and
 it is not the argument the first version gave.</p>
+
+<h4 id="d8-identity-burn">"Until it settles" leaves the wrong question open</h4>
+
+<p>The sentence above says the counter is held with the pending proposal until it
+settles. It does not say what happens <b>after</b> it settles the wrong way, and
+the omission is not cosmetic — the obvious reading is that a rejected allocation
+returns to the pool, because it was never used for anything. That reading
+destroys D8.1:</p>
+
+<pre class="code"><code>allocation A42 appears in a proposal to attach cable X   → rejected
+A42 returns to the pool
+allocation A42 appears in a proposal to attach cable Y   → accepted
+
+relation_id(A42) is one stable identity naming two unrelated intents,
+and the film contains both</code></pre>
+
+<p>Nothing detects this. Both proposals are individually well formed, the second
+one is accepted by a rule that has no memory of the first, and a replay
+reconstructs a world in which one name meant a cable that was refused and later
+meant a different cable that was not. The refusal is <i>recorded</i> — that is
+what §D9.1 closure guarantees — so the collision is visible to anyone reading the
+whole ledger and invisible to every rule that reads a period.</p>
+
+<div class="note stop"><b>Draft rule D8.6 — an allocation burns on first
+observation.</b> Once an allocation appears in <i>any</i> observed proposal it is
+permanently bound to that proposal's
+<a href="#d9-transition">transition identity</a>. It may be re-proposed for that
+same transition and may <b>never</b> be recycled for another relation —
+regardless of acceptance, rejection, timeout, crash, or later retirement.
+Observation consumes the allocation; acceptance is a different question and does
+not govern this one.</div>
+
+<div class="tbl"><table>
+<thead><tr><th>Situation</th><th>Outcome</th></tr></thead>
+<tbody>
+<tr><td>re-proposed with the same transition key</td><td><b>permitted</b> — this is the retry the nonce law is designed to make idempotent</td></tr>
+<tr><td>same allocation, a different transition key</td><td><b>allocation collision</b> — a diagnostic, never a race</td></tr>
+<tr><td>proposal rejected</td><td>allocation stays <b>consumed</b>. A refusal is an outcome, not an erasure</td></tr>
+<tr><td>proposal times out or the proposer crashes</td><td>allocation stays <b>consumed</b>, for the same reason</td></tr>
+<tr><td>relation later retired</td><td>allocation stays <b>consumed</b> — retirement is not deletion (<a href="#d9-obligations">historical representation</a>)</td></tr>
+</tbody></table></div>
+
+<p>The obligation this places on a proposer is the one that makes the rule
+implementable rather than aspirational: the binding must be <b>durable before the
+proposal is emitted</b>, not after it is answered.</p>
+
+<pre class="code"><code>AllocationReserved { allocation, transition_key }    ; durable, proposer-side, BEFORE emit</code></pre>
+
+<p>Written the other way round — emit, then record — a crash in the gap leaves an
+allocation that is live in someone else's ledger and free in the proposer's own
+record, which is exactly the state D8.6 exists to make unreachable. The
+corresponding rule is therefore the negative one: <b>a proposal must not be
+externally emitted before its reservation is durable.</b></p>
+
+<div class="note"><b>This is nonce reuse, in the cryptographic sense.</b> The
+prohibition is the same one and it fails the same way: a nonce that is reused
+under a second message does not merely weaken a property, it makes two different
+things indistinguishable under one name. The parallel is worth naming because it
+supplies the right intuition for the awkward cases — a rejected proposal, a
+crashed proposer — where "it was never really used" is a tempting and wrong
+argument in both settings.</div>
 
 <p>This is not a new mechanism invented for relations. It is the mechanism every
 other entity in the ontology already has, and writing the four out together shows
@@ -2095,7 +2244,7 @@ it, and records which capabilities it waits on:</p>
 <li><b>An attribute type system.</b> <code class="inline">capacity=3</code> is meaningless without a unit and a range. This is the same requirement as typed ports (§D2), and neither should ship without the other.</li>
 <li><b>Terminal-level validation.</b> Single-writer becomes a property of a terminal rather than a global law, so validation must move with it: an owned terminal with two <code class="inline">source</code> endpoints reaching it is still an error, and must still be caught before the seal. A terminal declaring <code class="inline">resolved(f)</code> is the one exemption, and the exemption is visible on the terminal.</li>
 <li><b>A well-formedness rule per orientation.</b> Roles and orientation can contradict each other and the checker must say so: <code class="inline">directed</code> requires at least one <code class="inline">source</code> and at least one <code class="inline">target</code> and admits no other role; <code class="inline">symmetric</code> admits only <code class="inline">peer</code>; <code class="inline">acausal</code> admits only <code class="inline">terminal</code> and carries no texture. Each violation needs its own code.</li>
-<li><b>A settlement rule per orientation.</b> <code class="inline">directed</code> settles by the existing REACT pass — including into a resolved terminal, in one pass, provided the resolution is a pure, total, deterministic function of the canonical driver map with a declared empty value (<a href="#d2-two-resolutions">§D2.1</a>. Algebraic laws are <i>not</i> required: idempotence belongs to §9's join, and associativity and commutativity are priced separately as a <code class="inline">parallel_fold</code> opt-in). <code class="inline">acausal</code> does not settle by passing values at all and requires a solver wall (§D4). <code class="inline">symmetric</code> has no settlement rule yet, which is the honest state of it.</li>
+<li><b>A settlement rule per orientation.</b> <code class="inline">directed</code> settles by the existing REACT pass — including into a resolved terminal, in one pass, provided the resolution is a pure, total, deterministic function of the canonical driver map with a declared empty value (<a href="#d2-two-resolutions">§D2.1</a>). Algebraic laws are <i>not</i> required: idempotence belongs to §9's join, and associativity and commutativity are priced separately as a <code class="inline">parallel_fold</code> opt-in). <code class="inline">acausal</code> does not settle by passing values at all and requires a solver wall (§D4). <code class="inline">symmetric</code> has no settlement rule yet, which is the honest state of it.</li>
 <li><b>A film schema.</b> A relation's attributes are state, and §10 requires every state variable that determines future behaviour to be serialised.</li>
 </ol>
 
@@ -2267,24 +2416,70 @@ law: the acceptance policy never sees a pair it should have refused. That is the
 same discipline §9 states for conflicting receipts — <i>recognized evidence for
 later settlement, never blindly merged</i> — applied to structure.</div>
 
+<h4 id="d9-transition">What is proposed, and what was observed proposing it</h4>
+
+<p>Before the table can be written, one word in it has to stop meaning two
+things. §D8.3 put <code class="inline">provenance</code> and
+<code class="inline">offered_evidence</code> onto the event and left the event id
+a hash over <i>all</i> its arguments — deliberately, since the alternative is a
+rule with a silent exception. The consequence was not noticed:</p>
+
+<pre class="code"><code>revise L: R0 → R1,  evidence = [certificate_A]
+revise L: R0 → R1,  evidence = [certificate_A, inspection_report_B]</code></pre>
+
+<p>Two different events. <b>One transition.</b> The second is the first with a
+supplementary document attached, and under a rule that classifies by event
+identity the pair is not a retry — so a proposer who adds an inspection report to
+a pending proposal has manufactured a lifecycle conflict out of an audit trail.
+That is an <i>evidentiary</i> difference contaminating a <i>structural</i>
+decision, which is the same category error §D8.3 was written to stop.</p>
+
+<pre class="code"><code>TransitionKey = H(operation core, target, expected state, next state, period)
+
+ProposalEvent { transition_key, proposer, provenance, offered_evidence }
+event_id      = H(canonical ProposalEvent)</code></pre>
+
+<div class="note stop"><b>Draft rule D9.2 — a transition and a proposal are
+different identities.</b> The <code class="inline">TransitionKey</code> answers
+<i>what change is proposed</i>; the <code class="inline">event_id</code> answers
+<i>which complete proposal envelope was observed</i>. Many events may name one
+transition key. Lifecycle conflict is classified on <b>transition keys</b>.
+Whether several envelopes for one transition accumulate their evidence, or one
+must win, or contradictory evidence is itself a verification conflict, is an
+<b>acceptance-policy</b> question — and it is a different question, decided after
+classification and never during it.</div>
+
+<p>Two things fall out that are worth having on the record. The first is that the
+conservative rule at the end of this section was <i>already</i> written in terms
+of "one distinct lifecycle <b>transition</b>" while the table below it was
+written in terms of events. The prose had the right rule and no defined term
+behind it; D9.2 supplies the term, and the two stop disagreeing. The second is
+that this is §8's own move: <code class="inline">CandidateKey</code> exists
+precisely because <i>which candidate</i> and <i>which receipt carried it</i> are
+separate questions, and the recognition law counts distinct keys rather than
+distinct arrivals. §D9 needed the same split one level up and had been using one
+identity for both.</p>
+
 <div class="tbl"><table>
 <thead><tr><th>Pair, same <code class="inline">relation_id</code>, one boundary</th><th>Outcome</th></tr></thead>
 <tbody>
-<tr><td>identical attach events</td><td><b>deduplicate</b> — one proposal retried, not two relations</td></tr>
-<tr><td>same allocation, different initial revision</td><td><b>allocation collision</b> — two allocators held one namespace (<a href="#d8-identity-fork">§D8.4</a> was violated upstream)</td></tr>
-<tr><td>identical revision events</td><td><b>deduplicate</b></td></tr>
+<tr><td><b>same transition key</b> — attach, revise or retire, whatever the envelopes</td><td><b>deduplicate</b> — one transition proposed more than once, not two intents. Which envelope's evidence is kept, or whether they accumulate, is <a href="#d9-transition">§D9.2</a>'s acceptance-policy question and is decided afterwards</td></tr>
+<tr><td>same allocation, <b>different</b> transition key</td><td><b>allocation collision</b> — a burned allocation was recycled (<a href="#d8-identity-burn">§D8.6</a>) or two allocators held one namespace (<a href="#d8-identity-fork">§D8.4</a>). Which of the two it was is answered by the reservation record, not by this table</td></tr>
 <tr><td>same <code class="inline">expected_prior_revision</code>, different <code class="inline">next_revision</code></td><td><b>competing-revision conflict</b> — the case above</td></tr>
 <tr><td>different <code class="inline">expected_prior_revision</code>s</td><td><b>stale / branched-revision conflict</b></td></tr>
 <tr><td>revision and retirement from the same current revision</td><td><b>lifecycle conflict</b> — the relation cannot both continue and end</td></tr>
-<tr><td>identical retirements</td><td><b>deduplicate</b></td></tr>
 <tr><td>attach after a prior retirement</td><td><b>reject</b>, unless an explicit reactivation operation exists — and it does not. Retirement is not deletion (<a href="#d9-obligations">historical representation</a>), so the id is still addressable, and silently reusing it would make two different relations share one name across time</td></tr>
 </tbody></table></div>
 
-<p>Deduplication earns its three rows: without it, a retried proposal under
-partition is indistinguishable from a second intent, which is the failure
-<a href="#d8-identity-nonce">the nonce law</a> is written to prevent from the
-other side. The two rules are one property approached from the proposer and from
-the acceptor.</p>
+<p>The first version of this table had <i>three</i> deduplication rows — one each
+for identical attaches, identical revisions and identical retirements — because
+it was written before there was a word for "the same change". With
+<a href="#d9-transition">§D9.2</a> they are one row, and the row says something
+the three did not: a retry is recognised by <b>what it proposes</b>, not by
+arriving byte-identical. Without that, a retried proposal under partition is
+indistinguishable from a second intent, which is the failure
+<a href="#d8-identity-nonce">the nonce law</a> prevents from the proposer's side.
+The two rules are one property approached from each end.</p>
 
 <div class="note"><b>The conservative first version.</b> <i>At most one distinct
 lifecycle transition per relation may be accepted for one configuration
@@ -2334,6 +2529,61 @@ the shape open:</p>
 <p>Stating the three is the deliverable here. The draft's job is to make the
 choice visible before something is built on the assumption that a digest was
 enough, and to record that the tidiest option is the one that costs a freeze.</p>
+
+<h4 id="d9-object-table">Closure is not enough; it has to be closure one way</h4>
+
+<p>The default above says the bytes go inside
+<code class="inline">event_ledger</code> and stops there, which leaves the
+serialization free to satisfy D9.1 in several different ways:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>All of these are closed</th><th>And they are different bytes</th></tr></thead>
+<tbody>
+<tr><td>each referencing event embeds its own copy of a revision</td><td>a revision referenced five times appears five times</td></tr>
+<tr><td>one shared copy is emitted up front</td><td>once, in some order</td></tr>
+<tr><td>duplicates are kept but ordered differently</td><td>same set, different sequence</td></tr>
+<tr><td>some objects are embedded, others left as bare references</td><td>a mixture, chosen per object</td></tr>
+</tbody></table></div>
+
+<p>Every one of them replays the same computation and produces a <b>different
+film</b>. That is not a small defect in a language whose central claim is that a
+run is a film that replays exactly: two conforming implementations would disagree
+on the artifact they hand each other, and neither would be wrong. Closure without
+canonicalization is the same failure as canonicalization without closure, arrived
+at from the other side.</p>
+
+<pre class="code"><code>EventLedgerBytes {
+  objects,     ; sorted map: content_id -> canonical bytes
+  entries      ; ordered accepted events, receipts, effects, outcomes
+}</code></pre>
+
+<div class="tbl"><table>
+<thead><tr><th>#</th><th>Law on <code class="inline">objects</code></th><th>What it removes</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>each referenced content id appears <b>exactly once</b></td><td>copy-per-reference, and the question of which copy is authoritative</td></tr>
+<tr><td>2</td><td>keys are sorted by raw content-id bytes</td><td>emission order as a degree of freedom</td></tr>
+<tr><td>3</td><td>the bytes stored under a key must hash to that key</td><td>a table that lies, and makes it checkable rather than trusted</td></tr>
+<tr><td>4</td><td>every transitively required id appears</td><td>D9.1's own requirement, now a property of a named structure</td></tr>
+<tr><td>5</td><td>unreferenced objects are excluded by canonicalization, or rejected</td><td>a bundle that carries private payload and still hashes as conforming</td></tr>
+<tr><td>6</td><td><code class="inline">entries</code> reference objects only by id</td><td>the embedded/referenced mixture in the fourth row above</td></tr>
+<tr><td>7</td><td>closure traversal is deterministic and finite</td><td>an implementation-defined walk, and non-termination on a cyclic reference</td></tr>
+</tbody></table></div>
+
+<p>None of this touches the frozen record. §10 froze the
+<code class="inline">ReplayBundle</code> <i>shape</i> — five fields — and
+explicitly released the byte layouts as a Film serialization concern; this is a
+layout for one of the five, so it is exactly the change §10 left available. Law 5
+is the one worth reading twice: without it, "closed" and "minimal" come apart,
+and a bundle could satisfy D9.1 while carrying an arbitrary extra payload that
+every replaying host would faithfully hash.</p>
+
+<div class="note"><b>The external-store option reuses this, rather than escaping
+it.</b> A package that pins a content store still publishes the same
+<code class="inline">objects</code> table as a <b>manifest</b> — the same ids in
+the same order under the same laws — and omits only the large values, marking
+each one's retrieval mode. So the film's identity does not depend on whether a
+solver artifact was inlined or fetched, which is the property that makes the
+third option a deployment choice rather than a second serialization.</div>
 
 <h4 id="d9-period-film">What a period has to record about structure</h4>
 

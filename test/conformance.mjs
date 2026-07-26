@@ -828,6 +828,24 @@ for (const cap of REGISTRY.keys()) {
     /<a href="#([^"]+)">(D\d+\.\d+) · /g)]
     .map((m) => ({ anchor: m[1], rule: m[2] }));
 
+  /* UNIQUENESS. The four checks below were written first and all four passed
+   * while the same rule number was stated twice, which is the one thing the
+   * page's own metaphor forbids: a number is an identity, and two rules can no
+   * more share one than two relations can share a relation_id. Set membership
+   * is not identity, and every check above was a set check. */
+  const dupes = (xs) => [...new Set(xs.filter((x, i) => xs.indexOf(x) !== i))];
+
+  const restated = dupes(stated);
+  ok("rules/stated-ids-are-unique", restated.length === 0,
+     `spec.html states rule number(s) [${restated.join(", ")}] more than once. ` +
+     `A rule number is an identity: two statements under one number means one ` +
+     `of them is unreachable by citation, and the two can drift apart silently.`);
+
+  const listedTwice = dupes(indexed.map((i) => i.rule));
+  ok("rules/index-ids-are-unique", listedTwice.length === 0,
+     `the sidebar lists rule number(s) [${listedTwice.join(", ")}] more than ` +
+     `once, so the ordered view has two entries competing for one identity.`);
+
   ok("rules/some-are-stated", stated.length > 0,
      "spec.html states no numbered sub-rules; this check is vacuous. If the " +
      "rules were reworded, teach the check the new spelling rather than " +
@@ -864,6 +882,34 @@ for (const cap of REGISTRY.keys()) {
   ok("rules/index-anchors-resolve", dead.length === 0,
      `sidebar entr(ies) [${dead.map((i) => `${i.rule}→#${i.anchor}`).join(", ")}] ` +
      `point at anchors spec.html does not define.`);
+}
+
+/* THE IDENTITY PREIMAGES. direction.html republishes the relation identity
+ * equations as a summary of spec.html's rules. That is a third copy of a fact,
+ * and the README ladder already showed what a third copy does when nothing
+ * checks it. These equations are the worst possible thing to let drift: a
+ * reader who implements the summary and a reader who implements the spec would
+ * mint different ids for the same relation and neither page would be visibly
+ * wrong. So the summary's equations must appear verbatim in the spec. */
+{
+  const eq = (file) => [...readFileSync(join(ROOT, file), "utf8")
+    .matchAll(/^\s*(relation_id\s*=\s*H\(.*)$/gm)]
+    .map((m) => m[1].replace(/\s+/g, " ").trim());
+
+  const inSpec = new Set(eq("spec.html"));
+  const inDir = eq("direction.html");
+
+  ok("identity/spec-publishes-preimages", inSpec.size > 0,
+     "spec.html publishes no relation_id preimage; this check is vacuous");
+  ok("identity/direction-publishes-preimages", inDir.length > 0,
+     "direction.html publishes no relation_id preimage; this check is vacuous");
+
+  const drifted = inDir.filter((e) => !inSpec.has(e));
+  ok("identity/preimages-agree", drifted.length === 0,
+     `direction.html publishes relation identity equation(s) that spec.html ` +
+     `does not state:\n    ${drifted.join("\n    ")}\n  Spec states:\n    ` +
+     `${[...inSpec].join("\n    ")}\n  Two pages minting different ids for one ` +
+     `relation is the failure this whole section exists to prevent.`);
 }
 
 /* The falsification conditions are the other duplicated structure. Direction

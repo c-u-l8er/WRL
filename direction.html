@@ -543,14 +543,17 @@ from a binary directed <code class="inline">Edge</code> to a general
 <code class="inline">Relation</code>, with today's route as its simplest
 specialisation.</p>
 
-<pre class="code"><code>RelationAllocation { world_id, issuer, nonce }
+<pre class="code"><code>RelationAllocation =
+    AuthoredAllocation { world_id, authored_name }        ; present at period 0
+  | LeasedAllocation   { lease_id, local_counter }        ; attached at runtime
 
 RelationRevision   { domain, kind, endpoints, orientation,
                      texture?, attributes, policy }
 
 Endpoint { terminal, role }
 
-relation_id      = H("WRL_RELATION" ‖ world_id ‖ issuer ‖ nonce)
+relation_id      = H("WRL_RELATION" ‖ "authored" ‖ world_id ‖ authored_name)
+relation_id      = H("WRL_RELATION" ‖ "leased"   ‖ lease_id ‖ local_counter)
 current_revision = fold over the ledger prefix — derived, never stored</code></pre>
 
 <p>The split into a stable <code class="inline">relation_id</code> and a
@@ -571,12 +574,25 @@ was produced</i>, which is the question a content address is not answering.
 <code class="inline">texture?</code> is optional because an acausal relation has
 none.</p>
 
-<p><code class="inline">world_id</code> sits in the allocation preimage on
-purpose, and it has a consequence worth naming here rather than leaving to be
-discovered at the first upgrade: relation identity is
-<a href="spec.html#d8-identity-scope"><b>world-scoped</b></a>. A relation keeps
-its name across every runtime attach, revision and retirement — that is the point
-of D8.1 — but <i>not</i> across a re-seal, because a re-sealed world is a
+<p>The allocation is two variants rather than one flat record because the two
+cases get their uniqueness from different places: an authored name is unique by
+parse, checked when the world seals, while a runtime counter is unique only
+within a <b>lease</b> — a content-addressed value naming a range that no two live
+allocators can hold at once
+(<a href="spec.html#d8-identity-fork">§D8.4</a>). Why a lease was granted stays
+on its grant event and its acceptance receipt, never in the lease, which is
+§D8.3 applied one level down. An allocation is also <b>spent by being seen</b>:
+once it appears in any observed proposal it is bound to that proposal's
+transition and can never name a second relation, whether the proposal was
+accepted, refused, or abandoned
+(<a href="spec.html#d8-identity-burn">§D8.6</a>) — the identity equivalent of
+never reusing a nonce.</p>
+
+<p>Relation identity is therefore
+<a href="spec.html#d8-identity-scope"><b>world-scoped</b></a>, and it is worth
+naming here rather than leaving to be discovered at the first upgrade. A relation
+keeps its name across every runtime attach, revision and retirement — that is the
+point of D8.1 — but <i>not</i> across a re-seal, because a re-sealed world is a
 different <code class="inline">sem-</code> id by construction. That is the same
 scope object ids already have, so it is consistency rather than a new
 restriction; what it costs is that carrying a relation across a redeploy becomes
