@@ -343,7 +343,15 @@ no longer "a missing key, never a null"), `import-mints-one-allocation-variant`
    moment anything else consumes it. I left it, and I am flagging it rather than
    quietly relying on it.
 
-### 9b. Path B
+### 9b. Path B — **answered, and built**
+
+> The two questions below were the ones I could not answer myself. You ruled
+> both, and Path B is now built to that ruling: `relations` replaces `edges`
+> outright at V2, §D8.8's projection is the V1 compatibility adapter only, and
+> `NamedInitialAllocation`'s surface landed *inside* B as slice B.4. Slices
+> B.1 – B.5 are green at 828/828 with model debt 0. **See
+> `HANDOFF_D8_PATH_B.md`** — this section is left standing as the record of
+> where Path A stopped.
 
 I have your B1–B7 rulings. Path A is now closed on my side and I can start B
 under the byte-layout rulings, but B is a Semantic IR **V2** design task, and

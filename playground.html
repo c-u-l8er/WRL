@@ -435,7 +435,8 @@ function renderRelations(rel) {
   return rel.relations.map((r) => {
     const eps = r.revision.endpoints.map((e) =>
       `<span class="role">${escapeHtml(e.role)}</span> ` +
-      `<span class="ep">${escapeHtml(e.terminal)}</span>`).join("  ·  ");
+      `<span class="ep">${escapeHtml(R.formatTerminal(e.terminal))}</span>`)
+      .join("  ·  ");
     return `<div class="rrow"><div class="rid">${escapeHtml(r.relation_id)}</div>` +
            `<div class="ep">${escapeHtml(r.revision_id)}</div>` +
            `<div>${escapeHtml(r.revision.kind)} · ` +

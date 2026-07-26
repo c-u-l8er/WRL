@@ -1712,7 +1712,17 @@ for (const [id, entries] of futurePairs) {
       try { return s.canonicalizeRelationRevision(build()); }
       catch { return null; }
     };
-    const endpoint = (terminal, role) => ({ terminal, role });
+    /* `"a.sig_out"` is this battery's SHORTHAND, not the model's encoding. A
+     * terminal is `{ object_id, port }`; writing that out at forty call sites
+     * would bury the property each specimen is actually about. The shorthand
+     * is expanded here, once, and check 1 below asserts the record form on the
+     * derived relations rather than on anything this helper built -- so the
+     * convenience cannot be what makes the check pass. */
+    const term = (packed) => {
+      const [object_id, port] = packed.split(".");
+      return { object_id, port };
+    };
+    const endpoint = (packed, role) => ({ terminal: term(packed), role });
     /* §D8's texture row is stated PER ORIENTATION -- required for directed,
      * profile-defined for symmetric, absent for acausal -- and `base` is a
      * directed relation carrying `solid`. Spreading it unchanged would put a
@@ -1729,23 +1739,34 @@ for (const [id, entries] of futurePairs) {
         return r;
       };
 
-    /* 1. terminals are PORTS, not objects. `p0` is an object; the terminal a
-     *    relation reaches is `p0.sig_out`, and the port half has to be the one
-     *    the kind names or the projection's inverse is a guess. */
+    /* 1. terminals are PORTS, not objects, and they are RECORDS, not packed
+     *    strings. `p0` is an object; the terminal a relation reaches is
+     *    `{ object_id: "p0", port: "sig_out" }`, and the port half has to be
+     *    the one the kind names or the projection's inverse is a guess.
+     *
+     *    Both halves are asserted together because they fail together. The
+     *    packed spelling `"p0.sig_out"` was the V1 edge's own habit surviving
+     *    into the model meant to outlive it, and it only reads as unambiguous
+     *    while every object id and port happens to be `\w+`. */
     {
       const wrong = rels.filter((r) => {
         const ports = W.EDGE_PORTS[r.revision.kind];
         const src = r.revision.endpoints.find((e) => e.role === "source");
         const dst = r.revision.endpoints.find((e) => e.role === "target");
-        return !src || !dst ||
-               src.terminal !== `${r.allocation.src}.${ports[0]}` ||
-               dst.terminal !== `${r.allocation.dst}.${ports[1]}`;
+        const is = (e, object_id, port) =>
+          e && e.terminal && typeof e.terminal === "object" &&
+          W.serializeArtifact(Object.keys(e.terminal).sort()) ===
+            W.serializeArtifact([...s.TERMINAL_FIELDS].sort()) &&
+          e.terminal.object_id === object_id && e.terminal.port === port;
+        return !is(src, r.allocation.src, ports[0]) ||
+               !is(dst, r.allocation.dst, ports[1]);
       });
       ok("relation/terminals-are-port-qualified",
          rels.length > 0 && wrong.length === 0,
          wrong.length
            ? `${wrong.length} derived relation(s) name an object where §D8 ` +
-             `names a terminal, e.g. ` +
+             `names a terminal, or pack one into a string where §D8 names a ` +
+             `{ ${s.TERMINAL_FIELDS.join(", ")} } record, e.g. ` +
              W.serializeArtifact(wrong[0].revision.endpoints)
            : `the fixture derived no relations, so this proves nothing`);
     }
@@ -1801,7 +1822,10 @@ for (const [id, entries] of futurePairs) {
          endpoint("vcc.pin", "terminal")]));
       const directed = canon(
         () => ({ ...base, endpoints: [...base.endpoints].reverse() }));
-      const seq = (r, k) => r ? r.endpoints.map((e) => e[k]).join(",") : "(refused)";
+      const seq = (r, k) => r
+        ? r.endpoints.map((e) => k === "terminal"
+            ? s.formatTerminal(e.terminal) : e[k]).join(",")
+        : "(refused)";
       ok("relation/canonical-order-is-role-then-terminal",
          seq(scrambled, "terminal") === "n1.pin,r1.pin,vcc.pin" &&
          seq(directed, "role") === "source,target",
@@ -1973,9 +1997,13 @@ for (const [id, entries] of futurePairs) {
     const MUTATE = {
       domain:      (r) => ({ ...r, domain: "electrical" }),
       kind:        (r) => ({ ...r, kind: "SocketControl",
-                             endpoints: [{ terminal: "sp.socket", role: "source" },
-                                         { terminal: "ob.pose",   role: "target" }] }),
-      endpoints:   (r) => ({ ...r, endpoints: [{ ...r.endpoints[0], terminal: "zz.sig_out" },
+                             endpoints: [
+                               { terminal: { object_id: "sp", port: "socket" },
+                                 role: "source" },
+                               { terminal: { object_id: "ob", port: "pose" },
+                                 role: "target" }] }),
+      endpoints:   (r) => ({ ...r, endpoints: [{ ...r.endpoints[0],
+                                                 terminal: { object_id: "zz", port: "sig_out" } },
                                                r.endpoints[1]] }),
       orientation: (r) => ({ ...r, orientation: "symmetric",
                              endpoints: r.endpoints.map(
@@ -1987,26 +2015,34 @@ for (const [id, entries] of futurePairs) {
 
     /* the declared partition. Changing it is a semantic decision and should
      * read like one -- which is why it is written out here rather than
-     * inferred from whatever the code happens to do today. */
-    const NAMES        = ["kind", "endpoints"];
-    const FREE         = ["policy"];
-    const UNPROJECTED  = ["domain", "orientation", "texture", "attributes"];
+     * inferred from whatever the code happens to do today.
+     *
+     * The third class was called `unprojected` on the reading that V1 says
+     * NOTHING about those four fields. It says exactly one thing about each --
+     * signal, directed, solid, {} -- and this contract restores all four on
+     * import. What V1 lacks is an independently writable representation for any
+     * OTHER value, which is a fact about representability rather than about
+     * silence. `V1-fixed` names that; `unprojected` invited the wrong reading
+     * of the same observation. */
+    const NAMES     = ["kind", "endpoints"];
+    const FREE      = ["policy"];
+    const V1_FIXED  = ["domain", "orientation", "texture", "attributes"];
 
     const observed = {};
     for (const f of s.REVISION_FIELDS) {
       if (!MUTATE[f]) { observed[f] = "unmutated"; continue; }
       try {
         observed[f] = (await idOf(MUTATE[f](base))) === baseId ? "free" : "names";
-      } catch { observed[f] = "unprojected"; }
+      } catch { observed[f] = "V1-fixed"; }
     }
 
     const expected = Object.fromEntries([
       ...NAMES.map((f) => [f, "names"]),
       ...FREE.map((f) => [f, "free"]),
-      ...UNPROJECTED.map((f) => [f, "unprojected"]),
+      ...V1_FIXED.map((f) => [f, "V1-fixed"]),
     ]);
 
-    const declared = [...NAMES, ...FREE, ...UNPROJECTED];
+    const declared = [...NAMES, ...FREE, ...V1_FIXED];
     const missing = s.REVISION_FIELDS.filter((f) => !declared.includes(f));
     const extra = declared.filter((f) => !s.REVISION_FIELDS.includes(f));
     ok("relation/revision-field-partition-is-total",
@@ -2024,6 +2060,56 @@ for (const [id, entries] of futurePairs) {
                             `${observed[f]}`).join("; ")
          : `no field is free to change, so §D8.1 has no content here: a ` +
            `revision that cannot change trivially never moves an id`);
+
+    /* -- and the other half of the same claim, which the partition alone
+     *    cannot make: each V1-fixed field is pinned to a SPECIFIC value.
+     *
+     * The partition observes that mutating one of these four fields makes the
+     * revision unprojectable. That is compatible with V1 being silent about
+     * them, and it is compatible with the adapter having no opinion at all --
+     * a projection that refused every value would pass it. What distinguishes
+     * "fixed" from "absent" is that exactly one value survives, the same one
+     * every time, and that the derived revision already carries it. Asserted
+     * against the derived relations rather than against a constant list, so a
+     * kernel that changed its mind about `solid` fails here rather than
+     * quietly reclassifying a field. */
+    const V1_FIXED_VALUE = {
+      domain: "signal", orientation: "directed", texture: "solid",
+    };
+    const derived = Object.values(sealed).flatMap((k) => k.derived.relations);
+    const offV = derived.flatMap((r) =>
+      Object.entries(V1_FIXED_VALUE)
+        .filter(([f, v]) => r.revision[f] !== v)
+        .map(([f, v]) => `${f} is ${JSON.stringify(r.revision[f])}, not ${v}`));
+    const offA = derived.filter(
+      (r) => W.serializeArtifact(r.revision.attributes) !== "{}");
+
+    /* the pin has to bite: an alternative value for the same field must be
+     * refused by the projection, not merely differ from the one derived */
+    const alt = { domain: "electrical", orientation: "acausal",
+                  texture: "async" };
+    const unpinned = [];
+    for (const [f, v] of Object.entries(alt)) {
+      const rev = f === "orientation"
+        ? { ...base, orientation: "acausal", texture: undefined,
+            endpoints: base.endpoints.map((e) => ({ ...e, role: "terminal" })) }
+        : { ...base, [f]: v };
+      if (f === "orientation") delete rev.texture;
+      try { s.projectRelationRevisionToV1Edge(rev); unpinned.push(f); }
+      catch { /* refused, as a pinned field must be */ }
+    }
+
+    ok("relation/each-V1-fixed-field-is-pinned-to-one-value",
+       offV.length === 0 && offA.length === 0 && unpinned.length === 0 &&
+       V1_FIXED.every((f) => f in V1_FIXED_VALUE || f === "attributes"),
+       offV.length || offA.length
+         ? `a derived revision disagrees with the value V1 fixes: ` +
+           `${offV.join("; ")}${offA.length ? `; ${offA.length} carried ` +
+           `non-empty attributes` : ""}`
+         : `[${unpinned.join(", ")}] projected under an alternative value. A ` +
+           `field V1 merely omits and a field V1 pins to one value are ` +
+           `different claims, and only the second licenses restoring it on ` +
+           `import`);
   }
 
   /* -- §D8.2. A revision that names its predecessor is a second home for
@@ -2331,6 +2417,57 @@ for (const [id, entries] of futurePairs) {
        `worlds; wider, and it reads a shape it has never seen`);
   }
 
+  /* -- and admission is by the whole tuple, not by the version alone.
+   *
+   * 0.1.2 gated `ir_version` and let the other two coordinates through: an
+   * artifact could declare an undeclared rulepack under a frozen profile and
+   * still be read as a recognised V1 relation source, because the rulepack was
+   * admitted for being a nonempty string. That is not what "policy is free"
+   * licenses. The partition says a revision may CHANGE its rulepack without
+   * moving `relation_id`; admission asks which sealed artifact families this
+   * adapter knows how to interpret at all. The rulepack is copied into
+   * `revision.policy`, so an unrecognised one is sealed into revision identity
+   * rather than merely ignored. */
+  {
+    const base = sealed.starter.artifact;
+    const fam = s.V1_RELATION_SOURCE_FAMILIES[base.ir_version];
+    const refuse = (artifact) => {
+      try { s.assertV1Artifact(artifact); return null; }
+      catch (e) { return e.code; }
+    };
+    const swapped = {
+      ...base,
+      semantic_policies: { ...base.semantic_policies,
+                           rulepack_id: "someone.elses.rules.v1" },
+    };
+    const dropped = {
+      ...base,
+      semantic_policies: { ...base.semantic_policies, rulepack_id: undefined },
+    };
+    const foreign = { ...base, profile_id: "forge.world.core.v2" };
+
+    /* Every declared family must agree with what the spine actually seals,
+     * so the table cannot be satisfied by a value no artifact carries. */
+    const tableMatchesSeal = Object.values(sealed).every((k) => {
+      const f = s.V1_RELATION_SOURCE_FAMILIES[k.artifact.ir_version];
+      return f && f.profile_id === k.artifact.profile_id &&
+             f.rulepack_id === k.artifact.semantic_policies.rulepack_id;
+    });
+
+    ok("relation/binding/admission-is-the-whole-source-tuple",
+       refuse(base) === null &&
+       refuse(swapped) === "WRL_UNSUPPORTED_RULEPACK" &&
+       refuse(dropped) === "WRL_UNSUPPORTED_RULEPACK" &&
+       refuse(foreign) === "WRL_UNSUPPORTED_PROFILE" &&
+       tableMatchesSeal,
+       `a foreign rulepack answered ${refuse(swapped)}, an absent one ` +
+       `${refuse(dropped)} and a foreign profile ${refuse(foreign)}; the ` +
+       `declared family for ${base.ir_version} is ${JSON.stringify(fam)}. ` +
+       `An adapter that admits any nonempty rulepack under a frozen profile ` +
+       `elevates an undeclared policy family into a recognised relation ` +
+       `source, and then copies it into every revision it mints.`);
+  }
+
   /* -- the canonical vocabulary cannot be moved from outside this module.
    *
    * `ENDPOINT_ROLES` is a normative sort key: canonicalization orders
@@ -2356,6 +2493,7 @@ for (const [id, entries] of futurePairs) {
       importable: W.serializeArtifact([...s.IMPORTABLE_VARIANTS]),
       imported: W.serializeArtifact([...s.RELATION_IMPORTED_FIELDS]),
       admits: W.serializeArtifact([...s.ORIENTATION_ROLES.directed.admits]),
+      families: W.serializeArtifact(s.V1_RELATION_SOURCE_FAMILIES),
     };
 
     const tamper = (f) => { try { f(); } catch { /* frozen, loudly */ } };
@@ -2367,6 +2505,23 @@ for (const [id, entries] of futurePairs) {
     tamper(() => s.IMPORTABLE_VARIANTS.push("named-initial"));
     tamper(() => s.RELATION_IMPORTED_FIELDS.push("imported_by"));
     tamper(() => s.ORIENTATION_ROLES.directed.admits.push("peer"));
+    tamper(() => {
+      s.V1_RELATION_SOURCE_FAMILIES["1.0"].rulepack_id = "someone.elses.rules.v1";
+    });
+    tamper(() => { s.V1_RELATION_SOURCE_FAMILIES["9.9"] = { profile_id: "x" }; });
+
+    /* an undeclared rulepack was inadmissible before the tamper, and the
+     * tamper's whole point was to declare it */
+    let admitted = null;
+    try {
+      const a = sealed.starter.artifact;
+      s.assertV1Artifact({
+        ...a,
+        semantic_policies: { ...a.semantic_policies,
+                             rulepack_id: "someone.elses.rules.v1" },
+      });
+      admitted = "accepted";
+    } catch (e) { admitted = e.code; }
 
     /* a peer endpoint on a directed relation was illegal before the tamper,
      * and the tamper's whole point was to make it legal */
@@ -2374,8 +2529,9 @@ for (const [id, entries] of futurePairs) {
     try {
       s.canonicalizeRelationRevision({
         ...sealed.starter.derived.relations[0].revision,
-        endpoints: [{ terminal: "p0.sig_out", role: "source" },
-                    { terminal: "r0.sig_in", role: "peer" }],
+        endpoints: [
+          { terminal: { object_id: "p0", port: "sig_out" }, role: "source" },
+          { terminal: { object_id: "r0", port: "sig_in" }, role: "peer" }],
       });
       widened = "accepted";
     } catch (e) { widened = e.code; }
@@ -2391,19 +2547,22 @@ for (const [id, entries] of futurePairs) {
       importable: W.serializeArtifact([...s.IMPORTABLE_VARIANTS]),
       imported: W.serializeArtifact([...s.RELATION_IMPORTED_FIELDS]),
       admits: W.serializeArtifact([...s.ORIENTATION_ROLES.directed.admits]),
+      families: W.serializeArtifact(s.V1_RELATION_SOURCE_FAMILIES),
     };
 
     const moved = Object.keys(before).filter((k) => before[k] !== after[k]);
     ok("relation/immutability/the-canon-cannot-be-moved-from-outside",
-       moved.length === 0 && widened === "WRL_ENDPOINT_ROLE_ILLEGAL",
+       moved.length === 0 && widened === "WRL_ENDPOINT_ROLE_ILLEGAL" &&
+       admitted === "WRL_UNSUPPORTED_RULEPACK",
        moved.length
          ? `a consumer moved ${moved.join(", ")} by mutating an exported ` +
            `table. A canonical sort key that a caller can reverse is not a ` +
            `canonical form -- every revision_id this module mints would move ` +
            `without the file that documents the order changing`
          : `after widening ORIENTATION_ROLES.directed.admits, a peer endpoint ` +
-           `on a directed relation was ${widened}. Role legality has to be ` +
-           `the module's, not the caller's`);
+           `on a directed relation was ${widened}; after redeclaring family ` +
+           `1.0's rulepack, a foreign one was ${admitted}. Role legality and ` +
+           `source admission both have to be the module's, not the caller's`);
   }
 
   /* -- and the property that makes the whole derivation usable: it is a
@@ -2515,8 +2674,9 @@ for (const [id, entries] of futurePairs) {
         const ports = W.EDGE_PORTS[edge.kind];
         const want = {
           kind: edge.kind,
-          endpoints: [{ terminal: `${edge.src}.${ports[0]}`, role: "source" },
-                      { terminal: `${edge.dst}.${ports[1]}`, role: "target" }],
+          endpoints: [
+            { terminal: { object_id: edge.src, port: ports[0] }, role: "source" },
+            { terminal: { object_id: edge.dst, port: ports[1] }, role: "target" }],
           policy: kern.artifact.semantic_policies.rulepack_id,
         };
         for (const [f, resolve] of Object.entries(RESOLVED)) {
@@ -2874,15 +3034,1284 @@ for (const [id, entries] of futurePairs) {
       for (const g of ["require(", "__dirname", "__filename", "process.env"])
         if (src.includes(g)) offenders.push(`${rel} uses ${g}`);
     };
-    for (const entry of ["wrl.js", "relation-identity.js"]) walk(entry);
+    for (const entry of ["wrl.js", "relation-identity.js", "relation-v2.js"])
+      walk(entry);
 
     ok("portability/shipped-modules-load-in-a-browser",
-       seen.size >= 2 && offenders.length === 0,
+       seen.size >= 3 && offenders.length === 0,
        offenders.length
          ? offenders.join("; ") + `. A served module may only import other ` +
            `served modules; anything else is a page that 404s or throws on load.`
          : `the module graph walk reached ${seen.size} file(s), so it did not ` +
-           `reach both entry points`);
+           `reach every entry point`);
+  }
+}
+
+/* ================================================= 21c. the V2 encoding, B.1
+ *
+ * §D8.8's projection makes a V1 `edges` array READABLE as relations, and the
+ * register calls the four fields it cannot vary `V1-fixed` -- one value, no
+ * alternative spelling. V2 is where the alternatives become writable, and this
+ * slice is its schema and its canonical bytes. Nothing here hashes: identity
+ * derivation is B.2, held separate so that a moved id has one candidate cause.
+ *
+ * The specimens are built by hand rather than by a migration, because the
+ * migration is B.3 and a schema tested only through its own producer is a
+ * schema tested against itself. */
+{
+  const s = await import("../relation-identity.js");
+  const v2 = await import("../relation-v2.js");
+
+  const refuse = (fn) => {
+    try { fn(); return null; } catch (e) { return e.code || String(e); }
+  };
+
+  /* one legal V2 world, assembled from the demo world's objects and a relation
+   * per demo edge -- same terminals, same revision model, native seeds */
+  const demo = await s.sealWithRelations(W.DEMO_WORLD);
+  const named = (n) => ({ variant: "named-initial", relation_name: n });
+  const baseRelations = demo.ok
+    ? demo.artifact.edges.map((e, i) => ({
+        identity_seed: named(`r${i}`),
+        revision: s.edgeToRelationRevision(demo.artifact, e),
+      }))
+    : [];
+  const world = () => ({
+    ir_version: v2.V2_IR_VERSION,
+    profile_id: demo.artifact.profile_id,
+    semantic_policies: { ...demo.artifact.semantic_policies },
+    schemas: demo.artifact.schemas,
+    objects: demo.artifact.objects,
+    relations: baseRelations.map((r) => ({ ...r })),
+  });
+
+  ok("relation/v2/specimen-is-buildable", demo.ok && baseRelations.length > 1,
+     demo.ok ? `the demo world contributed ${baseRelations.length} relation(s), ` +
+               `so ordering and uniqueness prove nothing`
+             : `the demo world did not seal: ${demo.code}`);
+
+  if (demo.ok && baseRelations.length > 1) {
+
+  /* -- §4. `relations` REPLACES `edges`, in both directions.
+   *
+   * The one-directional version of this rule is the dangerous one. If only V2
+   * refused a legacy key, a V1 artifact could grow a `relations` array that a
+   * V1 reader ignores and a V2 reader believes, and the two readers would
+   * disagree about the world's topology while agreeing about its bytes. */
+  {
+    const v2WithEdges = { ...world(), edges: demo.artifact.edges };
+    const v1WithRelations = { ...demo.artifact, relations: baseRelations };
+
+    const both = [
+      refuse(() => v2.assertV2Artifact(world())),
+      refuse(() => s.assertV1Artifact(demo.artifact)),
+    ];
+    const cross = [
+      refuse(() => v2.assertV2Artifact(v2WithEdges)),
+      refuse(() => s.assertV1Artifact(v1WithRelations)),
+    ];
+
+    ok("relation/v2/relations-replace-edges",
+       both[0] === null && both[1] === null &&
+       cross[0] === "WRL_LEGACY_EDGES_IN_V2" &&
+       cross[1] === "WRL_RELATIONS_IN_V1",
+       `clean V2 -> ${both[0]}, clean V1 -> ${both[1]}, V2+edges -> ` +
+       `${cross[0]} (want WRL_LEGACY_EDGES_IN_V2), V1+relations -> ` +
+       `${cross[1]} (want WRL_RELATIONS_IN_V1). Replacement is a two-sided ` +
+       `rule: an encoding that merely ignores the other's topology key admits ` +
+       `a world whose meaning depends on which reader opens it`);
+  }
+
+  /* -- the tuple gate, one version along. A.4 established for V1 that
+   *    admission is `(ir_version, profile_id, rulepack_id)` and that each
+   *    coordinate answers with its own code. V2 inherits the shape rather
+   *    than re-deciding it, and the table is checked against what it admits. */
+  {
+    const bad = (patch) => refuse(() => v2.assertV2Artifact({ ...world(), ...patch }));
+    const version = bad({ ir_version: "1.0" });
+    const profile = bad({ profile_id: "forge.world.core.v9" });
+    const rulepack = bad({ semantic_policies: { ...demo.artifact.semantic_policies,
+                                                rulepack_id: "forge.other.rules.v1" } });
+
+    /* AND the declared table has to agree with the artifact the encoder
+     * actually admits, or the gate is checking a constant nobody publishes */
+    const declared = v2.V2_RELATION_SOURCE_FAMILIES[v2.V2_IR_VERSION];
+    const agrees = declared &&
+      declared.profile_id === demo.artifact.profile_id &&
+      declared.rulepack_id === demo.artifact.semantic_policies.rulepack_id;
+
+    ok("relation/v2/binding/admission-is-the-whole-source-tuple",
+       version === "WRL_UNSUPPORTED_IR_VERSION" &&
+       profile === "WRL_UNSUPPORTED_PROFILE" &&
+       rulepack === "WRL_UNSUPPORTED_RULEPACK" && agrees,
+       `version -> ${version}, profile -> ${profile}, rulepack -> ` +
+       `${rulepack}, table agrees with the sealed world: ${!!agrees}`);
+  }
+
+  /* -- §5. A SEED is an allocation minus its world coordinate, and the minus
+   *    is the whole reason the word is `seed`.
+   *
+   * Checked as an equation over the two tables rather than by reading either:
+   * seed fields ∪ {world_id} must be exactly the allocation's fields, for
+   * every seeded variant. A variant that gained a field in one table and not
+   * the other would still round-trip through its own producer. */
+  {
+    const off = [];
+    for (const variant of v2.V2_INITIAL_SEED_VARIANTS) {
+      const seedPlus = [...v2.V2_SEED_FIELDS[variant], "world_id"].sort();
+      const alloc = [...s.ALLOCATION_FIELDS[variant]].sort();
+      if (W.serializeArtifact(seedPlus) !== W.serializeArtifact(alloc))
+        off.push(`${variant}: seed+world_id is {${seedPlus}}, the allocation ` +
+                 `is {${alloc}}`);
+    }
+    const carried = refuse(() => v2.validateIdentitySeed(
+      { ...named("a"), world_id: demo.semanticId }));
+
+    ok("relation/v2/a-seed-is-an-allocation-without-its-world",
+       off.length === 0 && carried === "WRL_BAD_IDENTITY_SEED",
+       off.length ? off.join("; ")
+       : `a seed carrying a world_id was ${carried}, not refused. The world ` +
+         `id is the hash of the bytes the seed sits in, so a stored copy is ` +
+         `either a value that does not exist yet or another world's`);
+  }
+
+  /* -- §6. `granted` is runtime-only, and its absence from initial bytes is
+   *    the statement. A grant is drawn from an authority that does not exist
+   *    at period 0. */
+  {
+    const seeded = v2.V2_INITIAL_SEED_VARIANTS.includes("granted");
+    const code = refuse(() => v2.validateIdentitySeed(
+      { variant: "granted", grant_id: "g0", local_counter: 0 }));
+    ok("relation/v2/granted-is-not-seeded-into-initial-bytes",
+       !seeded && code === "WRL_UNWRITABLE_SEED",
+       seeded ? `'granted' is listed in V2_INITIAL_SEED_VARIANTS`
+              : `a granted seed was ${code}, want WRL_UNWRITABLE_SEED`);
+  }
+
+  /* -- §6/§9. An unnamed relation is an ERROR, never a fallback.
+   *
+   * The tempting repair is the one this refuses: seeing no name, mint a
+   * `legacy-edge` seed from the endpoints. That would make two independently
+   * authored relations over the same two ports the same relation, which is
+   * exactly the collapse §D8.1's preimages exist to prevent -- and it would
+   * happen silently, on the author's behalf. */
+  {
+    const missing = refuse(() => v2.validateIdentitySeed({ variant: "named-initial" }));
+    const empty = refuse(() => v2.validateIdentitySeed({ ...named("") }));
+    const fellBack = refuse(() => {
+      const seed = v2.canonicalizeSeed({ variant: "named-initial" });
+      if (seed.variant !== "named-initial") throw new Error("FELL_BACK");
+      throw new Error("ACCEPTED_UNNAMED");
+    });
+    ok("relation/v2/an-unnamed-relation-is-refused-not-defaulted",
+       missing === "WRL_MISSING_RELATION_NAME" &&
+       empty === "WRL_MISSING_RELATION_NAME" &&
+       fellBack === "WRL_MISSING_RELATION_NAME",
+       `absent name -> ${missing}, empty name -> ${empty}, through ` +
+       `canonicalizeSeed -> ${fellBack}. All three want ` +
+       `WRL_MISSING_RELATION_NAME; a missing key reported as a field-set ` +
+       `mismatch reads as a schema typo rather than as the one thing a V2 ` +
+       `author must supply`);
+  }
+
+  /* -- §5. Three ids are derived, and a relation record stores none of them.
+   *    Stored, each would be a second source of truth for a hash -- and the
+   *    stored copy is the one a reader trusts, which is how a forged id gets
+   *    believed. */
+  {
+    const forged = {
+      world_id: demo.semanticId,
+      relation_id: "rel-" + "0".repeat(64),
+      revision_id: "rev-" + "0".repeat(64),
+    };
+    const got = Object.entries(forged).map(([k, v]) =>
+      `${k}:${refuse(() => v2.validateV2Relation({ ...baseRelations[0], [k]: v }))}`);
+    ok("relation/v2/no-derived-id-is-stored",
+       got.every((g) => g.endsWith(":WRL_BAD_V2_ARTIFACT")),
+       `${got.join(", ")} -- each wants WRL_BAD_V2_ARTIFACT`);
+  }
+
+  /* -- §5. `relations` sorts by canonical seed bytes, so the array's order is
+   *    not in the author's hands. An array's order IS in its bytes, so an
+   *    unordered set has to have its order decided here or it is decided by
+   *    whoever typed the world. */
+  {
+    const forward = v2.serializeV2Artifact(world());
+    const reversed = v2.serializeV2Artifact(
+      { ...world(), relations: world().relations.reverse() });
+    const order = v2.canonicalizeV2Artifact(world()).relations
+      .map((r) => W.serializeArtifact(r.identity_seed));
+    const sorted = [...order].sort();
+
+    ok("relation/v2/relations-sort-by-seed-bytes",
+       forward === reversed &&
+       W.serializeArtifact(order) === W.serializeArtifact(sorted),
+       forward === reversed
+         ? `the canonical order is ${order.join(" ")}, and sorted it is ` +
+           `${sorted.join(" ")}`
+         : `reversing the relations array moved the canonical bytes, so the ` +
+           `world's identity would depend on the order its author typed`);
+  }
+
+  /* -- a seed names at most one relation. Two relations under one seed expand
+   *    to one allocation and therefore one `relation_id`, so the world cannot
+   *    say which of the two a later revision revises -- the V1
+   *    duplicate-edge-key defect, arriving through a field the author now
+   *    controls directly. */
+  {
+    const dup = world();
+    dup.relations[1] = { ...dup.relations[1],
+                         identity_seed: { ...dup.relations[0].identity_seed } };
+    ok("relation/v2/a-seed-names-at-most-one-relation",
+       refuse(() => v2.canonicalizeV2Artifact(dup)) ===
+         "WRL_DUPLICATE_RELATION_SEED",
+       `two relations under one seed were ` +
+       `${refuse(() => v2.canonicalizeV2Artifact(dup))}, want ` +
+       `WRL_DUPLICATE_RELATION_SEED`);
+  }
+
+  /* -- §6. Authorship is a fourth authority, separate from admissibility. A
+   *    `legacy-edge` seed is legal in V2 BYTES and illegal from an AUTHOR:
+   *    it records that a relation arrived through the migration and kept the
+   *    id its V1 world minted, and writing one by hand claims a provenance
+   *    that did not happen. */
+  {
+    const legacy = { variant: "legacy-edge", kind: "SignalWire",
+                     src: "p0", dst: "r0" };
+    ok("relation/v2/an-authoring-surface-writes-only-named-seeds",
+       refuse(() => v2.validateIdentitySeed(legacy)) === null &&
+       refuse(() => v2.assertAuthorableSeed(legacy)) === "WRL_UNWRITABLE_SEED" &&
+       refuse(() => v2.assertAuthorableSeed(named("a"))) === null,
+       `admissible: ${refuse(() => v2.validateIdentitySeed(legacy))}, ` +
+       `authorable: ${refuse(() => v2.assertAuthorableSeed(legacy))}, ` +
+       `named authorable: ${refuse(() => v2.assertAuthorableSeed(named("a")))}`);
+  }
+
+  /* -- §D8.3, across the boundary it exists to make checkable. The same
+   *    relation structure in two worlds yields the same `revision_id`. That
+   *    law would stop holding at exactly the V1 -> V2 migration if the two
+   *    families encoded a terminal differently, which is why B.1a lifted V1's
+   *    packed `p0.sig_out` into the record form BEFORE this slice. */
+  {
+    const off = [];
+    for (const edge of demo.artifact.edges) {
+      const fromV1 = s.canonicalizeRelationRevision(
+        s.edgeToRelationRevision(demo.artifact, edge));
+      const inV2 = v2.canonicalizeV2Relation({
+        identity_seed: named("x"),
+        revision: s.edgeToRelationRevision(demo.artifact, edge),
+      }).revision;
+      if (W.serializeArtifact(fromV1) !== W.serializeArtifact(inV2))
+        off.push(`${edge.kind} ${edge.src}->${edge.dst}`);
+    }
+    ok("relation/v2/the-revision-model-is-shared-with-V1", off.length === 0,
+       `${off.length} revision(s) canonicalise differently inside a V2 ` +
+       `relation than they do standing alone, e.g. ${off[0]}. A revision is ` +
+       `standalone under §D8.3, so a family-dependent canonical form would ` +
+       `mean the same wire had two revision ids on either side of a migration`);
+  }
+
+  /* -- the same immutability the kernel's tables have, for the same reason:
+   *    reversing an exported list from outside would move canonical bytes
+   *    from a file that documents the order as normative. */
+  {
+    const before = {
+      seeds: W.serializeArtifact(v2.V2_INITIAL_SEED_VARIANTS),
+      fields: W.serializeArtifact(v2.V2_SEED_FIELDS),
+      families: W.serializeArtifact(v2.V2_RELATION_SOURCE_FAMILIES),
+      authorable: W.serializeArtifact(v2.V2_AUTHORABLE_SEED_VARIANTS),
+      record: W.serializeArtifact(v2.V2_RELATION_FIELDS),
+    };
+    try { v2.V2_INITIAL_SEED_VARIANTS.push("granted"); } catch {}
+    try { v2.V2_AUTHORABLE_SEED_VARIANTS.push("legacy-edge"); } catch {}
+    try { v2.V2_SEED_FIELDS["named-initial"].push("world_id"); } catch {}
+    try { v2.V2_RELATION_SOURCE_FAMILIES["2.0"].profile_id = "x"; } catch {}
+    try { v2.V2_RELATION_FIELDS.push("relation_id"); } catch {}
+    const after = {
+      seeds: W.serializeArtifact(v2.V2_INITIAL_SEED_VARIANTS),
+      fields: W.serializeArtifact(v2.V2_SEED_FIELDS),
+      families: W.serializeArtifact(v2.V2_RELATION_SOURCE_FAMILIES),
+      authorable: W.serializeArtifact(v2.V2_AUTHORABLE_SEED_VARIANTS),
+      record: W.serializeArtifact(v2.V2_RELATION_FIELDS),
+    };
+    /* and the consequence, not just the bytes: a granted seed is still refused */
+    const still = refuse(() => v2.validateIdentitySeed(
+      { variant: "granted", grant_id: "g0", local_counter: 0 }));
+    ok("relation/v2/immutability/the-V2-canon-cannot-be-moved-from-outside",
+       W.serializeArtifact(before) === W.serializeArtifact(after) &&
+       still === "WRL_UNWRITABLE_SEED",
+       `before ${W.serializeArtifact(before)}\n      after  ` +
+       `${W.serializeArtifact(after)}\n      granted seed still ${still}`);
+  }
+
+  }
+
+  /* ============================================= 21d. V2 identity, B.2
+   *
+   * Everything above decides bytes. This decides ids, and the order is the
+   * dependency graph §5 of the ruling fixes:
+   *
+   *     canonicalise -> world_id -> expand seed -> relation_id -> revision_id
+   *
+   * Two of those arrows are the ones an implementation is tempted to skip, and
+   * both skips produce ids that look right. Deriving from a non-canonical
+   * artifact gives two spellings of one world two sets of relations; believing
+   * a caller's `world_id` gives a forged seal real-looking relations. V1
+   * shipped the second and `worldIdOfArtifact` was the repair; the checks
+   * below are what stops V2 re-earning it. */
+  if (demo.ok && baseRelations.length > 1) {
+
+  const idsByName = (view) => {
+    const m = new Map();
+    for (const r of view.relations)
+      m.set(r.identity_seed.relation_name,
+            { rel: r.relation_id, rev: r.revision_id });
+    return m;
+  };
+
+  const base = await v2.deriveV2Relations(world());
+
+  /* -- canonicalisation happens FIRST, so byte-equal worlds derive one answer.
+   *
+   * Written in reverse and with the objects shuffled: neither array's written
+   * order is in the canonical bytes, so neither may reach an id. If derivation
+   * ran before canonicalisation this passes for `objects` -- which the world id
+   * covers either way -- and fails for `relations`, whose reordering would
+   * change the bytes being hashed. */
+  {
+    const scrambled = world();
+    scrambled.relations = scrambled.relations.slice().reverse();
+    scrambled.objects = scrambled.objects.slice().reverse();
+    const other = await v2.deriveV2Relations(scrambled);
+
+    ok("relation/v2/identity/derivation-follows-the-canonical-bytes",
+       other.world_id === base.world_id &&
+       W.serializeArtifact(other.relations) ===
+       W.serializeArtifact(base.relations),
+       `written order reversed -> world ${other.world_id} vs ` +
+       `${base.world_id}; relation views ` +
+       (W.serializeArtifact(other.relations) ===
+        W.serializeArtifact(base.relations) ? "identical" : "DIFFER") +
+       `. An id derived before canonicalisation is an id of how a world was ` +
+       `typed rather than of the world`);
+  }
+
+  /* -- the seal is recomputed, never believed. §D8.5's repair, inherited.
+   *
+   * The failure this prevents is quiet: a real artifact handed a forged
+   * `sem-000…0` mints relation ids under the forgery and returns them without
+   * complaint, so the module's central claim -- that relation identity comes
+   * from the seal -- would hold only of callers already telling the truth. */
+  {
+    const forged = "sem-" + "0".repeat(64);
+    let honest = null, lie = null;
+    try { honest = await v2.deriveV2Relations(world(), base.world_id); }
+    catch (e) { honest = e.code || String(e); }
+    try { await v2.deriveV2Relations(world(), forged); lie = "ACCEPTED"; }
+    catch (e) { lie = e.code || String(e); }
+
+    /* and the consequence: no allocation was ever built under the forgery */
+    const underForgery = base.relations
+      .filter((r) => r.allocation.world_id === forged).length;
+
+    ok("relation/v2/identity/the-seal-is-recomputed-not-believed",
+       honest && honest.world_id === base.world_id &&
+       lie === "WRL_SEMANTIC_ID_MISMATCH" && underForgery === 0,
+       `a truthful claim -> ${honest && honest.world_id}, a forged one -> ` +
+       `${lie} (want WRL_SEMANTIC_ID_MISMATCH), allocations minted under the ` +
+       `forgery: ${underForgery}. A function with two independent sources of ` +
+       `truth about one hash has no source of truth`);
+  }
+
+  /* -- a seed plus its world is an allocation §D8.1 ACCEPTS -- checked against
+   *    the kernel's own constructor and its own validator, not a local one.
+   *
+   * If `expandSeed` and `namedInitialAllocation` ever disagreed, the
+   * disagreement would surface as a `rel-` id that exists and is wrong, which
+   * no round trip through this module can see. */
+  {
+    const seed = base.relations[0].identity_seed;
+    const mine = v2.expandSeed(base.world_id, seed);
+    const theirs = s.namedInitialAllocation(base.world_id, seed.relation_name);
+    const sameBytes =
+      W.serializeArtifact(mine) === W.serializeArtifact(theirs);
+    const sameId =
+      await s.relationIdFromAllocation(theirs) === base.relations[0].relation_id;
+
+    /* the kernel is the gate, so its rules bind here: a world id that is not a
+     * sem- id cannot be smuggled in through the expansion */
+    const notASeal = refuse(() => v2.expandSeed("world-1", seed));
+
+    ok("relation/v2/identity/a-seed-expands-into-a-D8.1-allocation",
+       sameBytes && sameId && notASeal === "WRL_BAD_ALLOCATION",
+       `expansion vs §D8.1's constructor: ${sameBytes ? "same bytes" : "DIFFER"}` +
+       `, derived rel- matches the kernel's: ${sameId}, a non-sem world id -> ` +
+       `${notASeal}`);
+  }
+
+  /* -- the encoding is IN the world id. §7 of the ruling, as a consequence
+   *    rather than as an extra rule.
+   *
+   * The same topology written in the two encodings is two byte strings and
+   * therefore two worlds. That is why a V2 -> V1 downgrade produces a NEW
+   * artifact with its own `sem-`, and why nothing here preserves an id across
+   * an encoding change. */
+  {
+    const wellFormed = /^sem-[0-9a-f]{64}$/.test(base.world_id);
+    ok("relation/v2/identity/the-encoding-is-in-the-world-id",
+       wellFormed && base.world_id !== demo.semanticId,
+       `V2 world ${base.world_id} vs the V1 world of the same topology ` +
+       `${demo.semanticId}; well-formed: ${wellFormed}. A shared prefix says ` +
+       `both name a sealed world; a shared VALUE would say the encoding is ` +
+       `not in the bytes`);
+  }
+
+  /* -- §D8.5, arriving in V2: a relation id is WORLD-scoped.
+   *
+   * Edit one relation's attributes and every relation's `rel-` moves, because
+   * the world id moved and the world id is in every allocation. Only the
+   * edited relation's `rev-` moves, because a revision is standalone (§D8.3).
+   *
+   * That asymmetry is not an inconvenience to be engineered away -- it is the
+   * reason a migration has to be an explicit claim someone carries rather than
+   * an id that happens to survive. */
+  {
+    const edited = world();
+    edited.relations[0] = {
+      identity_seed: edited.relations[0].identity_seed,
+      revision: { ...edited.relations[0].revision,
+                  attributes: { note: "revised" } },
+    };
+    const after = await v2.deriveV2Relations(edited);
+
+    const b = idsByName(base), a = idsByName(after);
+    const touched = base.relations[0].identity_seed.relation_name;
+    let relMoved = 0, revMoved = [];
+    for (const [name, ids] of b) {
+      if (a.get(name).rel !== ids.rel) relMoved++;
+      if (a.get(name).rev !== ids.rev) revMoved.push(name);
+    }
+
+    ok("relation/v2/identity/a-relation-id-is-world-scoped",
+       after.world_id !== base.world_id &&
+       relMoved === b.size &&
+       revMoved.length === 1 && revMoved[0] === touched,
+       `one relation edited: ${relMoved}/${b.size} rel- ids moved (want all ` +
+       `-- the world id is in every allocation), rev- ids moved for ` +
+       `[${revMoved.join(", ")}] (want [${touched}] only -- a revision is ` +
+       `standalone under §D8.3)`);
+  }
+
+  /* -- and the other half of that pair: a `rev-` is world-INDEPENDENT.
+   *
+   * Two worlds whose relations differ only in NAME hold the same structures,
+   * so every `rev-` recurs and no `rel-` does. Compared as multisets, because
+   * renaming re-sorts the canonical array -- position is not identity here. */
+  {
+    const renamed = world();
+    renamed.relations = renamed.relations.map((r, i) => ({
+      identity_seed: { variant: "named-initial", relation_name: `zz${i}` },
+      revision: r.revision,
+    }));
+    const other = await v2.deriveV2Relations(renamed);
+
+    const bag = (v, k) => v.relations.map((r) => r[k]).sort();
+    const revsMatch = W.serializeArtifact(bag(other, "revision_id")) ===
+                      W.serializeArtifact(bag(base, "revision_id"));
+    const shared = bag(other, "relation_id")
+      .filter((id) => bag(base, "relation_id").includes(id));
+
+    ok("relation/v2/identity/a-revision-id-is-world-independent",
+       revsMatch && shared.length === 0 &&
+       other.world_id !== base.world_id,
+       `renaming every relation: rev- multiset ` +
+       `${revsMatch ? "recurs exactly" : "CHANGED"}, ${shared.length} rel- ` +
+       `id(s) shared (want 0). A revision names a structure and a relation ` +
+       `names a thing in a world, so exactly one of the two should survive ` +
+       `being renamed`);
+  }
+
+  /* -- derivation is a pure READ. Nothing it computes is written back.
+   *
+   * A derivation that memoised an id into the artifact would move the artifact
+   * that produced it, so the second call would derive from different bytes.
+   * The `DERIVED_NEVER_STORED` refusal is the door; this is the room. */
+  {
+    const w = world();
+    const before = W.serializeArtifact(w);
+    await v2.deriveV2Relations(w);
+    const after = W.serializeArtifact(w);
+
+    const leaked = v2.serializeV2Artifact(w);
+    const carries = ["rel-", "rev-", "world_id"]
+      .filter((needle) => leaked.includes(needle));
+
+    ok("relation/v2/identity/derivation-writes-nothing-back",
+       before === after && carries.length === 0,
+       before === after
+         ? `canonical bytes carry [${carries.join(", ")}] after a derivation`
+         : `the artifact was mutated by deriving from it`);
+  }
+
+  /* -- one pair per relation, both well formed, all distinct.
+   *
+   * The counting check is the boring one and it catches the loud failures: a
+   * relation silently dropped, an id that is a stringified object, two
+   * relations collapsing onto one allocation past the duplicate-seed gate. */
+  {
+    const rels = base.relations;
+    const shaped = rels.every((r) =>
+      /^rel-[0-9a-f]{64}$/.test(r.relation_id) &&
+      /^rev-[0-9a-f]{64}$/.test(r.revision_id));
+    const distinct = new Set(rels.map((r) => r.relation_id)).size;
+
+    ok("relation/v2/identity/every-relation-gets-exactly-one-pair",
+       rels.length === baseRelations.length && shaped &&
+       distinct === rels.length &&
+       base.seedsInArtifactBytes === true && base.idsInArtifactBytes === false,
+       `${rels.length}/${baseRelations.length} relations, well-formed ids: ` +
+       `${shaped}, distinct rel- ids: ${distinct}/${rels.length}, seeds in ` +
+       `bytes: ${base.seedsInArtifactBytes}, ids in bytes: ` +
+       `${base.idsInArtifactBytes}`);
+  }
+
+  }
+
+  /* ============================================== 21e. the migration, B.3
+   *
+   * The claim this slice must NOT make is that a migrated relation keeps its
+   * id. It cannot: the world id moved, and the world id is in every
+   * allocation. What survives is the `rev-`, because a revision is standalone
+   * -- so the structure crosses intact and the name does not, and "these two
+   * are the same relation" stays a claim someone carries rather than a fact
+   * the bytes show.
+   *
+   * Every check below is written against that asymmetry rather than around
+   * it. The tempting alternative -- a migration that mints a `named-initial`
+   * seed per edge so the ids look stable -- is tested for and refused. */
+  if (demo.ok && baseRelations.length > 1) {
+
+  const v1 = demo.artifact;
+  const migrated = v2.migrateV1ToV2(v1);
+
+  /* -- the migration mints the variant that records "never named", and the
+   *    authority that stops it minting the other one is checked at the same
+   *    boundary rather than assumed from the output. */
+  {
+    const variants = [...new Set(
+      migrated.relations.map((r) => r.identity_seed.variant))];
+    const invented = refuse(() => v2.assertImportableSeed(
+      { variant: "named-initial", relation_name: "sig0" }));
+    /* and the reverse: what a migration may mint, an author may not */
+    const authored = refuse(() => v2.assertAuthorableSeed(
+      migrated.relations[0].identity_seed));
+
+    ok("relation/v2/migration/an-import-mints-only-unnamed-seeds",
+       W.serializeArtifact(variants) === W.serializeArtifact(["legacy-edge"]) &&
+       invented === "WRL_UNWRITABLE_SEED" &&
+       authored === "WRL_UNWRITABLE_SEED",
+       `migrated seed variants [${variants.join(", ")}], a name minted by the ` +
+       `importer -> ${invented}, a legacy seed offered by an author -> ` +
+       `${authored}. A migration that named every relation it touched would ` +
+       `make an import look like authorship, and would collide with the first ` +
+       `author who later writes that name deliberately`);
+  }
+
+  /* -- nothing but the encoding moved. Every key the migration does not own
+   *    passes through byte-identically.
+   *
+   * A migration that also normalised `objects`, or reached into `schemas`,
+   * would make the world differ from its source for reasons unrelated to the
+   * change being made -- and then no test could attribute a moved id to the
+   * migration rather than to the tidying. */
+  {
+    const owned = new Set(["ir_version", "edges", "relations"]);
+    const drift = Object.keys(v1)
+      .filter((k) => !owned.has(k))
+      .filter((k) => W.serializeArtifact(v1[k]) !==
+                     W.serializeArtifact(migrated[k]));
+    const keys = new Set(Object.keys(migrated));
+
+    ok("relation/v2/migration/only-the-encoding-moves",
+       drift.length === 0 && !keys.has("edges") && keys.has("relations") &&
+       migrated.ir_version === v2.V2_IR_VERSION,
+       drift.length ? `key(s) [${drift.join(", ")}] changed, and the migration ` +
+                      `does not own them`
+                    : `edges present: ${keys.has("edges")}, relations present: ` +
+                      `${keys.has("relations")}, version ${migrated.ir_version}`);
+  }
+
+  /* -- §D8.5, as the migration's central and least comfortable property:
+   *    every `rev-` survives and no `rel-` does. */
+  {
+    const before = await s.deriveRelations(v1);
+    const after = await v2.deriveV2Relations(migrated);
+
+    const bag = (v, k) => v.relations.map((r) => r[k]).sort();
+    const revsSurvive = W.serializeArtifact(bag(after, "revision_id")) ===
+                        W.serializeArtifact(bag(before, "revision_id"));
+    const relsShared = bag(after, "relation_id")
+      .filter((id) => bag(before, "relation_id").includes(id));
+
+    ok("relation/v2/migration/structure-survives-and-identity-does-not",
+       revsSurvive && relsShared.length === 0 &&
+       after.world_id !== before.world_id,
+       `rev- multiset ${revsSurvive ? "recurs exactly" : "CHANGED"}, ` +
+       `${relsShared.length} rel- id(s) shared (want 0), world ` +
+       `${before.world_id} -> ${after.world_id}. A migration that reported a ` +
+       `preserved rel- would be claiming the thing §D8.5 exists to deny`);
+  }
+
+  /* -- so the claim is carried by a CORRESPONDENCE, verified by the kernel's
+   *    existing checker rather than by a second one written for V2.
+   *
+   * §D8.5 asks for one checkable claim, not one per encoding pair. If the
+   * cross-family correspondence needed its own verifier, the rule would have
+   * an exception exactly where migrations actually happen. */
+  {
+    const sealedV1 = { artifact: v1, semanticId: demo.semanticId };
+    const semV2 = await v2.v2WorldIdOfArtifact(migrated);
+    const sealedV2 = { artifact: migrated, semanticId: semV2 };
+    const corr = await v2.migrationCorrespondence(sealedV1, sealedV2);
+
+    const facts = s.candidateImportedFacts(corr);
+    const honest = refuse(() => s.checkRelationImported(facts, corr));
+    const tampered = refuse(() => s.checkRelationImported(
+      [{ ...facts[0], to_relation: "rel-" + "0".repeat(64) }], corr));
+
+    ok("relation/v2/migration/the-claim-is-checked-by-the-kernels-own-checker",
+       corr.pairs.length === v1.edges.length &&
+       corr.dropped.length === 0 && corr.added.length === 0 &&
+       corr.identityPreserved === false &&
+       honest === null && tampered === "WRL_UNVERIFIED_IMPORT",
+       `${corr.pairs.length}/${v1.edges.length} paired, ${corr.dropped.length} ` +
+       `dropped, ${corr.added.length} added, identityPreserved ` +
+       `${corr.identityPreserved} (want false), candidate facts -> ${honest}, ` +
+       `a forged to_relation -> ${tampered}`);
+  }
+
+  /* -- the round trip preserves the relation SET, exactly, and is a fixed
+   *    point on the second pass.
+   *
+   * This was first written as "returns the original bytes" and it FAILED, for
+   * a reason worth keeping: V1 leaves the order of `edges` to whoever typed
+   * the world and V2 sorts `relations` by seed bytes, so a V1 world not
+   * already written in that order comes back reordered. The set is intact and
+   * the byte string is not.
+   *
+   * The fixed point is what bounds that. The loss is a normalisation, so it
+   * happens once: everything that survives one round trip survives every
+   * later one unchanged, which is the difference between a lossy step and a
+   * degrading one. */
+  {
+    const back = v2.downgradeV2ToV1(migrated, v1.ir_version);
+    const bag = (a) => W.serializeArtifact(
+      a.edges.map((e) => W.serializeArtifact(e)).sort());
+    const again = v2.downgradeV2ToV1(
+      v2.migrateV1ToV2(back), back.ir_version);
+
+    /* the target version is chosen, not remembered -- V2 records no
+     * provenance, so a downgrade that guessed would be inventing one */
+    const guessed = refuse(() => v2.downgradeV2ToV1(migrated, "3.0"));
+
+    ok("relation/v2/migration/the-relation-set-survives-the-round-trip",
+       bag(back) === bag(v1) && back.edges.length === v1.edges.length &&
+       W.serializeArtifact(again) === W.serializeArtifact(back) &&
+       guessed === "WRL_UNSUPPORTED_IR_VERSION",
+       `edge multiset ${bag(back) === bag(v1) ? "intact" : "CHANGED"} ` +
+       `(${back.edges.length}/${v1.edges.length}), second pass is a fixed ` +
+       `point: ${W.serializeArtifact(again) === W.serializeArtifact(back)}, ` +
+       `an unnamed target version -> ${guessed}`);
+  }
+
+  /* -- and the thing the round trip does NOT preserve, stated rather than
+   *    quietly tolerated: the sequence, and therefore the `sem-`.
+   *
+   * The tempting explanation is that one side is careless -- that V1 leaves
+   * its edge order to whoever typed the world and V2 tidies it up. That is
+   * FALSE, and the check below is written to refuse it: sealing a V1 source
+   * with its lines reversed produces the same `edges` array, because
+   * `canonicalizeGraph` sorts them. BOTH encodings canonicalise. They
+   * disagree about the KEY.
+   *
+   *   V1 sorts `edges` by the tuple it stores them as: `(kind, src, dst)`.
+   *   V2 sorts `relations` by canonical `identity_seed` bytes -- key-sorted
+   *   JSON -- so a `legacy-edge` seed compares on `dst`, then `kind`, then
+   *   `src`, then `variant`.
+   *
+   * Two total orders over the same set, neither one authored. So §7 read
+   * literally -- a downgrade produces a new V1 artifact with a different
+   * `sem-` -- is true of the ORIGINAL V1 world as well as of the V2 one, and
+   * this is why: a sequence is in the bytes, the two encodings cannot both be
+   * right about it, and on the way back the one that decides is the one being
+   * written.
+   *
+   * Three things are pinned here. That each side really is sorted by its own
+   * key (so "reordered" is a disagreement, not a mess). That the keys really
+   * do disagree on this world. And the control: a V1 world ALREADY agreeing
+   * with both keys round-trips byte-exactly, which pins the difference to
+   * ordering alone rather than to something else the migration drops. */
+  {
+    const back = v2.downgradeV2ToV1(migrated, v1.ir_version);
+    const semV2 = await v2.v2WorldIdOfArtifact(migrated);
+    const semBack = await s.worldIdOfArtifact(back);
+
+    /* each side is sorted -- by its own key, not by nothing */
+    const byTuple = (a, b) => W.serializeArtifact([a.kind, a.src, a.dst])
+      .localeCompare(W.serializeArtifact([b.kind, b.src, b.dst]));
+    const v1Sorted = W.serializeArtifact(v1.edges) ===
+      W.serializeArtifact(v1.edges.slice().sort(byTuple));
+    const v2Sorted = W.serializeArtifact(
+        migrated.relations.map((r) => v2.seedKey(r.identity_seed))) ===
+      W.serializeArtifact(
+        migrated.relations.map((r) => v2.seedKey(r.identity_seed)).sort());
+
+    /* and the two keys really do disagree about THIS world */
+    const reordered = W.serializeArtifact(back.edges) !==
+                      W.serializeArtifact(v1.edges);
+
+    /* `back` is by construction in V2's order, so re-migrating it is the
+     * fixture for "a world both keys already agree about" */
+    const settled = v2.downgradeV2ToV1(
+      v2.migrateV1ToV2(back), back.ir_version);
+    const exact = W.serializeArtifact(settled) === W.serializeArtifact(back) &&
+                  await s.worldIdOfArtifact(settled) === semBack;
+
+    ok("relation/v2/migration/the-two-encodings-sort-by-different-keys",
+       v1Sorted && v2Sorted && reordered &&
+       semBack !== demo.semanticId && semV2 !== demo.semanticId &&
+       semBack !== semV2 && exact,
+       `V1 sorted by (kind, src, dst): ${v1Sorted}, V2 sorted by seed bytes: ` +
+       `${v2Sorted}, and the two keys disagree here: ${reordered}. Three ` +
+       `distinct worlds (V1 ${demo.semanticId.slice(0, 12)}…, ` +
+       `V2 ${semV2.slice(0, 12)}…, recovered ${semBack.slice(0, 12)}…), and a ` +
+       `world both keys agree about round-trips byte-exactly: ${exact}. ` +
+       `Neither order was authored, so the honest report is not that one side ` +
+       `was careless but that the id moves`);
+  }
+
+  /* -- a NAMED relation added to a migrated world has no legacy counterpart,
+   *    and the correspondence says `added` rather than inventing a pairing.
+   *
+   * §D8.5's "silence is not continuity", from the other direction: a relation
+   * with no V1 preimage is not a relation the V1 world quietly also had. */
+  {
+    const grown = { ...migrated, relations: [
+      ...migrated.relations,
+      { identity_seed: { variant: "named-initial", relation_name: "fresh" },
+        revision: migrated.relations[0].revision }] };
+    const semGrown = await v2.v2WorldIdOfArtifact(grown);
+    const corr = await v2.migrationCorrespondence(
+      { artifact: v1, semanticId: demo.semanticId },
+      { artifact: grown, semanticId: semGrown });
+
+    ok("relation/v2/migration/a-named-relation-has-no-legacy-counterpart",
+       corr.pairs.length === v1.edges.length && corr.added.length === 1 &&
+       corr.dropped.length === 0,
+       `${corr.pairs.length} paired, ${corr.added.length} added (want 1), ` +
+       `${corr.dropped.length} dropped. A named relation has no legacy key, ` +
+       `so pairing it would mean pairing on something other than a preimage`);
+  }
+
+  /* -- and the correspondence recomputes both seals. A sealed-LOOKING record
+   *    carrying a forged id is refused on either side. */
+  {
+    const forged = "sem-" + "0".repeat(64);
+    const semV2 = await v2.v2WorldIdOfArtifact(migrated);
+    let left = null, right = null;
+    try {
+      await v2.migrationCorrespondence(
+        { artifact: v1, semanticId: forged },
+        { artifact: migrated, semanticId: semV2 });
+      left = "ACCEPTED";
+    } catch (e) { left = e.code || String(e); }
+    try {
+      await v2.migrationCorrespondence(
+        { artifact: v1, semanticId: demo.semanticId },
+        { artifact: migrated, semanticId: forged });
+      right = "ACCEPTED";
+    } catch (e) { right = e.code || String(e); }
+
+    ok("relation/v2/migration/both-seals-are-recomputed",
+       left === "WRL_SEMANTIC_ID_MISMATCH" &&
+       right === "WRL_SEMANTIC_ID_MISMATCH",
+       `a forged V1 seal -> ${left}, a forged V2 seal -> ${right}. A ` +
+       `migration is exactly where a caller holds two worlds and is best ` +
+       `placed to be wrong about one of them`);
+  }
+
+  }
+
+  /* ================================================ 21f. the surface, B.4
+   *
+   * §9: `[clock_feed]: [p0] --sig--> [r0]`. A V2 source is a V1 source whose
+   * route lines carry a name, and that is the whole language change.
+   *
+   * The load-bearing check in this section is the PAIRING one. Everything
+   * else here is a refusal that fires loudly the first time it is wrong; a
+   * mis-attached name is silent -- the world seals, every id is well-formed,
+   * and every one of them is wrong. So it is tested against a world whose
+   * authored order, parsed order and V2 order are three DIFFERENT orders,
+   * which is the arrangement an index-based zip passes only by luck. */
+  if (demo.ok) {
+
+  /* names chosen so the sorted-by-name V2 order disagrees with both the
+   * authored order and the canonical `(kind, src, dst)` one */
+  const NAMED_DEMO = W.DEMO_WORLD.split("\n")
+    .map((l, i) => (/-->/.test(l) ? `[n${i}]: ${l}` : l)).join("\n");
+  const parsed = await v2.parseNamedWorld(NAMED_DEMO);
+  const bad = async (src) => {
+    const r = await v2.parseNamedWorld(src);
+    return r.ok ? "ACCEPTED" : `${r.code}@${r.line}`;
+  };
+
+  /* -- V2 adds names to routes and touches nothing else.
+   *
+   * The evidence is that stripping the names returns the V1 source it was
+   * written over, byte for byte, and that the artifact the spine validated is
+   * the artifact the V1 parser produces from that source. A surface that
+   * also normalised whitespace, or re-ordered declarations, would be a second
+   * parser agreeing with `wrl.js` today. */
+  {
+    const stripped = v2.stripRelationNames(NAMED_DEMO);
+    const v1seal = await W.sealWorld(W.DEMO_WORLD);
+
+    ok("relation/v2/surface/a-name-is-the-only-thing-v2-adds",
+       parsed.ok === true && stripped.source === W.DEMO_WORLD &&
+       W.serializeArtifact(parsed.v1) === W.serializeArtifact(v1seal.artifact) &&
+       stripped.source.split("\n").length === NAMED_DEMO.split("\n").length,
+       parsed.ok
+         ? `stripping returns the V1 source byte-for-byte: ` +
+           `${stripped.source === W.DEMO_WORLD}, line count preserved, and ` +
+           `the validated artifact is the one the V1 parser produces: ` +
+           `${W.serializeArtifact(parsed.v1) ===
+              W.serializeArtifact(v1seal.artifact)}`
+         : `the named demo world did not parse: ${parsed.code}`);
+  }
+
+  /* -- §9: an unnamed route under native V2 is an error, never a name
+   *    derived from the endpoints.
+   *
+   * Deriving one would be worse than convenient: a relation named after its
+   * terminals is re-minted the moment an object is renamed, so the identity
+   * would track the spelling of something else. The line reported is the
+   * AUTHORED one, which matters because names are stripped before the spine
+   * ever sees the text. */
+  {
+    const unnamed = await v2.parseNamedWorld(W.DEMO_WORLD);
+    const routeLine = W.DEMO_WORLD.split("\n")
+      .findIndex((l) => /-->/.test(l)) + 1;
+    /* the same source under the V1 parser is simply a world -- "native V2" is
+     * a fact about which parser was asked, not about the text */
+    const asV1 = await W.sealWorld(W.DEMO_WORLD);
+
+    ok("relation/v2/surface/every-route-must-be-named",
+       unnamed.ok === false &&
+       unnamed.code === "WRL_MISSING_RELATION_NAME" &&
+       unnamed.line === routeLine && asV1.ok === true,
+       `an unnamed route -> ${unnamed.code} at line ${unnamed.line} ` +
+       `(authored line ${routeLine}), while the same source under the V1 ` +
+       `parser seals fine: ${asV1.ok}. A name is never derived from the ` +
+       `endpoints -- that would re-mint the relation whenever an object is ` +
+       `renamed`);
+  }
+
+  /* -- a name is an identifier, and a bad one is diagnosed AS a bad name.
+   *
+   * The prefix is detected loosely and judged afterwards on purpose. A tight
+   * `\w+` bracket match would let `[clock-feed]:` fall through to the core
+   * parser, which would report a malformed route and send the author to look
+   * at the arrow. */
+  {
+    const hyphen = await bad(NAMED_DEMO.replace("[n9]:", "[clock-feed]:"));
+    const spaced = await bad(NAMED_DEMO.replace("[n9]:", "[clock feed]:"));
+    const digit  = await bad(NAMED_DEMO.replace("[n9]:", "[0feed]:"));
+    const empty  = await bad(NAMED_DEMO.replace("[n9]:", "[]:"));
+    const got = [hyphen, spaced, digit, empty];
+
+    ok("relation/v2/surface/a-name-is-an-identifier",
+       got.every((g) => g.startsWith("WRL_BAD_RELATION_NAME@")),
+       `[clock-feed] -> ${hyphen}, [clock feed] -> ${spaced}, [0feed] -> ` +
+       `${digit}, [] -> ${empty}. Each wants WRL_BAD_RELATION_NAME at the ` +
+       `authored line; a name that could not be written back out ` +
+       `unambiguously is an id that cannot be re-derived`);
+  }
+
+  /* -- a name denotes exactly one relation, and zero and many are the same
+   *    fault.
+   *
+   * The `many` case is the one that matters, because it is reachable by
+   * accident: sugar expands one authored line into several routes, and a
+   * single name over all of them would make one id out of several. */
+  {
+    const fanout = `profile forge.world.core.v1
+
+[pulser:p0](every 2){sig_out}
+[relay:r0]{sig_in, sig_out}
+[door:d0]{sig_in}
+[spinner:sp](w=16, n=8, rotor=quarter_turn_z, configurable){sig_in, socket}
+[orb:ob]{pose}
+
+[fan]: [pulser:p0] --sig--> {[relay:r0], [door:d0]}
+[spin]: [relay:r0] --sig--> [spinner:sp]
+[hold]: [spinner:sp] --socket--> [orb:ob]
+`;
+    const many = await bad(fanout);
+    const none = await bad(
+      NAMED_DEMO.replace("[pulser:p0]", "[oops]: [pulser:p0]"));
+
+    ok("relation/v2/surface/a-name-denotes-exactly-one-relation",
+       many === "WRL_AMBIGUOUS_RELATION_NAME@9" &&
+       none.startsWith("WRL_AMBIGUOUS_RELATION_NAME@"),
+       `one name over a two-way fan-out -> ${many}, a name on a declaration ` +
+       `-> ${none}. Both are the same fault -- the name fails to denote -- ` +
+       `so they share a code, and the fan-out case is reported at the line ` +
+       `the author wrote rather than at an expanded one`);
+  }
+
+  /* -- THE ONE THAT MATTERS. The pairing follows provenance, never order.
+   *
+   * Three orders disagree in this world. Authored: p0, r0, sp, p1. Parsed:
+   * `canonicalizeGraph` sorts by `(kind, src, dst)`, giving p0, p1, r0, sp.
+   * V2: sorted by seed bytes, which for a named seed is sorted by NAME,
+   * giving n10, n11, n12, n9. An index-based re-attach passes only when those
+   * agree, and here no two of them do.
+   *
+   * So each name is checked against the endpoints of the line that WROTE it,
+   * read back out of the source text. That is the only formulation that
+   * cannot be satisfied by a lucky ordering. */
+  {
+    const wrote = new Map();
+    for (const line of NAMED_DEMO.split("\n")) {
+      const m = /^\[(\w+)\]:\s*\[\w+:(\w+)\]\s*--\w+-->\s*\[\w+:(\w+)\]/.exec(line);
+      if (m) wrote.set(m[1], `${m[2]}->${m[3]}`);
+    }
+
+    const landed = new Map(parsed.ok ? parsed.artifact.relations.map((r) => {
+      const src = r.revision.endpoints.find((e) => e.role === "source");
+      const dst = r.revision.endpoints.find((e) => e.role === "target");
+      return [r.identity_seed.relation_name,
+              `${src.terminal.object_id}->${dst.terminal.object_id}`];
+    }) : []);
+
+    const authored = [...wrote.keys()];
+    const v2order = parsed.ok
+      ? parsed.artifact.relations.map((r) => r.identity_seed.relation_name) : [];
+    const parseOrder = parsed.ok
+      ? parsed.v1.edges.map((e) => `${e.src}->${e.dst}`) : [];
+    const authoredPairs = [...wrote.values()];
+
+    const everyNameLanded = authored.length > 1 &&
+      authored.every((n) => landed.get(n) === wrote.get(n));
+    /* and the three orders really do disagree, so this was not luck */
+    const ordersDiffer =
+      W.serializeArtifact(v2order) !== W.serializeArtifact(authored) &&
+      W.serializeArtifact(parseOrder) !== W.serializeArtifact(authoredPairs);
+
+    ok("relation/v2/surface/the-pairing-follows-provenance-not-line-order",
+       everyNameLanded && ordersDiffer && landed.size === wrote.size,
+       `${wrote.size} names, each on the relation its own line wrote: ` +
+       `${everyNameLanded}. Authored [${authored.join(", ")}], V2 order ` +
+       `[${v2order.join(", ")}], parsed order [${parseOrder.join(", ")}] vs ` +
+       `authored routes [${authoredPairs.join(", ")}] -- three orders that ` +
+       `disagree: ${ordersDiffer}. A zip by line index passes this only by ` +
+       `luck, and a mis-attached name seals silently`);
+  }
+
+  /* -- a repeated name is a repeated SEED, and it is the ENCODER that says so.
+   *
+   * The surface deliberately carries no duplicate-name rule of its own: a
+   * second rule about the same fact can disagree with the first, and the
+   * encoder's is the one that decides bytes. This check exists because the
+   * first spelling of the pairing keyed its map by NAME, so a duplicate
+   * quietly overwrote its predecessor, one relation came out unnamed, and the
+   * collision was reported as a missing name somewhere else entirely. A
+   * surface that de-duplicates its input cannot hand the encoder the
+   * collision the encoder exists to refuse. */
+  {
+    const dup = await bad(NAMED_DEMO.replace("[n11]:", "[n10]:"));
+    const codes = Object.keys(v2.RELATION_V2_CODES);
+
+    ok("relation/v2/surface/a-repeated-name-is-a-repeated-seed",
+       dup.startsWith("WRL_DUPLICATE_RELATION_SEED") &&
+       !codes.some((c) => /DUPLICATE_RELATION_NAME/.test(c)),
+       `two routes under one name -> ${dup}, and no separate ` +
+       `WRL_DUPLICATE_RELATION_NAME code exists: ` +
+       `${!codes.some((c) => /DUPLICATE_RELATION_NAME/.test(c))}. The ` +
+       `surface passes the collision down rather than answering it twice`);
+  }
+
+  /* -- renaming a relation moves its identity and nothing else.
+   *
+   * This is what naming BUYS, stated as a difference: the structure is
+   * byte-identical -- every `rev-` recurs, because §D8.3 makes a revision
+   * standalone and a name is not in it -- while the `rel-` moves, and so does
+   * the world. If a rename moved a `rev-` the name would have leaked into the
+   * revision; if it did not move a `rel-`, the name would not be the
+   * preimage. */
+  {
+    const renamed = await v2.parseNamedWorld(
+      NAMED_DEMO.replace("[n9]:", "[clock_feed]:"));
+
+    const before = await v2.deriveV2Relations(parsed.artifact);
+    const after  = await v2.deriveV2Relations(renamed.artifact);
+
+    const revs = (v) => W.serializeArtifact(
+      v.relations.map((r) => r.revision_id).sort());
+    const rels = (v) => new Set(v.relations.map((r) => r.relation_id));
+
+    const structureKept = revs(before) === revs(after);
+    const worldMoved = before.world_id !== after.world_id;
+    const allMoved = [...rels(after)].every((id) => !rels(before).has(id));
+
+    ok("relation/v2/surface/renaming-moves-identity-and-nothing-else",
+       renamed.ok === true && structureKept && worldMoved && allMoved,
+       `every rev- recurs: ${structureKept}, the world id moves: ` +
+       `${worldMoved}, and no rel- survives: ${allMoved}. A rename that moved ` +
+       `a rev- would mean the name leaked into the revision; one that moved ` +
+       `no rel- would mean the name is not the preimage. Every rel- moves ` +
+       `rather than just the renamed one because the world id is in every ` +
+       `allocation (D8.10 clause 5)`);
+  }
+
+  /* -- the surface mints only what an author may write.
+   *
+   * Checked from the OUTPUT rather than from the constant, because the
+   * constant is what the code was written against and the output is what it
+   * did. The mirror of 21e's importer check: what a migration may mint, an
+   * author may not, and the reverse. */
+  {
+    const variants = parsed.ok
+      ? [...new Set(parsed.artifact.relations.map((r) =>
+          r.identity_seed.variant))] : [];
+    const allAuthorable = parsed.ok && parsed.artifact.relations.every((r) => {
+      try { v2.assertAuthorableSeed(r.identity_seed); return true; }
+      catch { return false; }
+    });
+    const legacy = refuse(() => v2.assertAuthorableSeed(
+      { variant: "legacy-edge", kind: "SignalWire", src: "p0", dst: "r0" }));
+
+    ok("relation/v2/surface/an-author-cannot-write-a-legacy-seed",
+       W.serializeArtifact(variants) ===
+         W.serializeArtifact(["named-initial"]) &&
+       allAuthorable && legacy === "WRL_UNWRITABLE_SEED",
+       `the surface minted [${variants.join(", ")}], every seed passes the ` +
+       `authoring gate: ${allAuthorable}, and an author offering a legacy ` +
+       `seed -> ${legacy}. legacy-edge records that a relation was never ` +
+       `named, which is a fact about an import and not something an author ` +
+       `can assert about a relation they are writing`);
+  }
+
+  /* ================================================ 21g. the closure, B.5
+   *
+   * The formatter, the round trip, and what a V2 world is FOR.
+   *
+   * Two of these checks are about worlds the surface CANNOT write. They are
+   * the interesting ones, because a formatter's characteristic failure is not
+   * refusing -- it is emitting text that its own parser reads back as
+   * something else. `formatCore` has that scar already. Both unwritable cases
+   * are refused with a code rather than approximated. */
+  if (parsed.ok) {
+
+  const formatted = v2.formatNamedWorld(parsed.artifact);
+  const reparsed = await v2.parseNamedWorld(formatted);
+  const bytes = (a) => v2.serializeV2Artifact(a);
+
+  /* -- format -> parse -> format is a fixed point, and identity does not move.
+   *
+   * This is the law that makes the surface a surface rather than a lossy
+   * view: the text is enough to reconstruct the world exactly, not merely
+   * something that looks like it. */
+  {
+    const idBefore = await v2.v2WorldIdOfArtifact(parsed.artifact);
+    const idAfter = reparsed.ok
+      ? await v2.v2WorldIdOfArtifact(reparsed.artifact) : null;
+    const twice = reparsed.ok ? v2.formatNamedWorld(reparsed.artifact) : null;
+
+    ok("relation/v2/format/the-round-trip-is-a-fixed-point",
+       reparsed.ok === true &&
+       bytes(reparsed.artifact) === bytes(parsed.artifact) &&
+       idBefore === idAfter && twice === formatted,
+       reparsed.ok
+         ? `canonical bytes recur: ` +
+           `${bytes(reparsed.artifact) === bytes(parsed.artifact)}, the world ` +
+           `id is unmoved: ${idBefore === idAfter}, and a second format is ` +
+           `byte-identical: ${twice === formatted}`
+         : `the formatted source did not parse back: ${reparsed.code}`);
+  }
+
+  /* -- the formatter does not know the arrow.
+   *
+   * Proved behaviourally rather than by grepping the module for `-->`: strip
+   * the names off the V2 output and what is left is byte-for-byte what the
+   * FROZEN formatter emits for the same graph. The V2 side contributes name
+   * prefixes and nothing else, so there is no second copy of the route syntax
+   * to drift out of step with the frozen one. */
+  {
+    const g = new W.WrlGraph();
+    g.profile = parsed.v1.profile_id;
+    g.nodes = parsed.v1.objects.map(
+      (o) => [o.role, o.object_id, o.static_config]);
+    g.edges = parsed.artifact.relations.map((r) => {
+      const src = r.revision.endpoints.find((e) => e.role === "source");
+      const dst = r.revision.endpoints.find((e) => e.role === "target");
+      return [r.revision.kind, src.terminal.object_id, dst.terminal.object_id];
+    });
+    const frozen = W.formatCore(g);
+    const stripped = v2.stripRelationNames(formatted);
+
+    ok("relation/v2/format/the-formatter-does-not-know-the-arrow",
+       stripped.source === frozen && stripped.names.size ===
+         parsed.artifact.relations.length,
+       `names removed from the V2 output leave the frozen formatter's own ` +
+       `text: ${stripped.source === frozen}, and ` +
+       `${stripped.names.size}/${parsed.artifact.relations.length} names came ` +
+       `off. The V2 side contributes prefixes only, so there is no second ` +
+       `copy of the route syntax to drift`);
+  }
+
+  /* -- a migrated world has no source form, and says so.
+   *
+   * The honest consequence of §9 requiring a name: a migration produces a
+   * world that runs, seals and compares, but is not authorable text until
+   * someone names its relations. FLAGGED for review. The alternative -- the
+   * formatter minting names -- is precisely what §D8.1 forbids, so the limit
+   * is real and the refusal is the only correct behaviour for a surface that
+   * cannot write it. */
+  {
+    const migrated = v2.migrateV1ToV2(parsed.v1);
+    const written = refuse(() => v2.formatNamedWorld(migrated));
+    /* and it is only the SURFACE that cannot take it -- the world itself is
+     * fine, and derives its ids like any other */
+    const derived = await v2.deriveV2Relations(migrated);
+
+    ok("relation/v2/format/a-migrated-world-has-no-source-form",
+       written === "WRL_UNWRITABLE_SEED" &&
+       derived.relations.length === parsed.v1.edges.length,
+       `writing a migrated world -> ${written}, while the world itself still ` +
+       `derives ${derived.relations.length} relations normally. The limit is ` +
+       `in the surface, not in the world: a formatter that minted the missing ` +
+       `names would be deriving identity`);
+  }
+
+  /* -- and neither do two relations over the same terminals.
+   *
+   * This one matters more than it looks. It is well-formed V2 -- relations are
+   * keyed by name -- and it is the multigraph V1 could never have, which is a
+   * thing V2 exists to make possible. So the check asserts BOTH halves: the
+   * world validates and derives two distinct ids, and the surface still
+   * refuses to write it, because the text it would print reads back as a
+   * different world. Silently emitting it would break exactly the case the
+   * encoding was introduced for. */
+  {
+    const twin = { ...parsed.artifact, relations: [
+      ...parsed.artifact.relations,
+      { identity_seed: { variant: "named-initial", relation_name: "twin" },
+        revision: parsed.artifact.relations[0].revision }] };
+
+    const valid = refuse(() => v2.assertV2Artifact(twin)) === null;
+    const derived = await v2.deriveV2Relations(twin);
+    const distinct = new Set(derived.relations.map((r) => r.relation_id)).size;
+    const written = refuse(() => v2.formatNamedWorld(twin));
+
+    ok("relation/v2/format/parallel-relations-have-no-source-form",
+       valid && distinct === derived.relations.length &&
+       written === "WRL_UNWRITABLE_RELATION",
+       `the world is valid V2: ${valid}, with ${distinct} distinct rel- ids ` +
+       `over ${derived.relations.length} relations, and writing it -> ` +
+       `${written}. Two relations over one pair of terminals is the ` +
+       `multigraph V1 could not have; the minimal surface writes one route ` +
+       `per line, so there is no text for it that reads back as this world`);
+  }
+
+  /* -- formatting is normalisation, never a gate.
+   *
+   * `formatCore`'s own law, inherited: an unformatted world seals to the same
+   * id as a formatted one. Checked here through BOTH encodings, because the
+   * V2 formatter reaches the text by a different route than the V1 one and
+   * could have picked up a difference on the way. */
+  {
+    const sameV2 = await v2.v2WorldIdOfArtifact(parsed.artifact) ===
+      (reparsed.ok ? await v2.v2WorldIdOfArtifact(reparsed.artifact) : null);
+    /* the V1 world underneath is the demo world, formatted or not */
+    const v1seal = await W.sealWorld(v2.stripRelationNames(formatted).source);
+    const sameV1 = v1seal.ok && v1seal.semanticId === demo.semanticId;
+
+    ok("relation/v2/format/formatting-moves-no-identity",
+       sameV2 && sameV1,
+       `the V2 world id survives formatting: ${sameV2}, and the V1 world ` +
+       `underneath still seals to the pinned demo id: ${sameV1}. An ` +
+       `unformatted world seals to the same id as a formatted one, in both ` +
+       `encodings`);
+  }
+
+  /* -- routes come out in V2's order, not V1's.
+   *
+   * Route order in the source decides nothing -- the spine sorts it -- so the
+   * formatter emitting the order this encoding's own bytes are in is the
+   * choice that restates nothing. A V2 formatter that reproduced V1's
+   * `(kind, src, dst)` order would be carrying a second copy of a sort key
+   * that already caused one wrong diagnosis. */
+  {
+    const emitted = [...v2.stripRelationNames(formatted).names.values()];
+    const inBytes = parsed.artifact.relations.map(
+      (r) => r.identity_seed.relation_name);
+    const v1order = parsed.v1.edges.map((e) => e.src);
+    const emittedSrc = formatted.split("\n")
+      .map((l) => /^\[\w+\]:\s*\[(\w+)\]/.exec(l)).filter(Boolean).map((m) => m[1]);
+
+    ok("relation/v2/format/routes-come-out-in-the-encodings-own-order",
+       W.serializeArtifact(emitted) === W.serializeArtifact(inBytes) &&
+       W.serializeArtifact(emittedSrc) !== W.serializeArtifact(v1order),
+       `emitted [${emitted.join(", ")}] matches the canonical byte order ` +
+       `[${inBytes.join(", ")}], and differs from V1's route order ` +
+       `[${v1order.join(", ")}] vs [${emittedSrc.join(", ")}]. Source route ` +
+       `order decides nothing, so the formatter restates no sort key`);
+  }
+
+  /* -- a V2 world runs as the V1 world the spine validated.
+   *
+   * The consumer side, and the point of the whole encoding: V2 changes how
+   * topology is WRITTEN, not what a world IS, so nothing downstream of the
+   * seal learns a second encoding. */
+  {
+    const runnable = v2.runnableV1Artifact(parsed.artifact);
+    const bag = (a) => W.serializeArtifact(
+      a.edges.map((e) => W.serializeArtifact(e)).sort());
+    const rest = (a) => W.serializeArtifact(Object.fromEntries(
+      Object.keys(a).filter((k) => k !== "edges" && k !== "ir_version")
+        .sort().map((k) => [k, a[k]])));
+
+    ok("relation/v2/consumer/a-v2-world-runs-as-the-v1-world-it-validated",
+       bag(runnable) === bag(parsed.v1) && rest(runnable) === rest(parsed.v1) &&
+       s.V1_IR_VERSIONS.includes(runnable.ir_version),
+       `the same relation set: ${bag(runnable) === bag(parsed.v1)}, every ` +
+       `other key byte-identical: ${rest(runnable) === rest(parsed.v1)}, at ` +
+       `ir_version ${JSON.stringify(runnable.ir_version)}. Nothing downstream ` +
+       `of the seal has to learn a second encoding`);
+  }
+
+  /* -- and the V2 route ends at exactly the world the V1 route ends at.
+   *
+   * The strongest available form: the V1 artifact reached by writing names
+   * over the demo world seals to the PINNED demo `sem-`. If the surface had
+   * perturbed anything at all -- a config, an order, a port projection --
+   * this is where it would show, against an id that has not moved in six
+   * slices. */
+  {
+    const viaV2 = await s.worldIdOfArtifact(parsed.v1);
+
+    ok("relation/v2/consumer/naming-a-world-does-not-change-the-world",
+       viaV2 === demo.semanticId,
+       `the V1 world underneath the named source is ${viaV2.slice(0, 16)}…, ` +
+       `and the pinned demo world is ${demo.semanticId.slice(0, 16)}… -- ` +
+       `${viaV2 === demo.semanticId ? "the same" : "DIFFERENT"}. Naming ` +
+       `relations adds identity to relations; it changes nothing about the ` +
+       `world they are in`);
+  }
+
+  }
+
   }
 }
 

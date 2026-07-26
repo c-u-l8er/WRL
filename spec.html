@@ -111,6 +111,11 @@
   <a href="#d8-canonical">D8.7 · Canonical revision</a>
   <a href="#d8-kernel">D8 · What already runs</a>
   <a href="#d8-migration">D8.8 · The V1 import contract</a>
+  <a href="#d8-v2">D8.9 · The V2 relation encoding</a>
+  <a href="#d8-v2-derive">D8.10 · Deriving V2 identity</a>
+  <a href="#d8-v2-migrate">D8.11 · The V1 → V2 migration</a>
+  <a href="#d8-v2-surface">D8.12 · Naming a relation</a>
+  <a href="#d8-v2-write">D8.13 · Writing a V2 world back out</a>
   <a href="#d9">D9 · Dynamic topology</a>
   <a href="#d9-classify">D9 · Conflict classification</a>
   <a href="#d9-closure">D9.1 · Replay closure</a>
@@ -1555,10 +1560,17 @@ claim: something a check can falsify.</p>
 <code class="inline">RelationRevision</code> has exactly one canonical form, and
 a conforming implementation reaches it by:
 <ol>
-<li><b>Port-qualified terminals.</b> A terminal identifies a <i>port</i> —
-<code class="inline">p0.sig_out</code>, not <code class="inline">p0</code>. Where
-a legacy V1 edge leaves the port implicit, it is recovered from the edge kind's
-frozen port pair.</li>
+<li><b>Port-qualified terminals.</b> A terminal identifies a <i>port</i>, not an
+object, and it carries that structure in the record:
+<code class="inline">{ object_id: "p0", port: "sig_out" }</code>. The spelling
+<code class="inline">p0.sig_out</code> used elsewhere on this page is
+<b>display</b> — a rendering of that record, never its encoding. Where a legacy
+V1 edge leaves the port implicit, the import <i>lifts</i> it out of the edge
+kind's frozen port pair into the two fields; a consumer of a revision never
+parses a terminal, because a terminal was never packed. This is the same rule as
+<a href="#d8-derived">derived, not asserted</a>, read one level down: recovering
+structure by splitting a string is a sign the structure was discarded on the way
+in.</li>
 <li><b>Semantic roles.</b> Every endpoint's role is one of
 <code class="inline">source</code>, <code class="inline">target</code>,
 <code class="inline">peer</code>, <code class="inline">terminal</code>. A port
@@ -1589,8 +1601,8 @@ normalisation. Reordering a source's endpoints must not move
 <code class="inline">texture</code> is a missing key, never a null.</li>
 </ol>
 A reverse projection to a V1 edge locates its endpoints <b>by role</b>, never by
-array position, and validates the port suffix against the kind rather than
-assuming it.</div>
+array position, and validates each terminal's <code class="inline">port</code>
+field against the kind rather than assuming it.</div>
 
 <p>That second texture rule was, for one version of this section, deliberately
 <i>not</i> in the list — filed instead as a <a href="#d8-owes">V2 obligation</a>
@@ -2456,8 +2468,8 @@ triple is then a key, and the id is recoverable from position. Every world
 published on this site satisfies that. A world with two parallel relations of the
 same kind between the same objects does not, and it is precisely the multigraph
 case D8 exists to admit. Such a world therefore <b>cannot</b> be encoded in
-<code class="inline">ir_version 1.0</code> at all; it needs explicit ids under a
-newer <code class="inline">ir_version</code>. This is a real limit on V1, not a
+<a href="#d8-v1-family">the V1 artifact family</a> at all; it needs explicit ids
+under a newer <code class="inline">ir_version</code>. This is a real limit on V1, not a
 defect in D8.1 — and it is better as a stated precondition that a validator can
 check than as an assumption that holds until the first redundant link.</div>
 
@@ -2466,7 +2478,7 @@ notice it: it is also the <a href="#d8-identity-mint">period-0 nonce rule</a>. A
 world whose relations are distinguished by
 (<code class="inline">kind</code>, <code class="inline">src</code>,
 <code class="inline">dst</code>) can both be encoded in
-<code class="inline">ir_version 1.0</code> and have its relation ids minted
+<a href="#d8-v1-family">the V1 artifact family</a> and have its relation ids minted
 without any new authored syntax, and a world that needs parallel relations fails
 both at once. That is one condition to check and one condition to explain, rather
 than two that happen to coincide until they do not.</p>
@@ -2547,7 +2559,7 @@ field that could be elided:</p>
 <tbody>
 <tr><td>container <code class="inline">"edges"</code></td><td><code class="inline">"relations"</code></td><td>a key is renamed, not omitted</td></tr>
 <tr><td><code class="inline">"src"</code> / <code class="inline">"dst"</code></td><td><code class="inline">"endpoints"</code></td><td>two scalar members become one array of records; that is a change of <i>shape</i></td></tr>
-<tr><td><code class="inline">"p0"</code></td><td><code class="inline">p0.sig_out</code></td><td>the frozen form names the <b>object</b>; an endpoint names a <b>terminal</b>. Nothing is defaulted here — the general form is strictly more specific</td></tr>
+<tr><td><code class="inline">"p0"</code></td><td><code class="inline">{ object_id: "p0", port: "sig_out" }</code></td><td>the frozen form names the <b>object</b>; an endpoint names a <b>terminal</b>, and carries the port in a field of its own. Nothing is defaulted here — the general form is strictly more specific, and one scalar becomes two</td></tr>
 </tbody></table></div>
 
 <p>So the compatibility mechanism is not elision but a <b>legacy projection</b>:
@@ -2573,10 +2585,11 @@ clause needs either a <code class="inline">relations</code> encoding under a new
 that provably cannot appear in an artifact of the frozen shape.
 <br><br>
 The clause about implied ports is what makes the projection <b>lossless in both
-directions</b>: it is exactly the condition under which
-<code class="inline">p0.sig_out</code> is recoverable from
-<code class="inline">p0</code>, because the kind and the role determine the
-terminal. Where that is not true, the old form genuinely cannot represent the
+directions</b>: it is exactly the condition under which the
+<code class="inline">port</code> field is recoverable from an object id alone,
+because the kind and the role determine the terminal. Recovery runs at the
+<i>boundary</i>, on the way in, and the recovered value is stored — the record a
+consumer reads already holds both fields. Where that is not true, the old form genuinely cannot represent the
 relation, and pretending otherwise would be the actual breaking change.
 <br><br>
 Note which way the <code class="inline">domain</code> and
@@ -2585,7 +2598,7 @@ happen to admit every V1 edge; they are the two places the projection says what
 a V1 edge <b>means</b>. An <code class="inline">electrical</code> relation and an
 <code class="inline">async</code> one each fail a clause and have no old form,
 which is why <a href="#d8-kernel-partition">the kernel's field partition</a>
-files both fields as <i>no V1 form</i> rather than as free.</div>
+files both fields as <b>V1-fixed</b> rather than as free.</div>
 
 <p>This is a testable claim rather than a promise, and it should be tested
 before D8 is called structurally closed. The golden test is a round trip with
@@ -2665,8 +2678,8 @@ invented names would have two sources sealing to the <i>same</i>
 determine its own future semantics is the one thing <code class="inline">sem-</code>
 exists to prevent. The resolution is not to wait for a surface. It is
 <code class="inline">LegacyEdgeAllocation</code>: for a world sealed under
-<code class="inline">ir_version 1.0</code>, a relation's name <b>is</b> its
-frozen edge key, and nothing about that requires new syntax.</p>
+<a href="#d8-v1-family">the V1 artifact family</a>, a relation's name <b>is</b>
+its frozen edge key, and nothing about that requires new syntax.</p>
 
 <p>The implementation lives in <code class="inline">relation-identity.js</code>,
 which imports <code class="inline">wrl.js</code>. The direction is the
@@ -2740,21 +2753,40 @@ in.</p>
 <tbody>
 <tr><td><code class="inline">kind</code>, <code class="inline">endpoints</code></td><td><b>moves it</b></td><td>these two <i>are</i> the name in V1</td></tr>
 <tr><td><code class="inline">policy</code></td><td>free</td><td>may change without touching identity — this is §D8.1's live content</td></tr>
-<tr><td><code class="inline">domain</code>, <code class="inline">orientation</code>, <code class="inline">texture</code>, <code class="inline">attributes</code></td><td>no V1 form</td><td>a relation carrying any value other than the one V1 implies cannot be projected to a V1 edge at all</td></tr>
+<tr><td><code class="inline">domain</code>, <code class="inline">orientation</code>, <code class="inline">texture</code>, <code class="inline">attributes</code></td><td><b>V1-fixed</b></td><td>V1 states exactly one value for each and cannot write another, so a relation carrying any other value cannot be projected to a V1 edge at all</td></tr>
 </tbody></table></div>
 
-<p>The second row is the one worth reading twice. It is not an implementation
-gap; it is the price of §D8 stated numerically. <b>Four</b> of the seven fields a
-relation revision carries have <b>no expression whatsoever</b> in a frozen V1
-artifact — so §D8's richer relation is not today's edge plus some unwritten
-extras. It is a record most of whose interesting content is inexpressible until
-the artifact version moves. <a href="#d8-identity-cost">§D8's cost note</a>
-argued that qualitatively. This is the count.</p>
+<p>The third row is the one worth reading twice, and its name was chosen after a
+wrong one. It read <i>no V1 form</i>, which invites the reading that V1 is silent
+about those four fields. V1 is not silent about them. It says exactly one thing
+about each, and this contract restores all four on import:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Field</th><th>What V1 fixes it to</th></tr></thead>
+<tbody>
+<tr><td><code class="inline">domain</code></td><td><code class="inline">signal</code></td></tr>
+<tr><td><code class="inline">orientation</code></td><td><code class="inline">directed</code></td></tr>
+<tr><td><code class="inline">texture</code></td><td><code class="inline">solid</code></td></tr>
+<tr><td><code class="inline">attributes</code></td><td><code class="inline">{}</code></td></tr>
+</tbody></table></div>
+
+<p>What V1 lacks is not a <i>meaning</i> for these fields but an
+<b>independently writable representation</b> for any alternative value — they are
+<i>resolved constants</i>, fixed by the encoding rather than elided from it. So
+the count still stands, and it is still the price of §D8 stated numerically:
+<b>four</b> of the seven fields a relation revision carries are pinned by the
+frozen artifact rather than authored in it, which is why §D8's richer relation is
+not today's edge plus some unwritten extras. It is a record most of whose
+interesting content is inexpressible until the artifact version moves.
+<a href="#d8-identity-cost">§D8's cost note</a> argued that qualitatively. This
+is the count.</p>
 
 <p><code class="inline">domain</code> moved into that row, and how it moved is
-worth recording. It was filed <i>free</i> on the reading that a V1 edge does not
-write a domain, so changing one could not disturb the id — which is true, and
-irrelevant. A V1 edge does not write a domain because it is <i>entirely</i> a
+worth recording, because it is the clearest case of why <i>V1-fixed</i> is a
+different classification from <i>free</i>. It was filed <i>free</i> on the
+reading that a V1 edge does not write a domain, so changing one could not
+disturb the id — which is true, and irrelevant: projectability is a question
+about <b>representability</b>, not only about identity. A V1 edge does not write a domain because it is <i>entirely</i> a
 <code class="inline">signal</code>-domain encoding: its two kinds are the two
 kinds of that one domain. An <code class="inline">electrical</code> relation is
 therefore not a relation whose domain V1 forgets to mention; it is a relation V1
@@ -2812,23 +2844,42 @@ tests something adjacent and easier is how a register becomes decoration.</div>
 
 <p>The kernel above is finished, and it is not the destination. §D8's relation
 is a record with named instances, general arity, attributes, textures and three
-orientations, and none of that can live in an <code class="inline">ir_version
-1.0</code> artifact. Reaching it takes a new artifact version, and that is the
-next milestone rather than this one.</p>
+orientations, and none of that can live in a
+<a href="#d8-v1-family">V1 artifact</a>. Reaching it takes a new artifact
+version, and that is the next milestone rather than this one.</p>
 
 <p>So what happens to the kernel? It becomes the <b>import adapter</b> — the
 one supported path by which a world already sealed acquires relation identity.
 That is a permanent job, not a scaffold, because worlds sealed under
-<code class="inline">ir_version 1.0</code> keep their
+<a href="#d8-v1-family">the V1 artifact family</a> keep their
 <code class="inline">sem-</code> ids forever and must remain readable by
 relation-aware tooling that arrives afterwards. Writing the contract down
 <i>now</i>, before the richer artifact exists, is what stops the adapter from
 drifting into a second general relation format: every convenience added to it
 would be a feature V2 then has to keep bug-compatible.</p>
 
-<div class="note stop"><b>Draft rule D8.8 — the V1 import contract.</b> An
-implementation importing an <code class="inline">ir_version 1.0</code> artifact:
+<div class="note stop" id="d8-v1-family"><b>Draft rule D8.8 — the V1 import
+contract.</b> The <b>V1 artifact family</b> is
+<code class="inline">ir_version&nbsp;∈&nbsp;{"1.0",&nbsp;"1.1"}</code>: the two
+versions that share the structural <code class="inline">edges</code> encoding
+this contract reads. <code class="inline">1.1</code> adds the mailbox-grounded
+policy family and changes nothing this adapter consults — same profile, same two
+edge kinds, same implied terminal pairs, same directed/solid reading, same
+<code class="inline">edges</code> container. An implementation importing a member
+of that family:
 <ol>
+<li><b>Admits by the whole source tuple.</b>
+(<code class="inline">ir_version</code>, <code class="inline">profile_id</code>,
+<code class="inline">rulepack_id</code>) must be one the adapter <i>declares</i>.
+Gating the version alone lets an undeclared rulepack ride in under a frozen
+profile and be read as a recognised relation source for the sole reason that its
+id is a nonempty string — and since the rulepack is copied into every derived
+<code class="inline">policy</code>, it is then sealed into
+<code class="inline">rev-</code> identity rather than merely ignored. This is a
+different question from the <a href="#d8-kernel-partition">field partition</a>'s:
+<i>policy is free</i> says a relation may change its rulepack without moving
+<code class="inline">rel-</code>; it does not say any rulepack names a family
+this adapter can read.</li>
 <li><b>Reads only the sealed artifact.</b> The source text, its formatting, its
 sugar and its declaration order are not inputs. An adapter that reads the parse
 produces a relation view that two byte-identical worlds can disagree about.</li>
@@ -2995,15 +3046,424 @@ the two loses the only join that could have caught a wrong assertion, and it
 loses it by making the assertion unfalsifiable rather than by making it
 false.</p>
 
+<h3 id="d8-v2">V2, where the fixed fields become writable<span class="draft">draft ·
+new in 0.1.3</span></h3>
+
+<p>Everything above describes a relation model that V1 can be <i>read</i> as an
+instance of. The <a href="#d8-kernel-partition">field partition</a> ends by
+naming four fields <b>V1-fixed</b> — <code class="inline">domain</code>,
+<code class="inline">orientation</code>, <code class="inline">texture</code>,
+<code class="inline">attributes</code> — and the point of that name is that V1
+says exactly one thing about each and has no way to say another. The adapter is
+not withholding an alternative; there is no alternative to write. Making one
+writable is a new encoding, and this section is its schema.</p>
+
+<p>The shape of the change is smaller than the argument around it. A V1 world
+writes <code class="inline">edges: [{ kind, src, dst }]</code>. A V2 world writes
+<code class="inline">relations</code>, and each entry is
+<code class="inline">{ identity_seed, revision }</code> — the
+<a href="#d8-canonical">canonical revision</a> exactly as §D8.7 defines it, and
+the preimage its name is minted from, minus one field.</p>
+
+<h4 id="d8-v2-seed">Why the stored preimage is a <i>seed</i></h4>
+
+<p>§D8.1's preimages are all world-scoped:
+<code class="inline">NamedInitialAllocation { world_id, relation_name }</code>.
+So a V2 relation cannot store its allocation, because
+<code class="inline">world_id</code> is the hash of the bytes that relation is
+written in — a stored copy would be a value stating what its own container
+hashes to, before the container exists. Storing some <i>other</i> world's id is
+worse, because it type-checks: the world's relations would then be minted under
+a name a different world already owns.</p>
+
+<p>What is stored is therefore the allocation <b>minus its world coordinate</b>,
+and derivation puts the coordinate back. That subtraction is the whole content
+of the word <i>seed</i>, and it is also the derivation order:</p>
+
+<pre class="code"><code>canonicalise  ->  world_id = hash(bytes)  ->  expand seed into an allocation
+              ->  relation_id            ->  revision_id</code></pre>
+
+<p>Three ids are functions of these bytes and none of the three is in them.
+That is the same rule <a href="#d8-derived">cardinality</a> obeys, applied to
+identity rather than to structure, and it has the same justification: a stored
+copy of a derived value is a second source of truth for one hash, and the copy
+is the one a reader trusts.</p>
+
+<div class="note stop"><b>Draft rule D8.9 — the V2 relation encoding.</b>
+<code class="inline">ir_version&nbsp;"2.0"</code> encodes topology as
+<code class="inline">relations</code>, and:
+<ol>
+<li><b><code class="inline">relations</code> replaces
+<code class="inline">edges</code>.</b> They do not coexist.
+<code class="inline">edges</code> in a V2 artifact is
+<code class="inline">WRL_LEGACY_EDGES_IN_V2</code>;
+<code class="inline">relations</code> in a <a href="#d8-v1-family">V1
+artifact</a> is <code class="inline">WRL_RELATIONS_IN_V1</code>. The rule is
+two-sided on purpose. If only one encoding refused the other's topology key, a
+world could carry both, and a V1 reader and a V2 reader would then disagree
+about its topology while agreeing about its bytes.</li>
+<li><b>A relation is <code class="inline">{ identity_seed, revision }</code>,
+exactly.</b> <code class="inline">world_id</code>,
+<code class="inline">relation_id</code> and
+<code class="inline">revision_id</code> are never stored.</li>
+<li><b>A seed is its allocation without <code class="inline">world_id</code>.</b>
+Stated as an equation over the two field tables rather than as two lists, so a
+variant cannot gain a field in one and not the other.</li>
+<li><b>Initial bytes admit two variants.</b>
+<code class="inline">named-initial</code>, the native one, and
+<code class="inline">legacy-edge</code>, which is <i>import-only</i>: it records
+that a relation arrived through the V1 migration and kept the id that world
+minted for it. <code class="inline">granted</code> is absent, and the absence is
+the statement — a grant is drawn at runtime (<a href="#d8-identity-burn">§D8.4</a>)
+from an authority that does not exist at period 0.</li>
+<li><b>A missing name is an error.</b>
+<code class="inline">WRL_MISSING_RELATION_NAME</code>, never a fall back to a
+<code class="inline">legacy-edge</code> seed built from the endpoints. That
+fallback is the tempting repair and it is the forbidden one: it would make two
+independently authored relations over the same two ports the same relation,
+silently, on the author's behalf.</li>
+<li><b><code class="inline">relations</code> sorts by canonical seed bytes.</b>
+An array's order is in its bytes, so an unordered set either has its order
+decided here or has it decided by whoever typed the world.</li>
+<li><b>A seed names at most one relation.</b> Two relations under one seed expand
+to one allocation and therefore one <code class="inline">relation_id</code>, so
+the world cannot say which of the two a later revision revises — the
+<a href="#d8-kernel-duplicate">V1 duplicate-key defect</a>, arriving through a
+field an author now controls directly.</li>
+</ol>
+Admission is the whole source tuple, as it is for V1: an artifact's
+(<code class="inline">ir_version</code>, <code class="inline">profile_id</code>,
+<code class="inline">rulepack_id</code>) must be one the encoder declares, each
+coordinate refusing with its own code.</div>
+
+<h4 id="d8-v2-profile">A version is not a profile</h4>
+
+<p>The ruling that fixes <code class="inline">ir_version</code> at
+<code class="inline">"2.0"</code> says nothing about
+<code class="inline">profile_id</code>, and the tempting move is to mint
+<code class="inline">forge.world.core.v2</code> alongside it. This encoding does
+not, because the two coordinates answer different questions:
+<code class="inline">ir_version</code> is <i>how</i> topology is written —
+<code class="inline">edges</code> or <code class="inline">relations</code> — and
+<code class="inline">profile_id</code> is <i>what vocabulary</i> it is written
+in: which domains exist, which kinds, which ports. Bumping them together would
+mean every new domain forces a new encoding version, and every encoding change
+invalidates every profile. So V2 is a new encoding over the same
+<code class="inline">forge.world.core.v1</code> profile, and a wider profile —
+one declaring <code class="inline">electrical</code>, or an acausal kind —
+arrives later without touching the encoding.</p>
+
+<p>The consequence worth stating is what V2 does <b>not</b> buy on its own.
+Moving the encoding makes the four V1-fixed fields <i>representable</i>; it does
+not make an <code class="inline">electrical</code> relation <i>legal</i>, because
+legality is the profile's answer and the profile has not moved. Those are two
+separate unlocks and this is the first of them.</p>
+
+<h4 id="d8-v2-boundary">What the V1 projection is, and is not, under V2</h4>
+
+<p><a href="#d8-projection">§D8.8's projection</a> stays normative as the V1
+compatibility adapter, and it has no authority over V2 canonical bytes. It is
+never called inside the V2 encoder. The direction it does not run is the one
+worth being explicit about: an explicit V2 → V1 downgrade produces a <i>new V1
+artifact</i>, with its own <code class="inline">sem-</code> id, which is not and
+never was the id of the V2 world it came from. Nothing here preserves a
+<code class="inline">sem-</code> across an encoding change, and
+<a href="#d8-identity-scope">§D8.5</a> already says why: a relation id is
+world-scoped, and a claim that two sealed worlds hold the same relation is a
+migration claim someone has to carry.</p>
+
+<h4 id="d8-v2-derive">Deriving the three ids</h4>
+
+<p>The order above is not a style note, it is the dependency graph: each arrow
+is a value that cannot be computed before the one to its left exists. Both
+places this can go wrong are places where an implementation is tempted to skip
+an arrow, and <b>both skips produce ids that look right</b>. Deriving from an
+artifact that was never canonicalised gives two spellings of one world two sets
+of relations. Accepting a <code class="inline">world_id</code> from the caller
+instead of recomputing it gives a forged seal real-looking relations — V1
+shipped exactly that bug, and <code class="inline">worldIdOfArtifact</code> was
+the repair.</p>
+
+<div class="note stop"><b>Draft rule D8.10 — deriving V2 identity.</b>
+<ol>
+<li><b>Canonicalise first.</b> Ids are a function of canonical bytes, so an id
+derived before canonicalisation is an id of <i>how a world was typed</i> rather
+than of the world.</li>
+<li><b>The seal is recomputed, never believed.</b> A caller may state the world
+id it expects and the statement is <i>checked</i>
+(<code class="inline">WRL_SEMANTIC_ID_MISMATCH</code>); it is never used as the
+allocation preimage. A function with two independent sources of truth about one
+hash has no source of truth.</li>
+<li><b>A seed plus its world is an allocation
+<a href="#d8-identity-mint">§D8.1</a> accepts.</b> The reconstruction is handed to
+the kernel's validator, not to a local one — if the two ever disagreed, the
+disagreement would surface as a <code class="inline">rel-</code> id that exists
+and is wrong, which no round trip can see.</li>
+<li><b>The encoding is in the world id.</b> A world id is
+<code class="inline">sem-</code> in both families, because V1 and V2 are two
+encodings of a world rather than two kinds of thing — but the same topology
+written in the two encodings is two byte strings and therefore two worlds. The
+downgrade rule above is this rule, not a second one.</li>
+<li><b>A <code class="inline">rel-</code> is world-scoped and a
+<code class="inline">rev-</code> is not.</b> Editing one relation moves
+<i>every</i> relation's <code class="inline">rel-</code>, because the world id
+moved and the world id is in every allocation; only the edited relation's
+<code class="inline">rev-</code> moves, because a revision is standalone
+(<a href="#d8-identity-provenance">§D8.3</a>). That asymmetry is not an
+inconvenience to be engineered away. It is
+<a href="#d8-identity-scope">§D8.5</a> arriving in the native encoding, and the
+reason a migration has to be a claim someone carries.</li>
+<li><b>Derivation is a pure read.</b> Nothing it computes is written back into
+the bytes it read. A derivation that memoised an id into the artifact would move
+the artifact that produced it.</li>
+</ol></div>
+
+<h4 id="d8-v2-migrate">Carrying a V1 world across</h4>
+
+<p>A migrated relation <b>does not keep its id</b>, and no amount of care can
+make it. The world id moved, the world id is in every allocation, so every
+<code class="inline">rel-</code> moves with it. What survives is the
+<code class="inline">rev-</code>, because a revision is standalone — so a
+relation's <i>structure</i> crosses intact and its <i>name</i> does not.</p>
+
+<p>That is the whole reason the import mints a
+<code class="inline">legacy-edge</code> seed rather than a
+<code class="inline">named-initial</code> one. The tempting alternative is to
+name each migrated relation so the ids look stable; it does not make them
+stable, and it costs two things. It makes an import look like authorship, and
+it collides with the first author who later writes that name deliberately.
+<code class="inline">legacy-edge</code> instead records the true fact — this
+relation was <i>never named</i> — which keeps the two worlds indexable by the
+same key and so keeps the correspondence <i>derivable</i> rather than
+asserted.</p>
+
+<div class="note"><b>What the round trip does not preserve, and why that is
+not a bug.</b> This was first written as <i>“a downgrade returns the original
+bytes”</i>, and the check failed. The first explanation offered for that
+failure was wrong, and it is worth recording which one, because it is the
+explanation anybody would reach for: <i>V1 leaves its edge order to whoever
+typed the world, and V2 tidies it up.</i> Sealing a V1 source with its lines
+reversed produces the same <code class="inline">edges</code> array. Both
+encodings canonicalise. They disagree about the <i>key</i>.</p>
+<p>V1 sorts <code class="inline">edges</code> by the tuple it stores them as,
+<code class="inline">(kind, src, dst)</code>. V2 sorts
+<code class="inline">relations</code> by canonical
+<code class="inline">identity_seed</code> bytes — key-sorted JSON — so a
+<code class="inline">legacy-edge</code> seed compares on
+<code class="inline">dst</code> before <code class="inline">kind</code> before
+<code class="inline">src</code>. Two total orders over the same set, neither
+of them authored. So a V1 world the two keys disagree about comes back
+<i>permuted</i>, with a new <code class="inline">sem-</code> — which makes
+<a href="#d8-v2-boundary">§7's “a different
+<code class="inline">sem-</code> ID”</a> true of the original as well as of
+the V2 world.</p>
+<p>An order derived from the record is not arbitrary, but it is canonical only
+<i>within</i> an encoding: a sequence is in the bytes, the two cannot both be
+right about it, and on the way back the one that decides is the one being
+written. The loss is bounded because it is a <i>normalisation</i>: the second
+round trip is a fixed point, and a world both keys agree about round-trips
+byte-exactly.</div>
+
+<div class="note stop"><b>Draft rule D8.11 — the V1 → V2 migration.</b>
+<ol>
+<li><b>An import mints only unnamed seeds.</b>
+<code class="inline">legacy-edge</code>, never
+<code class="inline">named-initial</code> — a V1 artifact has no field a name
+could come from. The authority is the kernel's
+<code class="inline">IMPORTABLE_VARIANTS</code>, reused rather than restated,
+because <i>what can be minted from a V1 artifact</i> has one answer regardless
+of what is being written into. The <i>authorable</i> list is not reused, because
+that one is a question about the target encoding's surface, where V1 and V2
+differ.</li>
+<li><b>Only the encoding moves.</b> Every key the migration does not own passes
+through byte-identically. A migration that also tidied
+<code class="inline">objects</code> would make the world differ from its source
+for reasons unrelated to the change, and no test could then attribute a moved id
+to the migration rather than to the tidying.</li>
+<li><b>Structure survives; identity does not.</b> Every
+<code class="inline">rev-</code> recurs and no <code class="inline">rel-</code>
+does. A migration reporting a preserved <code class="inline">rel-</code> would be
+claiming the thing <a href="#d8-identity-scope">§D8.5</a> exists to deny.</li>
+<li><b>The claim is checked by the checker that already exists.</b> The
+cross-family correspondence has the same shape as the V1 one, so
+<code class="inline">candidateImportedFacts</code> and
+<code class="inline">checkRelationImported</code> verify it unchanged. §D8.5 asks
+for one checkable claim, not one per encoding pair — a rule needing its own
+verifier at the boundary where migrations actually happen has an exception
+exactly where it is load-bearing.</li>
+<li><b>Both seals are recomputed.</b> A migration is precisely where a caller
+holds two worlds and is best placed to be wrong about one of them.</li>
+<li><b>A named relation has no legacy counterpart.</b> It is
+<code class="inline">added</code>, never paired — a relation with no V1 preimage
+is not a relation the V1 world quietly also had.</li>
+<li><b>The target version of a downgrade is chosen, not remembered.</b> V2
+records no provenance, because a value that recorded its own history would be
+the second home <a href="#d8-identity-home">§D8.3</a> refuses.</li>
+</ol></div>
+
+<h4 id="d8-v2-surface">Naming a relation</h4>
+
+<p>One spelling, and it is a per-route one:</p>
+
+<pre><code>[clock_feed]: [pulser:p0] --sig--&gt; [relay:r0]</code></pre>
+
+<p>A V2 source is a V1 source whose route lines carry a name. That is the
+<i>whole</i> language change, and it is deliberately the whole language change:
+every other line — the profile header, declarations, comments, sugar — is
+handed to the frozen spine untouched, so the surface cannot quietly become a
+second parser that agrees with <code class="inline">wrl.js</code> today and
+drifts from it later. Names come off the front of their lines without changing
+the line count, the spine does all the parsing and all the validation, and the
+names go back on afterwards.</p>
+
+<div class="note"><b>The re-attach is the only hard part, and line order is the
+wrong way to do it.</b> Re-attaching a name by line <i>index</i> is wrong
+twice over. Sugar expands one authored line into several emitted ones, and
+<code class="inline">canonicalizeGraph</code> <i>sorts</i> the edges, so the
+parsed order is a canonical order and not the order anybody typed — the same
+fact <a href="#d8-v2-migrate">the round trip</a> reports. An index-based zip
+attaches the wrong name to the wrong relation, and the failure is
+<i>silent</i>: the world seals, every id is well-formed, and every one of them
+is wrong.</p>
+<p>So the pairing is derived from provenance the spine already keeps.
+<code class="inline">desugarCoreMapped</code> records a source line for every
+emitted line and the parser stamps its emitted line onto each edge; following
+that back gives, for each authored line, exactly the relations it produced —
+through any amount of sugar, and whatever order the parser hands them back in.
+That same map is how the surface knows which lines are <i>routes</i> without
+restating the frozen edge grammar: a route line is a line that produced an
+edge.</div>
+
+<div class="note"><b>Why there is no <code class="inline">ir_version 2.0</code>
+header.</b> <i>Autonomous decision, flagged for review.</i> The ruling fixes
+exactly one piece of V2 syntax and it is per-route, so a document-level header
+would be a second, unruled one. Instead the encoding is the <i>caller's</i>
+choice: <code class="inline">parseNamedWorld</code> is the V2 parser,
+<code class="inline">sealWorld</code> is the V1 one, and a source is native V2
+because it was handed to the V2 parser. This is also what keeps
+<code class="inline">WRL_MISSING_RELATION_NAME</code> meaningful — “an unnamed
+route under native V2” needs “native V2” to be a fact about the request, since
+an unnamed route under V1 is simply a route.</div>
+
+<div class="note stop"><b>Draft rule D8.12 — the named-relation surface.</b>
+<ol>
+<li><b>A name is the only thing V2 adds.</b> Stripping the names returns the V1
+source byte for byte, and the artifact the spine validated is the artifact the
+V1 parser produces from it. V2 adds names to relations; it does not re-litigate
+what a legal world is.</li>
+<li><b>Every route must be named.</b> An unnamed route under native V2 is
+<code class="inline">WRL_MISSING_RELATION_NAME</code>, reported at the
+<i>authored</i> line. A name is never derived from the endpoints — a relation
+named after its terminals would be re-minted the moment an object is renamed,
+so its identity would track the spelling of something else.</li>
+<li><b>A name is an identifier.</b> The prefix is detected loosely and judged
+afterwards, so <code class="inline">[clock-feed]:</code> is diagnosed as a bad
+<i>name</i> rather than falling through to the core parser as a malformed
+route.</li>
+<li><b>A name denotes exactly one relation.</b> Zero and many are the same
+fault — the name fails to denote — and share
+<code class="inline">WRL_AMBIGUOUS_RELATION_NAME</code>. The <i>many</i> case is
+reachable by accident, because sugar expands one line into several routes, and
+one name over all of them would make one id out of several.</li>
+<li><b>The pairing follows provenance, never order.</b> The note above.</li>
+<li><b>A repeated name is a repeated seed, and the encoder says so.</b> The
+surface carries no duplicate-name rule of its own — a second rule about the
+same fact can disagree with the first, and the encoder's is the one that
+decides bytes. A surface that de-duplicated its input could not hand the
+encoder the collision the encoder exists to refuse.</li>
+<li><b>Renaming moves identity and nothing else.</b> Every
+<code class="inline">rev-</code> recurs, because
+<a href="#d8-identity-home">§D8.3</a> makes a revision standalone and a name is
+not in it; every <code class="inline">rel-</code> moves, and so does the world.
+A rename that moved a <code class="inline">rev-</code> would mean the name had
+leaked into the revision; one that moved no
+<code class="inline">rel-</code> would mean the name is not the preimage.</li>
+<li><b>An author cannot write a legacy seed.</b> The surface mints
+<code class="inline">named-initial</code> only.
+<code class="inline">legacy-edge</code> records that a relation was
+<i>never named</i>, which is a fact about an import and not something an author
+can assert about a relation they are writing.</li>
+</ol></div>
+
+<h4 id="d8-v2-write">Writing a V2 world back out</h4>
+
+<p>A formatter's characteristic failure is not refusing — it is emitting text
+that its own parser reads back as something <i>else</i>.
+<code class="inline">formatCore</code> has that scar already: it once wrote a
+<code class="inline">[mailbox:m]</code> line that
+<code class="inline">parseWrlCore</code> then refused. The V2 formatter
+inherits both the lesson and the mechanism. It does not know the route
+grammar; it asks the frozen formatter for the V1 source, then finds the route
+lines the way the parser does, by following provenance back to the line each
+edge came from. <i>Neither direction of the surface contains a copy of the
+arrow syntax.</i></p>
+
+<div class="note"><b>Two worlds this surface cannot write — and says so.</b>
+Both are real V2 worlds the minimal surface has no text for, and both are
+refused rather than approximated.</p>
+<p><b>A migrated world.</b> Its relations carry
+<code class="inline">legacy-edge</code> seeds and therefore have no names, and
+<a href="#d8-v2-surface">§9</a> gives the surface no way to write a route
+without one. So a migration produces a world that runs, seals and compares,
+but is <i>not authorable text</i> until someone names its relations. That is a
+real limit of a minimal surface and is <b>flagged for review</b> rather than
+papered over — the alternative, letting the formatter mint the missing names,
+is the one thing <a href="#d8-identity-mint">§D8.1</a> forbids.</p>
+<p><b>A world with two relations over the same terminals.</b> V2 keys relations
+by name, so this is well-formed V2, and it is the multigraph V1 could never
+have — a thing V2 exists to make possible. But the route line it would print is
+the same line twice, and the spine refuses a duplicate edge key. A formatter
+that emitted it anyway would produce text sealing to a different world than the
+one it was handed, silently, and only for the case the encoding was introduced
+for.</div>
+
+<div class="note stop"><b>Draft rule D8.13 — writing a V2 world back out.</b>
+<ol>
+<li><b>The round trip is a fixed point.</b> Format → parse → format returns the
+same canonical bytes, the same world id and the same text. The surface is a
+surface, not a lossy view.</li>
+<li><b>The formatter does not know the arrow.</b> Strip the names off the V2
+output and what remains is byte-for-byte what the frozen formatter emits. The
+V2 side contributes name prefixes and nothing else, so there is no second copy
+of the route syntax to drift out of step.</li>
+<li><b>A migrated world has no source form.</b>
+<code class="inline">WRL_UNWRITABLE_SEED</code> — and the limit is in the
+surface, not in the world, which still derives its ids like any other.</li>
+<li><b>Neither do two relations over the same terminals.</b>
+<code class="inline">WRL_UNWRITABLE_RELATION</code> — the world validates and
+derives two distinct <code class="inline">rel-</code> ids; it is the
+<i>text</i> that cannot exist.</li>
+<li><b>Formatting is normalisation, never a gate.</b> An unformatted world
+seals to the same id as a formatted one, in both encodings.</li>
+<li><b>Routes come out in the encoding's own order.</b> Sorted by seed bytes,
+not by V1's <code class="inline">(kind, src, dst)</code>. Source route order
+decides nothing — the spine sorts it — so emitting the order this encoding's
+bytes are already in is the choice that restates no sort key.</li>
+<li><b>A V2 world runs as the V1 world the spine validated.</b> V2 changes how
+topology is <i>written</i>, not what a world <i>is</i>, so nothing downstream
+of the seal learns a second encoding.</li>
+<li><b>Naming a world does not change the world.</b> The V1 artifact underneath
+a named source seals to the pinned demo
+<code class="inline">sem-</code>. Naming relations adds identity to
+<i>relations</i>; it changes nothing about the world they are in.</li>
+</ol></div>
+
 <h3 id="d8-owes">What D8 owes before it can ship</h3>
 
 <ol>
 <li><b>A canonical form</b> that leaves every existing <code class="inline">sem-</code> id where it is (the note above).</li>
-<li><b>An allocation surface.</b> The minting rule is specified (<a href="#d8-identity-mint">§D8.1</a>) and, for period-0 relations, <a href="#d8-kernel">implemented</a>. What is still missing is a way to <i>write</i> an authored relation name, which is why <code class="inline">NamedInitialAllocation</code> exists in the preimage block, mints an id like any other variant, and is refused at both <a href="#d8-identity-mint">writer boundaries</a> — the importer's and the authoring surface's.
+<li><s><b>An allocation surface.</b></s> <b>Shipped.</b> The minting rule is specified (<a href="#d8-identity-mint">§D8.1</a>) and, for period-0 relations, <a href="#d8-kernel">implemented</a>; the way to <i>write</i> an authored relation name is <a href="#d8-v2-surface">§D8.12</a>, and the way to write one back out is <a href="#d8-v2-write">§D8.13</a>. <code class="inline">NamedInitialAllocation</code> now has a surface that emits it, and is still refused at the <i>importer's</i> boundary — a migration may not mint a name, which is the distinction the two <a href="#d8-identity-mint">writer boundaries</a> exist to keep.
+<div class="note">The V1 <code class="inline">AUTHORABLE_VARIANTS</code> stays
+<code class="inline">[]</code> and the V2 surface carries its own list. This is
+an <i>autonomous decision, flagged for review</i>: the two are answers to the
+same question about two different encodings — V1 has no field a name could
+live in, so its answer is <code class="inline">[]</code> permanently — and
+merging them would make one encoding's silence read as the other's
+permission.</div>
 <div class="note">This item used to also demand a validator enforcing that
 (<code class="inline">kind</code>, <code class="inline">src</code>,
-<code class="inline">dst</code>) is unique within an
-<code class="inline">ir_version 1.0</code> artifact, warning that without it
+<code class="inline">dst</code>) is unique within a
+<a href="#d8-v1-family">V1 artifact</a>, warning that without it
 "the first genuine multigraph world silently seals as something it is not."
 That validator now exists:
 <a href="#d8-kernel-duplicate"><code class="inline">WRL_DUPLICATE_RELATION_KEY</code></a>.
@@ -3659,7 +4119,7 @@ still unproved.</p>
 
 <p>That is not hypothetical. Separating the axes is what produced
 <a href="#d8-kernel">the kernel</a>, and the <code class="inline">model</code>
-layer is now <b>empty of debt</b>: thirty-five rows run. The suite enforces that as a
+layer is now <b>empty of debt</b>: eighty rows run. The suite enforces that as a
 ratchet rather than a milestone — settling a model-layer property lowers the
 permitted count, and a <i>new</i> model row therefore has to arrive already
 executable. That ratchet is exactly what turned
@@ -3695,7 +4155,7 @@ substitution is the entire failure this register exists to catch.</p>
 <div class="tbl" data-pending-register="identity-stack"><table>
 <thead><tr><th>Property</th><th>Expected result</th><th>Falsifies</th><th>Layer · status</th></tr></thead>
 <tbody>
-<tr data-pending-law="revision-does-not-move-relation-id" data-pending-for="D8.1" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/only-the-key-names-the-relation"><td>every field of a revision mutated in turn, and the id re-derived through the projection</td><td>only <code class="inline">kind</code> and <code class="inline">endpoints</code> move <code class="inline">relation_id</code>; <code class="inline">policy</code> is <b>free</b>; the other four — <code class="inline">domain</code>, <code class="inline">orientation</code>, <code class="inline">texture</code>, <code class="inline">attributes</code> — have no V1 form at all, and the partition is checked <i>total</i> so a new field cannot arrive unclassified</td><td><a href="#d8-identity-mint">D8.1</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="revision-does-not-move-relation-id" data-pending-for="D8.1" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/only-the-key-names-the-relation"><td>every field of a revision mutated in turn, and the id re-derived through the projection</td><td>only <code class="inline">kind</code> and <code class="inline">endpoints</code> move <code class="inline">relation_id</code>; <code class="inline">policy</code> is <b>free</b>; the other four — <code class="inline">domain</code>, <code class="inline">orientation</code>, <code class="inline">texture</code>, <code class="inline">attributes</code> — are <b>V1-fixed</b>, each pinned to the single value V1 can mean, and the partition is checked <i>total</i> so a new field cannot arrive unclassified</td><td><a href="#d8-identity-mint">D8.1</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="revision-references-no-other-revision" data-pending-for="D8.2" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/revision-has-no-backpointer"><td>a <code class="inline">RelationRevision</code> carrying a pointer to its predecessor</td><td><b>refused</b> as <code class="inline">WRL_REVISION_BACKPOINTER</code> — lifecycle has one home, and it is the ledger</td><td><a href="#d8-derived">D8.2</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="provenance-does-not-move-revision-id" data-pending-for="D8.3" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/revision-id-is-world-independent"><td>the same relation structure sealed into two <i>different</i> worlds</td><td>the <b>same</b> revision id — which world described it is provenance, and provenance rides the event, not the value</td><td><a href="#d8-identity-provenance">D8.3</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="granted-allocation-separates-grants" data-pending-for="D8.4" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/world-scoping/a-granted-allocation-separates-grants"><td>the same <code class="inline">local_counter</code> minted under two different <code class="inline">grant_id</code>s</td><td>two <b>different</b> <code class="inline">relation_id</code>s — the separation is a property of the preimage, and it holds before any allocator exists to exploit it</td><td><a href="#d8-identity-fork">D8.4</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
@@ -3708,7 +4168,7 @@ substitution is the entire failure this register exists to catch.</p>
 <tr data-pending-law="different-birth-same-allocation-collides" data-pending-for="D8.6" data-pending-status="awaiting" data-pending-stage="runtime"><td>same allocation, different initial revision</td><td><b>allocation collision</b>, deterministically</td><td><a href="#d8-identity-burn">D8.6</a></td><td class="stage">runtime · awaiting</td></tr>
 <tr data-pending-law="grant-validity-has-a-replayable-basis" data-pending-for="D8.4" data-pending-status="awaiting" data-pending-stage="runtime"><td>a grant whose <code class="inline">validity</code> is evaluated against something the film does not record</td><td><b>refused</b> — a replayer must reach the same verdict about a draw as the original run</td><td><a href="#d8-identity-fork">D8.4</a></td><td class="stage">runtime · awaiting</td></tr>
 <tr data-pending-law="reservation-survives-crash" data-pending-for="D8.6" data-pending-status="awaiting" data-pending-stage="runtime"><td>local reservation, crash, restart</td><td>the <i>same</i> allocation and birth key are retried, never a fresh counter</td><td><a href="#d8-identity-burn">D8.6</a></td><td class="stage">runtime · awaiting</td></tr>
-<tr data-pending-law="terminals-are-port-qualified" data-pending-for="D8.7" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/terminals-are-port-qualified"><td>every endpoint of a relation derived from a sealed world</td><td>a terminal of the form <code class="inline">object.port</code> — never a bare object id, because a node has several ports and only one of them is on this wire</td><td><a href="#d8-canonical">D8.7</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="terminals-are-port-qualified" data-pending-for="D8.7" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/terminals-are-port-qualified"><td>every endpoint of a relation derived from a sealed world</td><td>a terminal record carrying <code class="inline">object_id</code> <i>and</i> <code class="inline">port</code> — never a bare object id, because a node has several ports and only one of them is on this wire, and never a packed <code class="inline">object.port</code> string, because then a consumer has to parse what the model already knew</td><td><a href="#d8-canonical">D8.7</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="endpoint-roles-are-semantic-positions" data-pending-for="D8.7" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/roles-are-semantic-positions"><td>every endpoint's <code class="inline">role</code></td><td>one of the four declared roles — a <i>port name</i> in the role slot is the 0.1 defect, and it type-checks against nothing</td><td><a href="#d8-canonical">D8.7</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="endpoint-order-is-not-semantic" data-pending-for="D8.7" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/endpoint-order-is-not-semantic"><td>a revision whose <code class="inline">endpoints</code> array is written in reverse</td><td>the <b>same</b> <code class="inline">revision_id</code> — the roles carry the direction, so array position may not</td><td><a href="#d8-canonical">D8.7</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="canonical-order-is-role-then-terminal" data-pending-for="D8.7" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/canonical-order-is-role-then-terminal"><td>canonicalisation of a revision with endpoints in arbitrary order</td><td>endpoints sorted by role in the <i>declared enumeration</i> order, then by terminal — sorting roles alphabetically would put <code class="inline">peer</code> first and disagree with the table</td><td><a href="#d8-canonical">D8.7</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
@@ -3732,9 +4192,54 @@ substitution is the entire failure this register exists to catch.</p>
 <tr data-pending-law="relation-id-binds-to-the-artifact-it-claims" data-pending-for="D8.5" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/binding/a-forged-world-id-is-refused"><td>a well-formed artifact handed to the derivation alongside a <code class="inline">sem-</code> it does not hash to</td><td><b>refused</b> as <code class="inline">WRL_SEMANTIC_ID_MISMATCH</code> — a world-scoped id whose scope is a <i>claim</i> the caller supplies is world-scoped to whatever the caller says</td><td><a href="#d8-identity-scope">D8.5</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="world-id-is-recomputed-not-supplied" data-pending-for="D8.5" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/binding/the-world-id-is-recomputed-not-supplied"><td>the derivation run with <i>no</i> claimed id at all</td><td>the <b>same</b> ids as the checked call — the claim is a cross-check, not the source, so the two paths cannot disagree and there is no unchecked path in</td><td><a href="#d8-identity-scope">D8.5</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="import-admits-only-declared-artifact-versions" data-pending-for="D8.8" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/binding/an-unknown-ir-version-is-refused"><td>an artifact declaring an <code class="inline">ir_version</code> outside the frozen set</td><td><b>refused</b> as <code class="inline">WRL_UNSUPPORTED_IR_VERSION</code> — the adapter's constants are V1's, so applying them to a version whose elisions it has never seen is a silent reinterpretation rather than an import</td><td><a href="#d8-migration">D8.8</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="import-admits-only-the-declared-source-tuple" data-pending-for="D8.8" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/binding/admission-is-the-whole-source-tuple"><td>an artifact declaring an undeclared <code class="inline">rulepack_id</code>, or a foreign <code class="inline">profile_id</code>, under a recognised <code class="inline">ir_version</code></td><td><b>refused</b> as <code class="inline">WRL_UNSUPPORTED_RULEPACK</code> / <code class="inline">WRL_UNSUPPORTED_PROFILE</code> — admission is the whole tuple, because a rulepack admitted for being a nonempty string is then copied into every derived <code class="inline">policy</code> and sealed into <code class="inline">rev-</code> identity. <i>Policy is free</i> is a claim about revision change, not a licence to read an unknown family</td><td><a href="#d8-v1-family">D8.8</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="each-v1-fixed-field-is-pinned-to-one-value" data-pending-for="D8.8" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/each-V1-fixed-field-is-pinned-to-one-value"><td>the four <b>V1-fixed</b> fields, checked against every derived revision and then re-projected under an alternative value</td><td>each carries exactly the value V1 fixes — <code class="inline">signal</code>, <code class="inline">directed</code>, <code class="inline">solid</code>, <code class="inline">{}</code> — and every alternative is <b>refused</b>. A field V1 <i>omits</i> and a field V1 <i>pins</i> are different claims, and only the second licenses restoring it on import</td><td><a href="#d8-kernel-partition">D8.8</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="an-empty-world-corresponds-to-itself" data-pending-for="D8.5" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/migration/an-empty-world-still-corresponds-to-itself"><td>a world with no relations, mapped against itself</td><td><b>identity-preserving</b>, with nothing paired, dropped or added — the degenerate case, where a correspondence that reports failure by returning an empty pairing is indistinguishable from one that works</td><td><a href="#d8-identity-scope">D8.5</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="a-pairing-is-not-an-import-fact" data-pending-for="D8.8" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/migration/a-pairing-is-not-an-import-fact"><td>the derived correspondence, inspected for anything shaped like a <code class="inline">RelationImported</code></td><td><b>none</b> — the pairs are <i>candidates</i>, and a derived view that emitted the ledger fact itself would be asserting that a migration was accepted because two artifacts happen to agree</td><td><a href="#d8-migration-identity">D8.8</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="an-import-fact-is-backed-by-a-pairing" data-pending-for="D8.8" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/migration/an-unbacked-import-fact-is-refused"><td>a <code class="inline">RelationImported</code> fact naming a pair the two artifacts do not produce</td><td><b>refused</b> as <code class="inline">WRL_UNVERIFIED_IMPORT</code> — the fact is <i>asserted</i> by an accepted operation, which makes it the one thing here that can be maintained wrongly, which is exactly why it is the one thing checked against something derived</td><td><a href="#d8-migration-identity">D8.8</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="v2-relations-replace-edges" data-pending-for="D8.9" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/relations-replace-edges"><td>a V2 artifact grown an <code class="inline">edges</code> key, and a V1 artifact grown a <code class="inline">relations</code> key</td><td><b>both refused</b> — <code class="inline">WRL_LEGACY_EDGES_IN_V2</code> and <code class="inline">WRL_RELATIONS_IN_V1</code>. The rule is two-sided because an encoding that merely <i>ignores</i> the other's topology key admits a world whose meaning depends on which reader opens it</td><td><a href="#d8-v2">D8.9</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="v2-admits-only-the-declared-source-tuple" data-pending-for="D8.9" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/binding/admission-is-the-whole-source-tuple"><td>a V2 artifact with a foreign version, profile or rulepack, and the declared family table held against a world that really sealed</td><td>each coordinate <b>refused with its own code</b>, and the table agreeing with the artifact the encoder admits — a gate checking a constant nobody publishes is a gate on nothing</td><td><a href="#d8-v2">D8.9</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="a-seed-is-an-allocation-without-its-world" data-pending-for="D8.9" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/a-seed-is-an-allocation-without-its-world"><td>the seed field table and the allocation field table, compared as an <i>equation</i>, plus a seed carrying a <code class="inline">world_id</code></td><td>seed fields ∪ <code class="inline">{world_id}</code> = allocation fields, for every seeded variant, and a stored <code class="inline">world_id</code> <b>refused</b> — it is the hash of the bytes the seed sits in, so the copy is either a value that does not exist yet or another world's</td><td><a href="#d8-v2-seed">D8.9</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="no-derived-id-is-stored-in-a-relation" data-pending-for="D8.9" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/no-derived-id-is-stored"><td>a relation record carrying a <code class="inline">world_id</code>, a <code class="inline">relation_id</code> or a <code class="inline">revision_id</code></td><td><b>refused</b> — all three are functions of these bytes, and a stored copy is a second source of truth for a hash, which is how a forged id gets believed</td><td><a href="#d8-v2-seed">D8.9</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="granted-is-not-seeded-into-initial-bytes" data-pending-for="D8.9" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/granted-is-not-seeded-into-initial-bytes"><td>a <code class="inline">granted</code> seed written into a world's initial <code class="inline">relations</code></td><td><b>refused</b> as <code class="inline">WRL_UNWRITABLE_SEED</code> — a grant is drawn at runtime from an authority that does not exist at period 0, so a granted seed here is a runtime fact asserted before the runtime ran</td><td><a href="#d8-v2">D8.9</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="an-unnamed-relation-is-refused-not-defaulted" data-pending-for="D8.9" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/an-unnamed-relation-is-refused-not-defaulted"><td>a native V2 relation written with no name — key absent, and key empty</td><td><b>refused</b> as <code class="inline">WRL_MISSING_RELATION_NAME</code>, never a fall back to a <code class="inline">legacy-edge</code> seed built from the endpoints. That fallback would make two independently authored relations over the same two ports the same relation, silently</td><td><a href="#d8-v2">D8.9</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="v2-relations-sort-by-seed-bytes" data-pending-for="D8.9" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/relations-sort-by-seed-bytes"><td>a world whose <code class="inline">relations</code> array is written in reverse</td><td><b>byte-identical</b> canonical output, and the emitted order equal to the seeds sorted — an array's order is in its bytes, so an unordered set has its order decided by the canonical form or by whoever typed the world</td><td><a href="#d8-v2">D8.9</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="a-seed-names-at-most-one-relation" data-pending-for="D8.9" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/a-seed-names-at-most-one-relation"><td>two relations in one world under the same <code class="inline">identity_seed</code></td><td><b>refused</b> as <code class="inline">WRL_DUPLICATE_RELATION_SEED</code> — they expand to one allocation and therefore one <code class="inline">relation_id</code>, so the world cannot say which of the two a later revision revises</td><td><a href="#d8-v2">D8.9</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="a-surface-writes-only-named-seeds" data-pending-for="D8.9" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/an-authoring-surface-writes-only-named-seeds"><td>a <code class="inline">legacy-edge</code> seed offered as <i>admissible bytes</i>, and again at the <i>authoring</i> boundary</td><td><b>admitted</b> at the first and <b>refused</b> at the second — the seed records that a relation arrived through the V1 migration and kept the id that world minted, so authoring one claims a provenance that did not happen</td><td><a href="#d8-v2">D8.9</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="the-revision-model-is-family-neutral" data-pending-for="D8.9" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/the-revision-model-is-shared-with-V1"><td>every revision imported from a V1 edge, canonicalised standing alone and again inside a V2 relation</td><td><b>identical bytes</b> — a revision is standalone under <a href="#d8-identity-provenance">§D8.3</a>, so a family-dependent canonical form would give one wire two <code class="inline">rev-</code> ids on either side of the migration that law exists to make checkable</td><td><a href="#d8-v2">D8.9</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="the-v2-canon-is-immutable" data-pending-for="D8.9" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/immutability/the-V2-canon-cannot-be-moved-from-outside"><td>every exported V2 table, written to from outside the module — and the refusal that depends on one, retried afterwards</td><td><b>unmoved</b>, and a <code class="inline">granted</code> seed still refused. An exported table that decides bytes is a shared mutable object unless it is frozen, and a consequence re-checked is the difference between frozen bytes and a frozen claim</td><td><a href="#d8-v2">D8.9</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="v2-derivation-follows-the-canonical-bytes" data-pending-for="D8.10" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/identity/derivation-follows-the-canonical-bytes"><td>a world whose <code class="inline">relations</code> and <code class="inline">objects</code> are both written in reverse</td><td><b>the same world id and the same relation view</b> — neither array's written order is in the canonical bytes, so neither may reach an id. A value derived before canonicalisation names how a world was <i>typed</i></td><td><a href="#d8-v2-derive">D8.10</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="the-v2-seal-is-recomputed-not-believed" data-pending-for="D8.10" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/identity/the-seal-is-recomputed-not-believed"><td>a real artifact paired with a forged <code class="inline">sem-000…0</code>, and the allocations that derivation actually built</td><td><b>refused</b> as <code class="inline">WRL_SEMANTIC_ID_MISMATCH</code>, and <b>no allocation minted under the forgery</b> — V1 shipped the believing version, which returned real-looking ids without complaint</td><td><a href="#d8-v2-derive">D8.10</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="a-seed-expands-into-a-d81-allocation" data-pending-for="D8.10" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/identity/a-seed-expands-into-a-D8.1-allocation"><td>an expanded seed held against <a href="#d8-identity-mint">§D8.1</a>'s own constructor, and a world id that is not a <code class="inline">sem-</code> id smuggled through the expansion</td><td><b>byte-identical</b> to the kernel's allocation, the same <code class="inline">rel-</code>, and the non-seal <b>refused</b> by the kernel's validator — a private reconstruction that drifted would surface as an id that exists and is wrong</td><td><a href="#d8-v2-derive">D8.10</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="the-encoding-is-in-the-world-id" data-pending-for="D8.10" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/identity/the-encoding-is-in-the-world-id"><td>one topology sealed in both encodings</td><td><b>two different <code class="inline">sem-</code> ids</b>, both well formed — a shared prefix says both name a sealed world, a shared value would say the encoding is not in the bytes. This is why a downgrade produces a <i>new</i> artifact</td><td><a href="#d8-v2-derive">D8.10</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="a-v2-relation-id-is-world-scoped" data-pending-for="D8.10" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/identity/a-relation-id-is-world-scoped"><td>one relation's <code class="inline">attributes</code> edited, and every relation's pair of ids compared across the edit</td><td><b>every <code class="inline">rel-</code> moves</b>, because the world id moved and the world id is in every allocation; <b>only the edited <code class="inline">rev-</code> moves</b>, because a revision is standalone. That asymmetry is <a href="#d8-identity-scope">§D8.5</a> arriving in the native encoding</td><td><a href="#d8-v2-derive">D8.10</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="a-v2-revision-id-is-world-independent" data-pending-for="D8.10" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/identity/a-revision-id-is-world-independent"><td>two worlds whose relations differ only in <i>name</i>, compared as multisets because renaming re-sorts the canonical array</td><td>every <code class="inline">rev-</code> <b>recurs</b> and no <code class="inline">rel-</code> does — a revision names a structure and a relation names a thing in a world, so exactly one of the two survives being renamed</td><td><a href="#d8-v2-derive">D8.10</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="v2-derivation-writes-nothing-back" data-pending-for="D8.10" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/identity/derivation-writes-nothing-back"><td>the artifact's bytes before and after deriving from it, and the canonical output searched for a derived id</td><td><b>unmoved</b>, and no <code class="inline">rel-</code>, <code class="inline">rev-</code> or <code class="inline">world_id</code> present — a derivation that memoised an id into the artifact would move the artifact that produced it</td><td><a href="#d8-v2-derive">D8.10</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="every-v2-relation-gets-exactly-one-pair" data-pending-for="D8.10" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/identity/every-relation-gets-exactly-one-pair"><td>the relation count, the id shapes, and the distinctness of every <code class="inline">rel-</code></td><td>one well-formed pair per relation, all distinct — the boring check, which catches the loud failures: a relation silently dropped, a stringified object as an id, two relations collapsing onto one allocation</td><td><a href="#d8-v2-derive">D8.10</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="an-import-mints-only-unnamed-seeds" data-pending-for="D8.11" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/migration/an-import-mints-only-unnamed-seeds"><td>the seed variants a migration emits, a <code class="inline">named-initial</code> seed offered to the importer, and a migrated seed offered to an author</td><td>only <code class="inline">legacy-edge</code> emitted, and <b>both crossings refused</b> — naming each migrated relation does not make its id stable, and it makes an import look like authorship while colliding with the first author who later writes that name</td><td><a href="#d8-v2-migrate">D8.11</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="a-migration-moves-only-the-encoding" data-pending-for="D8.11" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/migration/only-the-encoding-moves"><td>every key the migration does not own, compared across the change</td><td><b>byte-identical</b> — a migration that also tidied <code class="inline">objects</code> would make the world differ from its source for an unrelated reason, and no test could then attribute a moved id to the migration rather than to the tidying</td><td><a href="#d8-v2-migrate">D8.11</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="migration-carries-structure-not-identity" data-pending-for="D8.11" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/migration/structure-survives-and-identity-does-not"><td>the two id multisets across a real migration</td><td>every <code class="inline">rev-</code> <b>recurs</b>, no <code class="inline">rel-</code> does — a migration reporting a preserved <code class="inline">rel-</code> would be claiming the thing <a href="#d8-identity-scope">§D8.5</a> exists to deny</td><td><a href="#d8-v2-migrate">D8.11</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="a-cross-family-import-needs-no-new-checker" data-pending-for="D8.11" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/migration/the-claim-is-checked-by-the-kernels-own-checker"><td>the V1 → V2 correspondence run through the kernel's existing <code class="inline">RelationImported</code> checker, honestly and with a forged <code class="inline">to_relation</code></td><td><b>verified</b> and <b>refused</b> respectively, by unchanged code — a rule needing its own verifier at the boundary where migrations actually happen has an exception exactly where it is load-bearing</td><td><a href="#d8-v2-migrate">D8.11</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="the-migrated-relation-set-survives" data-pending-for="D8.11" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/migration/the-relation-set-survives-the-round-trip"><td>the edge multiset across V1 → V2 → V1, and a second pass over the result</td><td><b>intact</b>, and the second pass a <b>fixed point</b> — the loss is a normalisation, so it happens once, which is the difference between a lossy step and a degrading one</td><td><a href="#d8-v2-migrate">D8.11</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="the-two-encodings-sort-by-different-keys" data-pending-for="D8.11" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/migration/the-two-encodings-sort-by-different-keys"><td>each side's own sort key, the three worlds a round trip produces, and — as the control — a V1 world both keys already agree about</td><td>V1 <b>is</b> sorted by <code class="inline">(kind, src, dst)</code> and V2 <b>is</b> sorted by seed bytes, and the two keys <b>disagree</b> here, giving <b>three distinct <code class="inline">sem-</code> ids</b>, while the world both keys agree about is <b>byte-exact</b>. The check was first written as “returns the original bytes” and failed; the first explanation for that failure — that V1 leaves its order to the author — was also wrong. Neither order is authored, so the honest report is not that one side was careless but that the id moves</td><td><a href="#d8-v2-migrate">D8.11</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="a-named-relation-has-no-legacy-counterpart" data-pending-for="D8.11" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/migration/a-named-relation-has-no-legacy-counterpart"><td>a named relation added to a migrated world, put through the correspondence</td><td><b><code class="inline">added</code>, never paired</b> — it has no legacy key, so pairing it would mean pairing on something other than a preimage, and a relation with no V1 preimage is not one the V1 world quietly also had</td><td><a href="#d8-v2-migrate">D8.11</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="a-migration-recomputes-both-seals" data-pending-for="D8.11" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/migration/both-seals-are-recomputed"><td>a forged <code class="inline">sem-</code> on the V1 side, and again on the V2 side</td><td><b>both refused</b> as <code class="inline">WRL_SEMANTIC_ID_MISMATCH</code> — a migration is precisely where a caller holds two worlds and is best placed to be wrong about one of them</td><td><a href="#d8-v2-migrate">D8.11</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="a-name-is-the-only-thing-v2-adds" data-pending-for="D8.12" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/surface/a-name-is-the-only-thing-v2-adds"><td>a named source, stripped back down, and the artifact the spine validated</td><td><b>the V1 source byte for byte</b>, same line count, and <b>the artifact the V1 parser produces</b> — a surface that also normalised whitespace or re-ordered declarations would be a second parser agreeing with the frozen one today</td><td><a href="#d8-v2-surface">D8.12</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="every-route-must-be-named" data-pending-for="D8.12" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/surface/every-route-must-be-named"><td>an unnamed route under the V2 parser, and the same source under the V1 one</td><td><b><code class="inline">WRL_MISSING_RELATION_NAME</code> at the authored line</b>, while the V1 parser seals it fine — a name is never derived from the endpoints, which would re-mint the relation whenever an object is renamed</td><td><a href="#d8-v2-surface">D8.12</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="a-relation-name-is-an-identifier" data-pending-for="D8.12" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/surface/a-name-is-an-identifier"><td><code class="inline">[clock-feed]</code>, <code class="inline">[clock feed]</code>, <code class="inline">[0feed]</code>, <code class="inline">[]</code></td><td><b><code class="inline">WRL_BAD_RELATION_NAME</code></b> for each, at the authored line — the prefix is matched loosely and judged afterwards so a bad name is not reported as a malformed route</td><td><a href="#d8-v2-surface">D8.12</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="a-name-denotes-exactly-one-relation" data-pending-for="D8.12" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/surface/a-name-denotes-exactly-one-relation"><td>one name over a two-way fan-out, and a name on a declaration</td><td><b><code class="inline">WRL_AMBIGUOUS_RELATION_NAME</code></b> for both, the fan-out at the <i>authored</i> line — zero and many are the same fault, and the many case is reachable by accident because sugar expands one line into several routes</td><td><a href="#d8-v2-surface">D8.12</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="the-pairing-follows-provenance-not-line-order" data-pending-for="D8.12" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/surface/the-pairing-follows-provenance-not-line-order"><td>a world whose authored order, parsed order and V2 order are three different orders</td><td><b>every name on the relation its own line wrote</b>, checked against the endpoints read back out of the source — a zip by line index passes this only by luck, and a mis-attached name seals silently</td><td><a href="#d8-v2-surface">D8.12</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="a-repeated-name-is-a-repeated-seed" data-pending-for="D8.12" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/surface/a-repeated-name-is-a-repeated-seed"><td>two routes under one name, and the code table</td><td><b><code class="inline">WRL_DUPLICATE_RELATION_SEED</code></b> from the encoder, and <b>no <code class="inline">WRL_DUPLICATE_RELATION_NAME</code> exists</b> — the first spelling keyed its map by name, quietly overwrote the earlier entry and reported the collision as a missing name somewhere else</td><td><a href="#d8-v2-surface">D8.12</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="renaming-moves-identity-and-nothing-else" data-pending-for="D8.12" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/surface/renaming-moves-identity-and-nothing-else"><td>one relation renamed, and the three ids re-derived either side</td><td><b>every <code class="inline">rev-</code> recurs, no <code class="inline">rel-</code> survives, the world moves</b> — a rename that moved a <code class="inline">rev-</code> would mean the name leaked into the revision; one that moved no <code class="inline">rel-</code> would mean the name is not the preimage</td><td><a href="#d8-v2-surface">D8.12</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="an-author-cannot-write-a-legacy-seed" data-pending-for="D8.12" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/surface/an-author-cannot-write-a-legacy-seed"><td>the variants the surface actually minted, and a legacy seed offered by an author</td><td><b><code class="inline">named-initial</code> only</b>, every seed through the authoring gate, and the legacy one <b>refused</b> — <code class="inline">legacy-edge</code> is a fact about an import, not something an author can assert about a relation they are writing</td><td><a href="#d8-v2-surface">D8.12</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="the-v2-round-trip-is-a-fixed-point" data-pending-for="D8.13" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/format/the-round-trip-is-a-fixed-point"><td>a named world put through format → parse → format</td><td><b>the same canonical bytes, the same world id, the same text</b> — the surface is a surface and not a lossy view</td><td><a href="#d8-v2-write">D8.13</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="the-formatter-does-not-know-the-arrow" data-pending-for="D8.13" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/format/the-formatter-does-not-know-the-arrow"><td>the V2 output with its names stripped back off</td><td><b>byte-for-byte what the frozen formatter emits</b> — proved behaviourally rather than by grepping for an arrow; the V2 side contributes prefixes only, so there is no second copy of the route syntax to drift</td><td><a href="#d8-v2-write">D8.13</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="a-migrated-world-has-no-source-form" data-pending-for="D8.13" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/format/a-migrated-world-has-no-source-form"><td>a migrated world offered to the formatter, and the same world offered to the deriver</td><td><b><code class="inline">WRL_UNWRITABLE_SEED</code></b>, while the world still derives its relations normally — the limit is in the surface, not the world, and a formatter minting the missing names would be deriving identity</td><td><a href="#d8-v2-write">D8.13</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="parallel-relations-have-no-source-form" data-pending-for="D8.13" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/format/parallel-relations-have-no-source-form"><td>two named relations over one pair of terminals — the multigraph V1 could never have</td><td><b>valid V2 with two distinct <code class="inline">rel-</code> ids</b>, and <b><code class="inline">WRL_UNWRITABLE_RELATION</code></b> from the formatter — it is the <i>text</i> that cannot exist, and emitting it anyway would break the case the encoding was introduced for</td><td><a href="#d8-v2-write">D8.13</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="v2-formatting-moves-no-identity" data-pending-for="D8.13" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/format/formatting-moves-no-identity"><td>the world id either side of a format, in both encodings</td><td><b>unmoved</b>, and the V1 world underneath still seals to the pinned demo <code class="inline">sem-</code> — formatting is normalisation, never a compiler gate</td><td><a href="#d8-v2-write">D8.13</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="routes-come-out-in-the-encodings-own-order" data-pending-for="D8.13" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/format/routes-come-out-in-the-encodings-own-order"><td>the order the formatter emits routes in, against V1's</td><td><b>the canonical seed-byte order, and not V1's</b> — source route order decides nothing because the spine sorts it, so emitting the order the bytes are already in restates no sort key</td><td><a href="#d8-v2-write">D8.13</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="a-v2-world-runs-as-a-v1-world" data-pending-for="D8.13" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/consumer/a-v2-world-runs-as-the-v1-world-it-validated"><td>the V1 artifact a V2 world is consumed as</td><td><b>the same relation set and every other key byte-identical</b> to the one the spine validated on the way in — V2 changes how topology is written, not what a world is, so nothing downstream of the seal learns a second encoding</td><td><a href="#d8-v2-write">D8.13</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="naming-a-world-does-not-change-the-world" data-pending-for="D8.13" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/consumer/naming-a-world-does-not-change-the-world"><td>the V1 world underneath a named source, sealed</td><td><b>the pinned demo <code class="inline">sem-</code></b>, unmoved — naming relations adds identity to <i>relations</i>, and if the surface had perturbed a config, an order or a port projection this is the id it would show against</td><td><a href="#d8-v2-write">D8.13</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="unpinned-reference-is-refused" data-pending-for="D9.1" data-pending-status="awaiting" data-pending-stage="film"><td>a package whose reference resolves only through a service it does not pin</td><td><b>refused</b> — replay must not depend on a contract the package never stated</td><td><a href="#d9-closure">D9.1</a></td><td class="stage">film · awaiting</td></tr>
 <tr data-pending-law="birth-key-survives-rescheduling" data-pending-for="D9.2" data-pending-status="awaiting" data-pending-stage="runtime"><td>same birth proposed at period 20 and at period 21</td><td>same <code class="inline">RelationBirthKey</code>, different <code class="inline">ScheduledTransition</code></td><td><a href="#d9-transition">D9.2</a></td><td class="stage">runtime · awaiting</td></tr>
 <tr data-pending-law="evidence-does-not-fork-structure" data-pending-for="D9.2" data-pending-status="awaiting" data-pending-stage="runtime"><td>same schedule, different <code class="inline">offered_evidence</code></td><td>one structural candidate, two proposal envelopes</td><td><a href="#d9-transition">D9.2</a></td><td class="stage">runtime · awaiting</td></tr>

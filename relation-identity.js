@@ -144,13 +144,19 @@ export const RELATION_CODES = deepFreeze({
   WRL_MISSING_TEXTURE:
     "a directed relation states no texture, and §D8 requires one",
   WRL_BAD_TERMINAL:
-    "a terminal is not the object.port form a V1 edge can name",
+    "a terminal is not the { object_id, port } record §D8 endpoints are made of",
   WRL_SEMANTIC_ID_MISMATCH:
     "a claimed world id is not the id the supplied artifact hashes to",
   WRL_UNSUPPORTED_IR_VERSION:
     "an artifact's ir_version is outside the V1 family this adapter reads",
+  WRL_UNSUPPORTED_PROFILE:
+    "an artifact's profile is not the one its ir_version's source family names",
+  WRL_UNSUPPORTED_RULEPACK:
+    "an artifact's rulepack is not the one its source family declares",
   WRL_UNKNOWN_PROFILE_DOMAIN:
     "a profile declares no default relation domain for this adapter to resolve",
+  WRL_RELATIONS_IN_V1:
+    "a V1 artifact carries a relations key, which only a V2 artifact encodes",
   WRL_UNVERIFIED_IMPORT:
     "a RelationImported fact is not backed by the derived correspondence",
 });
@@ -162,7 +168,7 @@ const fail = (code, message, opts) => {
 /* -------------------------------------------------- the V1 source family */
 
 /**
- * The artifact versions this adapter admits, named rather than assumed.
+ * The artifact families this adapter admits, named rather than assumed.
  *
  * §D8.8 originally said "V1", which in this repository is two things: `1.0`,
  * and `1.1` for a world carrying a mailbox. They share the structural edge
@@ -171,8 +177,39 @@ const fail = (code, message, opts) => {
  * encodes relations under a `relations` key with structured terminals; reading
  * one through this adapter would produce confident nonsense, so it is refused
  * BY NAME rather than by whatever happens when `.edges` is undefined.
+ *
+ * A family is a TUPLE, not a version. 0.1.2 gated only `ir_version`, which let
+ * an artifact declare a frozen profile over an undeclared rulepack and still
+ * be read as a recognised V1 relation source -- the rulepack was admitted for
+ * being a nonempty string. That is not the same question as the field
+ * partition's: "policy is free" says a revision may change its rulepack while
+ * keeping relation identity, and says nothing about which sealed artifacts
+ * this adapter knows how to interpret. The rulepack is also copied into
+ * `revision.policy`, so it moves `revision_id` and can govern later behaviour;
+ * admitting an unrecognised one is admitting a governance surface unread.
+ *
+ * Only the coordinates the RELATION adapter reads belong here. The mailbox
+ * admit policy and the Film schema legitimately differ between `1.0` and `1.1`
+ * and are not consulted to interpret a relation, so gating them here would
+ * refuse real worlds for a difference that does not reach this layer. A full
+ * artifact validator may check the complete policy tuple separately.
  */
-export const V1_IR_VERSIONS = deepFreeze(["1.0", "1.1"]);
+export const V1_RELATION_SOURCE_FAMILIES = deepFreeze({
+  "1.0": {
+    profile_id: "forge.world.core.v1",
+    rulepack_id: "forge.world.core.rules.v1",
+  },
+  "1.1": {
+    profile_id: "forge.world.core.v1",
+    rulepack_id: "forge.world.core.rules.v1",
+  },
+});
+
+/* The version half of the family table, kept as its own name because it is
+ * what §D8.8's prose quotes: the V1 artifact family is ir_version ∈ {1.0, 1.1}.
+ * Derived rather than restated so the two cannot drift. */
+export const V1_IR_VERSIONS =
+  deepFreeze(Object.keys(V1_RELATION_SOURCE_FAMILIES));
 
 /**
  * A profile's DEFAULT relation domain.
@@ -213,20 +250,67 @@ export function profileDefaultDomain(profileId) {
  * the cause. §D8.8's contract is that the importer reads only the sealed
  * artifact and invents nothing, which includes not inventing an opinion about
  * an encoding it has never seen.
+ *
+ * Admission is by the whole tuple `(ir_version, profile_id, rulepack_id)`.
+ * Each coordinate answers with its own code, because "this version is not one
+ * I read" and "this rulepack is not the one that version declares" are
+ * different repairs.
  */
 export function assertV1Artifact(artifact) {
   if (!artifact || typeof artifact !== "object" || Array.isArray(artifact))
     fail("WRL_MALFORMED_ARTIFACT", "an artifact must be a record");
-  if (!V1_IR_VERSIONS.includes(artifact.ir_version))
+
+  const family = Object.prototype.hasOwnProperty.call(
+    V1_RELATION_SOURCE_FAMILIES, artifact.ir_version)
+      ? V1_RELATION_SOURCE_FAMILIES[artifact.ir_version] : undefined;
+  if (!family)
     fail("WRL_UNSUPPORTED_IR_VERSION",
          `ir_version ${JSON.stringify(artifact.ir_version)} is outside the V1 ` +
          `family this adapter reads (${V1_IR_VERSIONS.join(", ")}). A later ` +
          `artifact encodes relations directly; importing one through the ` +
          `legacy-edge adapter would mint identity from a shape it does not have`,
          { fieldPath: "ir_version" });
+
+  if (artifact.profile_id !== family.profile_id)
+    fail("WRL_UNSUPPORTED_PROFILE",
+         `ir_version ${artifact.ir_version} names profile ` +
+         `'${family.profile_id}' as its relation source, and this artifact ` +
+         `declares ${JSON.stringify(artifact.profile_id)}. The edge kinds, ` +
+         `their implied ports and the directed/solid reading are all facts ` +
+         `about that profile, so another one is a different encoding wearing ` +
+         `the same version`,
+         { fieldPath: "profile_id" });
+
+  const rulepack = artifact.semantic_policies?.rulepack_id;
+  if (rulepack !== family.rulepack_id)
+    fail("WRL_UNSUPPORTED_RULEPACK",
+         `family ${artifact.ir_version} declares rulepack ` +
+         `'${family.rulepack_id}' and this artifact declares ` +
+         `${JSON.stringify(rulepack)}. The rulepack is copied into every ` +
+         `derived revision's policy, so an unrecognised one is not merely ` +
+         `unread -- it is sealed into revision identity and may govern later ` +
+         `behaviour this adapter has never seen stated`,
+         { fieldPath: "semantic_policies.rulepack_id" });
+
   if (!Array.isArray(artifact.edges) || !Array.isArray(artifact.objects))
     fail("WRL_MALFORMED_ARTIFACT",
          "a V1 artifact carries objects and edges arrays");
+
+  /* The reciprocal half of V2's `WRL_LEGACY_EDGES_IN_V2`. The two encodings
+   * REPLACE each other rather than layer, so a world carrying both has two
+   * topologies and no rule for which one is the world -- and, worse, it seals
+   * to bytes that a V1 reader and a V2 reader would each interpret happily and
+   * differently. Refusing at the boundary is the only place that stays cheap:
+   * one line later the derivation has already minted ids from the half it
+   * happened to read. */
+  if (Object.prototype.hasOwnProperty.call(artifact, "relations"))
+    fail("WRL_RELATIONS_IN_V1",
+         `a ${artifact.ir_version} artifact encodes its topology in ` +
+         `'edges'; the 'relations' key belongs to the V2 encoding, which ` +
+         `replaces 'edges' rather than extending it. An artifact carrying ` +
+         `both states two topologies and names neither as the world`,
+         { fieldPath: "relations" });
+
   profileDefaultDomain(artifact.profile_id);
   return artifact;
 }
@@ -263,6 +347,69 @@ export const REVISION_FIELDS = deepFreeze(
 export const ENDPOINT_ROLES = deepFreeze(["source", "target", "peer", "terminal"]);
 
 export const ORIENTATIONS = deepFreeze(["directed", "symmetric", "acausal"]);
+
+/**
+ * A TERMINAL is a record, not a packed string.
+ *
+ * 0.1.2 wrote `"p0.sig_out"`, which is the V1 edge's own packing habit leaking
+ * into the model that is supposed to outlive it. Two costs, and the second is
+ * the one that matters:
+ *
+ *   - `object.port` is only unambiguous while both halves are `\w+`. The
+ *     projection needed a regex to take it apart again, and a regex that
+ *     recovers structure is structure that was thrown away.
+ *   - a V2 relation and the V1 relation it was migrated from would then have
+ *     had DIFFERENT terminal encodings for the same terminal, so §D8.3's law --
+ *     the same relation structure in two worlds yields the same
+ *     `revision_id` -- would have stopped holding exactly across the migration
+ *     it exists to make checkable.
+ *
+ * So the terminal encoding belongs to the REVISION MODEL, not to the artifact
+ * family that produced it. There is one form, both families use it, and the V1
+ * adapter LIFTS into it: `p0` plus the kind's frozen port pair becomes
+ * `{ object_id: "p0", port: "sig_out" }`. That is the same expansion it already
+ * performs, made visible in the value instead of hidden in a string.
+ *
+ * This moves every `rev-` id. No `rev-` is pinned anywhere -- not in the
+ * fixtures, the register or the page -- and the two pinned `sem-` ids are
+ * untouched, because the frozen spine still seals `edges` and knows nothing
+ * about any of this.
+ */
+export const TERMINAL_FIELDS = deepFreeze(["object_id", "port"]);
+
+const IDENT_RE = /^\w+$/;
+
+export function validateTerminal(t, where = "terminal") {
+  if (!t || typeof t !== "object" || Array.isArray(t))
+    fail("WRL_BAD_TERMINAL",
+         `${where} must be a { ${TERMINAL_FIELDS.join(", ")} } record, not ` +
+         `${JSON.stringify(t)}. A packed 'object.port' string is a V1 edge's ` +
+         `encoding, and a relation model that inherits it inherits its limits`,
+         { fieldPath: where });
+  const have = Object.keys(t).sort();
+  if (W.serializeArtifact(have) !==
+      W.serializeArtifact([...TERMINAL_FIELDS].sort()))
+    fail("WRL_BAD_TERMINAL",
+         `${where} is { ${TERMINAL_FIELDS.join(", ")} }; got ` +
+         `{ ${have.join(", ")} }`, { fieldPath: where });
+  for (const f of TERMINAL_FIELDS) {
+    if (typeof t[f] !== "string" || !IDENT_RE.test(t[f]))
+      fail("WRL_BAD_TERMINAL",
+           `${where}.${f} must be a non-empty identifier; got ` +
+           JSON.stringify(t[f]), { fieldPath: `${where}.${f}` });
+  }
+  return t;
+}
+
+/** Canonical bytes of a terminal -- the total sort key, and the identity a
+ *  duplicate-terminal check compares on. */
+export const terminalKey = (t) =>
+  W.serializeArtifact({ object_id: t.object_id, port: t.port });
+
+/** Display only. Nothing derived from this reaches a hash. */
+export const formatTerminal = (t) => `${t.object_id}.${t.port}`;
+
+const cmpStr = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
 /* §5's four irreducible textures, frozen as a SET. Only `--` solid is
  * surface-grounded in 0.1.2; the other three have IR or runtime footholds and
@@ -358,8 +505,9 @@ export function edgeToRelationRevision(artifact, edge) {
   return canonicalizeRelationRevision({
     domain: profileDefaultDomain(artifact.profile_id),
     kind: edge.kind,
-    endpoints: [{ terminal: `${edge.src}.${ports[0]}`, role: "source" },
-                { terminal: `${edge.dst}.${ports[1]}`, role: "target" }],
+    endpoints: [
+      { terminal: { object_id: edge.src, port: ports[0] }, role: "source" },
+      { terminal: { object_id: edge.dst, port: ports[1] }, role: "target" }],
     orientation: "directed",
     texture: V1_TEXTURE,
     attributes: {},
@@ -408,7 +556,7 @@ export function validateRelationRevision(rev) {
          "a relation revision needs at least two endpoints",
          { fieldPath: "endpoints" });
   for (const [i, e] of rev.endpoints.entries()) {
-    if (!e || typeof e.terminal !== "string" || !e.terminal ||
+    if (!e || typeof e !== "object" || Array.isArray(e) ||
         typeof e.role !== "string")
       fail("WRL_BAD_RELATION_REVISION",
            `endpoint ${i} must be { terminal, role }`,
@@ -418,6 +566,7 @@ export function validateRelationRevision(rev) {
       fail("WRL_BAD_RELATION_REVISION",
            `endpoint ${i} carries unknown field(s) ${extra.join(", ")}`,
            { fieldPath: `endpoints[${i}].${extra[0]}` });
+    validateTerminal(e.terminal, `endpoints[${i}].terminal`);
 
     /* the two role checks are separate because they fail for different
      * reasons and a reader needs to know which: an unknown role is a typo or
@@ -441,13 +590,14 @@ export function validateRelationRevision(rev) {
    * between two entries that share a terminal. */
   const seen = new Set();
   for (const e of rev.endpoints) {
-    if (seen.has(e.terminal))
+    const key = terminalKey(e.terminal);
+    if (seen.has(key))
       fail("WRL_DUPLICATE_TERMINAL",
-           `terminal '${e.terminal}' appears twice in one relation. A ` +
-           `terminal holds at most one position in a relation; a self-loop ` +
-           `uses two different terminals on the same object`,
+           `terminal '${formatTerminal(e.terminal)}' appears twice in one ` +
+           `relation. A terminal holds at most one position in a relation; a ` +
+           `self-loop uses two different terminals on the same object`,
            { fieldPath: "endpoints" });
-    seen.add(e.terminal);
+    seen.add(key);
   }
 
   const roles = new Set(rev.endpoints.map((e) => e.role));
@@ -522,10 +672,13 @@ export function canonicalizeRelationRevision(rev) {
     if (!(f in rev) || rev[f] === undefined) continue;
     out[f] = f === "endpoints"
       ? rev.endpoints
-          .map((e) => ({ terminal: e.terminal, role: e.role }))
+          .map((e) => ({
+            terminal: { object_id: e.terminal.object_id, port: e.terminal.port },
+            role: e.role,
+          }))
           .sort((a, b) =>
             ENDPOINT_ROLES.indexOf(a.role) - ENDPOINT_ROLES.indexOf(b.role) ||
-            (a.terminal < b.terminal ? -1 : a.terminal > b.terminal ? 1 : 0))
+            cmpStr(terminalKey(a.terminal), terminalKey(b.terminal)))
       : rev[f];
   }
   return out;
@@ -778,22 +931,21 @@ export function projectRelationRevisionToV1Edge(rev) {
          `a V1 edge needs one source and one target endpoint`,
          { fieldPath: "endpoints" });
 
-  /* A V1 terminal is `object.port`, and object ids are `\w+`, so the form is
-   * unambiguous. The port is not carried into the edge: it is recoverable from
-   * the kind, and writing it down twice would let the two copies disagree. It
-   * is CHECKED against the kind instead, which is the same test the frozen
-   * validator applies to a written edge. */
+  /* The port is not carried into the edge: it is recoverable from the kind,
+   * and writing it down twice would let the two copies disagree. It is CHECKED
+   * against the kind instead, which is the same test the frozen validator
+   * applies to a written edge.
+   *
+   * This used to unpack `"p0.sig_out"` with a regex. The terminal is a record
+   * now, so there is nothing to unpack -- which is the point of the change:
+   * recovering structure by parsing is a sign the structure was discarded. */
   const object = (e, port, half) => {
-    const m = /^(\w+)\.(\w+)$/.exec(e.terminal);
-    if (!m)
-      fail("WRL_BAD_TERMINAL",
-           `${half} terminal '${e.terminal}' is not the object.port form a ` +
-           `V1 edge names`, { fieldPath: "endpoints" });
-    if (m[2] !== port)
+    if (e.terminal.port !== port)
       fail("WRL_ILLEGAL_PORT_PAIR",
-           `relation of kind ${r.kind} reaches ${m[2]} as its ${half}, but ` +
-           `V1 pairs ${ports[0]} -> ${ports[1]}`, { fieldPath: "endpoints" });
-    return m[1];
+           `relation of kind ${r.kind} reaches ${e.terminal.port} as its ` +
+           `${half}, but V1 pairs ${ports[0]} -> ${ports[1]}`,
+           { fieldPath: "endpoints" });
+    return e.terminal.object_id;
   };
 
   /* Key order matches `graphToIr`'s edge record for readability only. It is
