@@ -700,6 +700,22 @@ export function migrateV1ToV2(v1artifact) {
 }
 
 /**
+ * V1's canonical order for a bag of projected edges -- ASKED FOR, not restated.
+ *
+ * The sort key lives in the frozen `canonicalizeGraph` and this module holds no
+ * copy of it. That matters more than the four lines it saves: an order is the
+ * one part of an encoding that no field rule checks, so a private duplicate of
+ * it fails silently, producing an artifact that is valid against every stated
+ * rule and hashes to something the encoding could never have written.
+ */
+function v1CanonicalEdgeOrder(edges) {
+  const g = new W.WrlGraph();
+  g.edges = edges.map((e) => [e.kind, e.src, e.dst]);
+  return W.canonicalizeGraph(g).edges.map(
+    ([kind, src, dst]) => ({ kind, src, dst }));
+}
+
+/**
  * A V2 artifact, written back down into a named member of the V1 family. §7.
  *
  * The target version is a REQUIRED argument and not a remembered one. V2 does
@@ -708,25 +724,26 @@ export function migrateV1ToV2(v1artifact) {
  * defect §D8.3 puts on the ledger instead. So a downgrade is a choice about
  * which V1 family member to write, and the caller makes it.
  *
- * The result is a NEW artifact with its own `sem-`, and §7 read literally --
- * "a different sem- ID" -- turns out to be true of the ORIGINAL V1 world too,
- * not only of the V2 one. The round trip preserves the relation SET and not
- * the byte string, and the reason is not that either encoding is careless
- * about order. Both canonicalise it. They disagree about the KEY. V1 sorts
- * `edges` by the tuple it stores them as, `(kind, src, dst)`; V2 sorts
- * `relations` by canonical `identity_seed` bytes, and those bytes are
- * key-sorted JSON, so a `legacy-edge` seed compares on `dst` before `kind`
- * before `src`. Two total orders over the same set, neither of them the order
- * anybody typed.
+ * The result is a NEW artifact with its own `sem-` -- necessarily, since it is
+ * a different byte string in a different encoding -- and the version it is
+ * written at is the caller's.
  *
- * So a V1 world whose edges happen to agree on both keys round-trips
- * byte-exactly, and one that does not comes back permuted, with a new id.
- * That is a normalisation rather than a loss of content -- the second round
- * trip is a fixed point -- but it is a real difference and the honest report
- * is that the id moves. An order that is derived from the record is not
- * arbitrary, but it is only canonical WITHIN an encoding: the two encodings
- * cannot both be right about a single sequence, and on the way back the one
- * that decides is the one whose canonical form is being written.
+ * The edges come out in V1'S canonical order, and the reason is worth stating
+ * because getting it wrong is easy and silent. The two encodings BOTH sort;
+ * they disagree about the KEY. V1 sorts `edges` by the tuple it stores them
+ * as, `(kind, src, dst)`. V2 sorts `relations` by canonical `identity_seed`
+ * bytes -- key-sorted JSON -- so a `legacy-edge` seed compares on `dst`, then
+ * `kind`, then `src`. Two total orders over the same set, neither of them the
+ * order anybody typed.
+ *
+ * Reading the relations off in V2's order and writing them straight out is
+ * therefore not a translation, it is a V1 artifact in the WRONG encoding's
+ * order: still valid against every field rule, still round-tripping as a set,
+ * and carrying a `sem-` that no seal of that world could ever produce. An
+ * order is canonical only WITHIN an encoding, so on the way out the encoding
+ * that decides is the one being WRITTEN -- and once it does, the disagreement
+ * is invisible from outside and a V1 -> V2 -> V1 round trip is byte-exact and
+ * identity-preserving.
  */
 export function downgradeV2ToV1(v2artifact, irVersion) {
   assertV2Artifact(v2artifact);
@@ -741,8 +758,8 @@ export function downgradeV2ToV1(v2artifact, irVersion) {
          { fieldPath: "ir_version" });
 
   const canonical = canonicalizeV2Artifact(v2artifact);
-  const edges = canonical.relations.map(
-    (rel) => R.projectRelationRevisionToV1Edge(rel.revision));
+  const edges = v1CanonicalEdgeOrder(canonical.relations.map(
+    (rel) => R.projectRelationRevisionToV1Edge(rel.revision)));
 
   const out = {};
   for (const k of Object.keys(canonical))

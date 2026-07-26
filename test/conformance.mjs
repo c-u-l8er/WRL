@@ -3690,67 +3690,77 @@ for (const [id, entries] of futurePairs) {
        `a forged to_relation -> ${tampered}`);
   }
 
-  /* -- the round trip preserves the relation SET, exactly, and is a fixed
-   *    point on the second pass.
+  /* -- the round trip returns the original BYTES, not merely the original
+   *    relations.
    *
-   * This was first written as "returns the original bytes" and it FAILED, for
-   * a reason worth keeping: V1 leaves the order of `edges` to whoever typed
-   * the world and V2 sorts `relations` by seed bytes, so a V1 world not
-   * already written in that order comes back reordered. The set is intact and
-   * the byte string is not.
+   * This check was twice weaker than this, and both times because of a bug in
+   * `downgradeV2ToV1` rather than anything inherent to the two encodings. It
+   * first read "returns the original bytes", failed, and was weakened to a
+   * multiset comparison under the explanation that V1 leaves edge order to the
+   * author. That was false -- `canonicalizeGraph` sorts. It was then weakened
+   * again under a better but still wrong explanation: that the two encodings
+   * sort by DIFFERENT keys and so cannot both be right about one sequence.
    *
-   * The fixed point is what bounds that. The loss is a normalisation, so it
-   * happens once: everything that survives one round trip survives every
-   * later one unchanged, which is the difference between a lossy step and a
-   * degrading one. */
+   * The premise is true and the conclusion did not follow. Both encodings do
+   * sort, and by different keys, but a downgrade writes the key of the
+   * encoding it is WRITING -- and the version that did not was producing a V1
+   * artifact in V2's order: valid against every field rule, correct as a set,
+   * and carrying a `sem-` that no seal of that world could ever produce. The
+   * permutation was never the encodings disagreeing where an observer could
+   * see it. It was one line of missing normalisation.
+   *
+   * So the check is back to the strong form, and the moral is kept with it: a
+   * failing check is a claim about the world only after the code it is
+   * checking has been ruled out, and an explanation that makes a failure feel
+   * inevitable is the most expensive kind to accept. */
   {
     const back = v2.downgradeV2ToV1(migrated, v1.ir_version);
-    const bag = (a) => W.serializeArtifact(
-      a.edges.map((e) => W.serializeArtifact(e)).sort());
     const again = v2.downgradeV2ToV1(
       v2.migrateV1ToV2(back), back.ir_version);
+    const exact = W.serializeArtifact(back) === W.serializeArtifact(v1);
 
     /* the target version is chosen, not remembered -- V2 records no
      * provenance, so a downgrade that guessed would be inventing one */
     const guessed = refuse(() => v2.downgradeV2ToV1(migrated, "3.0"));
 
-    ok("relation/v2/migration/the-relation-set-survives-the-round-trip",
-       bag(back) === bag(v1) && back.edges.length === v1.edges.length &&
+    ok("relation/v2/migration/the-round-trip-returns-the-original-bytes",
+       exact && back.edges.length === v1.edges.length &&
        W.serializeArtifact(again) === W.serializeArtifact(back) &&
        guessed === "WRL_UNSUPPORTED_IR_VERSION",
-       `edge multiset ${bag(back) === bag(v1) ? "intact" : "CHANGED"} ` +
-       `(${back.edges.length}/${v1.edges.length}), second pass is a fixed ` +
-       `point: ${W.serializeArtifact(again) === W.serializeArtifact(back)}, ` +
+       `V1 -> V2 -> V1 is byte-exact: ${exact} (${back.edges.length}/` +
+       `${v1.edges.length} edges), second pass is a fixed point: ` +
+       `${W.serializeArtifact(again) === W.serializeArtifact(back)}, ` +
        `an unnamed target version -> ${guessed}`);
   }
 
-  /* -- and the thing the round trip does NOT preserve, stated rather than
-   *    quietly tolerated: the sequence, and therefore the `sem-`.
+  /* -- the two encodings sort by DIFFERENT keys, and that is invisible from
+   *    outside, because a downgrade writes the key of the encoding it writes.
    *
-   * The tempting explanation is that one side is careless -- that V1 leaves
-   * its edge order to whoever typed the world and V2 tidies it up. That is
-   * FALSE, and the check below is written to refuse it: sealing a V1 source
-   * with its lines reversed produces the same `edges` array, because
-   * `canonicalizeGraph` sorts them. BOTH encodings canonicalise. They
-   * disagree about the KEY.
+   * Neither side is careless with order. Sealing a V1 source with its lines
+   * reversed produces the same `edges` array, because `canonicalizeGraph`
+   * sorts them; `relations` is sorted too. They just disagree about the key:
    *
    *   V1 sorts `edges` by the tuple it stores them as: `(kind, src, dst)`.
    *   V2 sorts `relations` by canonical `identity_seed` bytes -- key-sorted
    *   JSON -- so a `legacy-edge` seed compares on `dst`, then `kind`, then
    *   `src`, then `variant`.
    *
-   * Two total orders over the same set, neither one authored. So §7 read
-   * literally -- a downgrade produces a new V1 artifact with a different
-   * `sem-` -- is true of the ORIGINAL V1 world as well as of the V2 one, and
-   * this is why: a sequence is in the bytes, the two encodings cannot both be
-   * right about it, and on the way back the one that decides is the one being
-   * written.
+   * Two total orders over the same set, neither one authored. An order is
+   * canonical only WITHIN an encoding, so the disagreement is real and
+   * unavoidable INSIDE V2 -- and it must not survive the boundary, because a
+   * V1 artifact carrying V2's order is one whose `sem-` no seal could produce.
    *
-   * Three things are pinned here. That each side really is sorted by its own
-   * key (so "reordered" is a disagreement, not a mess). That the keys really
-   * do disagree on this world. And the control: a V1 world ALREADY agreeing
-   * with both keys round-trips byte-exactly, which pins the difference to
-   * ordering alone rather than to something else the migration drops. */
+   * Four things are pinned. That each side really is sorted by its own key
+   * (so this is a disagreement, not a mess). That the keys really do disagree
+   * on this world -- without which every claim here is vacuous. That the
+   * downgrade nevertheless lands in V1's order, so V1 -> V2 -> V1 preserves
+   * the `sem-`. And that the V2 world's own id still differs from both, which
+   * is §7 and is true for the ordinary reason: different bytes.
+   *
+   * The vacuity guard is the load-bearing one. Delete `disagree` and this
+   * check passes just as well against an encoding that never reordered
+   * anything, i.e. against exactly the world in which the bug it was written
+   * for could not have happened. */
   {
     const back = v2.downgradeV2ToV1(migrated, v1.ir_version);
     const semV2 = await v2.v2WorldIdOfArtifact(migrated);
@@ -3761,33 +3771,31 @@ for (const [id, entries] of futurePairs) {
       .localeCompare(W.serializeArtifact([b.kind, b.src, b.dst]));
     const v1Sorted = W.serializeArtifact(v1.edges) ===
       W.serializeArtifact(v1.edges.slice().sort(byTuple));
-    const v2Sorted = W.serializeArtifact(
-        migrated.relations.map((r) => v2.seedKey(r.identity_seed))) ===
-      W.serializeArtifact(
-        migrated.relations.map((r) => v2.seedKey(r.identity_seed)).sort());
+    const seedOrder = migrated.relations.map((r) => v2.seedKey(r.identity_seed));
+    const v2Sorted = W.serializeArtifact(seedOrder) ===
+                     W.serializeArtifact(seedOrder.slice().sort());
 
-    /* and the two keys really do disagree about THIS world */
-    const reordered = W.serializeArtifact(back.edges) !==
-                      W.serializeArtifact(v1.edges);
+    /* the keys really do disagree about THIS world: reading the relations off
+     * in V2's order gives a sequence V1 would never have written */
+    const asStored = migrated.relations.map(
+      (r) => s.projectRelationRevisionToV1Edge(r.revision));
+    const disagree = W.serializeArtifact(asStored) !==
+                     W.serializeArtifact(v1.edges);
 
-    /* `back` is by construction in V2's order, so re-migrating it is the
-     * fixture for "a world both keys already agree about" */
-    const settled = v2.downgradeV2ToV1(
-      v2.migrateV1ToV2(back), back.ir_version);
-    const exact = W.serializeArtifact(settled) === W.serializeArtifact(back) &&
-                  await s.worldIdOfArtifact(settled) === semBack;
+    /* ...and the downgrade lands in V1's order anyway, so the `sem-` returns */
+    const restored = W.serializeArtifact(back.edges) ===
+                     W.serializeArtifact(v1.edges) &&
+                     semBack === demo.semanticId;
 
     ok("relation/v2/migration/the-two-encodings-sort-by-different-keys",
-       v1Sorted && v2Sorted && reordered &&
-       semBack !== demo.semanticId && semV2 !== demo.semanticId &&
-       semBack !== semV2 && exact,
+       v1Sorted && v2Sorted && disagree && restored &&
+       semV2 !== demo.semanticId && semV2 !== semBack,
        `V1 sorted by (kind, src, dst): ${v1Sorted}, V2 sorted by seed bytes: ` +
-       `${v2Sorted}, and the two keys disagree here: ${reordered}. Three ` +
-       `distinct worlds (V1 ${demo.semanticId.slice(0, 12)}…, ` +
-       `V2 ${semV2.slice(0, 12)}…, recovered ${semBack.slice(0, 12)}…), and a ` +
-       `world both keys agree about round-trips byte-exactly: ${exact}. ` +
-       `Neither order was authored, so the honest report is not that one side ` +
-       `was careless but that the id moves`);
+       `${v2Sorted}, the two keys disagree here: ${disagree}, and the ` +
+       `downgrade lands in V1's order so the sem- returns: ${restored} ` +
+       `(${semBack.slice(0, 12)}… == ${demo.semanticId.slice(0, 12)}…). The ` +
+       `V2 world keeps an id of its own (${semV2.slice(0, 12)}…) for the ` +
+       `ordinary reason: different bytes`);
   }
 
   /* -- a NAMED relation added to a migrated world has no legacy counterpart,
@@ -4273,20 +4281,26 @@ for (const [id, entries] of futurePairs) {
    *
    * The consumer side, and the point of the whole encoding: V2 changes how
    * topology is WRITTEN, not what a world IS, so nothing downstream of the
-   * seal learns a second encoding. */
+   * seal learns a second encoding.
+   *
+   * The strong form is available and so it is the one used: not "the same
+   * relations" but the same BYTES, and therefore the pinned demo `sem-`. The
+   * weak form -- a multiset comparison plus a key-by-key check of everything
+   * except `edges` -- is what this check said while `downgradeV2ToV1` was
+   * emitting V1 edges in V2's order, and it passed the whole time. A
+   * comparison that excludes the field a bug lives in is not a weaker check,
+   * it is a check of something else. */
   {
     const runnable = v2.runnableV1Artifact(parsed.artifact);
-    const bag = (a) => W.serializeArtifact(
-      a.edges.map((e) => W.serializeArtifact(e)).sort());
-    const rest = (a) => W.serializeArtifact(Object.fromEntries(
-      Object.keys(a).filter((k) => k !== "edges" && k !== "ir_version")
-        .sort().map((k) => [k, a[k]])));
+    const exact = W.serializeArtifact(runnable) ===
+                  W.serializeArtifact(parsed.v1);
+    const sem = await s.worldIdOfArtifact(runnable);
 
     ok("relation/v2/consumer/a-v2-world-runs-as-the-v1-world-it-validated",
-       bag(runnable) === bag(parsed.v1) && rest(runnable) === rest(parsed.v1) &&
+       exact && sem === demo.semanticId &&
        s.V1_IR_VERSIONS.includes(runnable.ir_version),
-       `the same relation set: ${bag(runnable) === bag(parsed.v1)}, every ` +
-       `other key byte-identical: ${rest(runnable) === rest(parsed.v1)}, at ` +
+       `byte-identical to the V1 artifact the spine validated: ${exact}, and ` +
+       `it seals to ${sem.slice(0, 16)}… -- the pinned demo world -- at ` +
        `ir_version ${JSON.stringify(runnable.ir_version)}. Nothing downstream ` +
        `of the seal has to learn a second encoding`);
   }

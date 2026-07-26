@@ -3237,32 +3237,43 @@ relation was <i>never named</i> — which keeps the two worlds indexable by the
 same key and so keeps the correspondence <i>derivable</i> rather than
 asserted.</p>
 
-<div class="note"><b>What the round trip does not preserve, and why that is
-not a bug.</b> This was first written as <i>“a downgrade returns the original
-bytes”</i>, and the check failed. The first explanation offered for that
-failure was wrong, and it is worth recording which one, because it is the
-explanation anybody would reach for: <i>V1 leaves its edge order to whoever
-typed the world, and V2 tidies it up.</i> Sealing a V1 source with its lines
-reversed produces the same <code class="inline">edges</code> array. Both
-encodings canonicalise. They disagree about the <i>key</i>.</p>
-<p>V1 sorts <code class="inline">edges</code> by the tuple it stores them as,
-<code class="inline">(kind, src, dst)</code>. V2 sorts
+<div class="note"><b>Two encodings, two sort keys, and one wrong conclusion
+drawn from that twice.</b> The round-trip check was first written as <i>“a
+downgrade returns the original bytes”</i>, and it failed. It was weakened to a
+multiset comparison under a first explanation — <i>V1 leaves its edge order to
+whoever typed the world, and V2 tidies it up</i> — which is simply false:
+sealing a V1 source with its lines reversed produces the same
+<code class="inline">edges</code> array, because
+<code class="inline">canonicalizeGraph</code> sorts. It was then weakened again
+under a second, better explanation, which is <i>true</i> and still did not
+support the conclusion.</p>
+<p>The true part: both encodings canonicalise, and they disagree about the
+<i>key</i>. V1 sorts <code class="inline">edges</code> by the tuple it stores
+them as, <code class="inline">(kind, src, dst)</code>. V2 sorts
 <code class="inline">relations</code> by canonical
 <code class="inline">identity_seed</code> bytes — key-sorted JSON — so a
 <code class="inline">legacy-edge</code> seed compares on
 <code class="inline">dst</code> before <code class="inline">kind</code> before
-<code class="inline">src</code>. Two total orders over the same set, neither
-of them authored. So a V1 world the two keys disagree about comes back
-<i>permuted</i>, with a new <code class="inline">sem-</code> — which makes
-<a href="#d8-v2-boundary">§7's “a different
-<code class="inline">sem-</code> ID”</a> true of the original as well as of
-the V2 world.</p>
-<p>An order derived from the record is not arbitrary, but it is canonical only
-<i>within</i> an encoding: a sequence is in the bytes, the two cannot both be
-right about it, and on the way back the one that decides is the one being
-written. The loss is bounded because it is a <i>normalisation</i>: the second
-round trip is a fixed point, and a world both keys agree about round-trips
-byte-exactly.</div>
+<code class="inline">src</code>. Two total orders over the same set, neither of
+them authored, and a real disagreement.</p>
+<p>The false part: that the disagreement must therefore be <i>visible</i>. An
+order is canonical only <i>within</i> an encoding, so the encoding that decides
+is the one being <b>written</b> — and a downgrade writes V1. The version that
+permuted was reading its relations off in V2's order and emitting them
+unchanged, which is not a translation but a V1 artifact in the wrong encoding's
+order: valid against every field rule, correct as a set, and carrying a
+<code class="inline">sem-</code> that no seal of that world could produce. One
+line of missing normalisation, wearing an explanation that made it look
+inevitable. V1 → V2 → V1 is byte-exact and preserves the
+<code class="inline">sem-</code>; the V2 world still has an id of its own, which
+is <a href="#d8-v2-boundary">§7</a>, for the ordinary reason that it is
+different bytes.</p>
+<p>The general form is worth more than the fix. <b>A failing check is a claim
+about the world only after the code under it has been ruled out</b>, and an
+explanation that makes a failure feel inevitable is the most expensive kind to
+accept, because it retires the question. Order is where this bites hardest: it
+is the one part of an encoding that no field rule checks, so a private copy of
+a sort key — or the absence of one — fails silently and passes review.</div>
 
 <div class="note stop"><b>Draft rule D8.11 — the V1 → V2 migration.</b>
 <ol>
@@ -3299,6 +3310,13 @@ is not a relation the V1 world quietly also had.</li>
 <li><b>The target version of a downgrade is chosen, not remembered.</b> V2
 records no provenance, because a value that recorded its own history would be
 the second home <a href="#d8-identity-home">§D8.3</a> refuses.</li>
+<li><b>A downgrade writes the order of the encoding it is writing.</b> Both
+encodings sort and they sort by different keys, so the one that decides on the
+way out is the target — asked of the frozen
+<code class="inline">canonicalizeGraph</code> rather than restated, because an
+order is the one part of an encoding no field rule checks, and a private copy
+of a sort key fails silently. V1 → V2 → V1 is therefore byte-exact and
+preserves the <code class="inline">sem-</code>.</li>
 </ol></div>
 
 <h4 id="d8-v2-surface">Naming a relation</h4>
@@ -4220,8 +4238,8 @@ substitution is the entire failure this register exists to catch.</p>
 <tr data-pending-law="a-migration-moves-only-the-encoding" data-pending-for="D8.11" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/migration/only-the-encoding-moves"><td>every key the migration does not own, compared across the change</td><td><b>byte-identical</b> — a migration that also tidied <code class="inline">objects</code> would make the world differ from its source for an unrelated reason, and no test could then attribute a moved id to the migration rather than to the tidying</td><td><a href="#d8-v2-migrate">D8.11</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="migration-carries-structure-not-identity" data-pending-for="D8.11" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/migration/structure-survives-and-identity-does-not"><td>the two id multisets across a real migration</td><td>every <code class="inline">rev-</code> <b>recurs</b>, no <code class="inline">rel-</code> does — a migration reporting a preserved <code class="inline">rel-</code> would be claiming the thing <a href="#d8-identity-scope">§D8.5</a> exists to deny</td><td><a href="#d8-v2-migrate">D8.11</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="a-cross-family-import-needs-no-new-checker" data-pending-for="D8.11" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/migration/the-claim-is-checked-by-the-kernels-own-checker"><td>the V1 → V2 correspondence run through the kernel's existing <code class="inline">RelationImported</code> checker, honestly and with a forged <code class="inline">to_relation</code></td><td><b>verified</b> and <b>refused</b> respectively, by unchanged code — a rule needing its own verifier at the boundary where migrations actually happen has an exception exactly where it is load-bearing</td><td><a href="#d8-v2-migrate">D8.11</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
-<tr data-pending-law="the-migrated-relation-set-survives" data-pending-for="D8.11" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/migration/the-relation-set-survives-the-round-trip"><td>the edge multiset across V1 → V2 → V1, and a second pass over the result</td><td><b>intact</b>, and the second pass a <b>fixed point</b> — the loss is a normalisation, so it happens once, which is the difference between a lossy step and a degrading one</td><td><a href="#d8-v2-migrate">D8.11</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
-<tr data-pending-law="the-two-encodings-sort-by-different-keys" data-pending-for="D8.11" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/migration/the-two-encodings-sort-by-different-keys"><td>each side's own sort key, the three worlds a round trip produces, and — as the control — a V1 world both keys already agree about</td><td>V1 <b>is</b> sorted by <code class="inline">(kind, src, dst)</code> and V2 <b>is</b> sorted by seed bytes, and the two keys <b>disagree</b> here, giving <b>three distinct <code class="inline">sem-</code> ids</b>, while the world both keys agree about is <b>byte-exact</b>. The check was first written as “returns the original bytes” and failed; the first explanation for that failure — that V1 leaves its order to the author — was also wrong. Neither order is authored, so the honest report is not that one side was careless but that the id moves</td><td><a href="#d8-v2-migrate">D8.11</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="the-migrated-relation-set-survives" data-pending-for="D8.11" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/migration/the-round-trip-returns-the-original-bytes"><td>the artifact across V1 → V2 → V1, and a second pass over the result</td><td><b>byte-identical</b> to the original, and the second pass a <b>fixed point</b> — a change of encoding costs nothing, so there is no normalisation to bound</td><td><a href="#d8-v2-migrate">D8.11</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="the-two-encodings-sort-by-different-keys" data-pending-for="D8.11" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/migration/the-two-encodings-sort-by-different-keys"><td>each side's own sort key, whether the keys disagree on this world, and where the disagreement ends up</td><td>V1 <b>is</b> sorted by <code class="inline">(kind, src, dst)</code>, V2 <b>is</b> sorted by seed bytes, the two <b>disagree</b> here — and the downgrade lands in <b>V1's</b> order anyway, so the <code class="inline">sem-</code> <b>returns</b>. An order is canonical only <em>within</em> an encoding, so the encoding that decides is the one being <b>written</b>; the V2 world keeps an id of its own for the ordinary reason, different bytes. This row was twice wrong before it was right — see the note under <a href="#d8-v2-migrate">D8.11</a></td><td><a href="#d8-v2-migrate">D8.11</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="a-named-relation-has-no-legacy-counterpart" data-pending-for="D8.11" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/migration/a-named-relation-has-no-legacy-counterpart"><td>a named relation added to a migrated world, put through the correspondence</td><td><b><code class="inline">added</code>, never paired</b> — it has no legacy key, so pairing it would mean pairing on something other than a preimage, and a relation with no V1 preimage is not one the V1 world quietly also had</td><td><a href="#d8-v2-migrate">D8.11</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="a-migration-recomputes-both-seals" data-pending-for="D8.11" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/migration/both-seals-are-recomputed"><td>a forged <code class="inline">sem-</code> on the V1 side, and again on the V2 side</td><td><b>both refused</b> as <code class="inline">WRL_SEMANTIC_ID_MISMATCH</code> — a migration is precisely where a caller holds two worlds and is best placed to be wrong about one of them</td><td><a href="#d8-v2-migrate">D8.11</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="a-name-is-the-only-thing-v2-adds" data-pending-for="D8.12" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/surface/a-name-is-the-only-thing-v2-adds"><td>a named source, stripped back down, and the artifact the spine validated</td><td><b>the V1 source byte for byte</b>, same line count, and <b>the artifact the V1 parser produces</b> — a surface that also normalised whitespace or re-ordered declarations would be a second parser agreeing with the frozen one today</td><td><a href="#d8-v2-surface">D8.12</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
@@ -4238,7 +4256,7 @@ substitution is the entire failure this register exists to catch.</p>
 <tr data-pending-law="parallel-relations-have-no-source-form" data-pending-for="D8.13" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/format/parallel-relations-have-no-source-form"><td>two named relations over one pair of terminals — the multigraph V1 could never have</td><td><b>valid V2 with two distinct <code class="inline">rel-</code> ids</b>, and <b><code class="inline">WRL_UNWRITABLE_RELATION</code></b> from the formatter — it is the <i>text</i> that cannot exist, and emitting it anyway would break the case the encoding was introduced for</td><td><a href="#d8-v2-write">D8.13</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="v2-formatting-moves-no-identity" data-pending-for="D8.13" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/format/formatting-moves-no-identity"><td>the world id either side of a format, in both encodings</td><td><b>unmoved</b>, and the V1 world underneath still seals to the pinned demo <code class="inline">sem-</code> — formatting is normalisation, never a compiler gate</td><td><a href="#d8-v2-write">D8.13</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="routes-come-out-in-the-encodings-own-order" data-pending-for="D8.13" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/format/routes-come-out-in-the-encodings-own-order"><td>the order the formatter emits routes in, against V1's</td><td><b>the canonical seed-byte order, and not V1's</b> — source route order decides nothing because the spine sorts it, so emitting the order the bytes are already in restates no sort key</td><td><a href="#d8-v2-write">D8.13</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
-<tr data-pending-law="a-v2-world-runs-as-a-v1-world" data-pending-for="D8.13" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/consumer/a-v2-world-runs-as-the-v1-world-it-validated"><td>the V1 artifact a V2 world is consumed as</td><td><b>the same relation set and every other key byte-identical</b> to the one the spine validated on the way in — V2 changes how topology is written, not what a world is, so nothing downstream of the seal learns a second encoding</td><td><a href="#d8-v2-write">D8.13</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="a-v2-world-runs-as-a-v1-world" data-pending-for="D8.13" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/consumer/a-v2-world-runs-as-the-v1-world-it-validated"><td>the V1 artifact a V2 world is consumed as</td><td><b>byte-identical</b> to the one the spine validated on the way in, and so it seals to the <b>pinned demo <code class="inline">sem-</code></b> — V2 changes how topology is written, not what a world is, so nothing downstream of the seal learns a second encoding. This row read “the same relation <i>set</i>, and every other key byte-identical” while a real ordering bug lived in <code class="inline">edges</code>; a comparison that excludes the field a bug is in is not a weaker check but a check of something else</td><td><a href="#d8-v2-write">D8.13</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="naming-a-world-does-not-change-the-world" data-pending-for="D8.13" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/consumer/naming-a-world-does-not-change-the-world"><td>the V1 world underneath a named source, sealed</td><td><b>the pinned demo <code class="inline">sem-</code></b>, unmoved — naming relations adds identity to <i>relations</i>, and if the surface had perturbed a config, an order or a port projection this is the id it would show against</td><td><a href="#d8-v2-write">D8.13</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="unpinned-reference-is-refused" data-pending-for="D9.1" data-pending-status="awaiting" data-pending-stage="film"><td>a package whose reference resolves only through a service it does not pin</td><td><b>refused</b> — replay must not depend on a contract the package never stated</td><td><a href="#d9-closure">D9.1</a></td><td class="stage">film · awaiting</td></tr>
 <tr data-pending-law="birth-key-survives-rescheduling" data-pending-for="D9.2" data-pending-status="awaiting" data-pending-stage="runtime"><td>same birth proposed at period 20 and at period 21</td><td>same <code class="inline">RelationBirthKey</code>, different <code class="inline">ScheduledTransition</code></td><td><a href="#d9-transition">D9.2</a></td><td class="stage">runtime · awaiting</td></tr>

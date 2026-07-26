@@ -90,20 +90,54 @@ appear in **initial bytes** — and they are four different lists on purpose.
 encoder. The explicit downgrade is `downgradeV2ToV1`, and it produces a new V1
 artifact with its own `sem-`.
 
-One correction to a claim I made in an earlier draft of the migration prose,
-because it was wrong and the way it was wrong is worth recording. I wrote that
-the V1 → V2 → V1 round trip permutes `edges` because "V1 leaves the order of
-`edges` to whoever typed the world". It does not: `canonicalizeGraph` sorts.
-Both encodings canonicalise the order. They disagree about the **key**. V1 sorts
-`edges` by the tuple it stores them as, `(kind, src, dst)`; V2 sorts `relations`
-by canonical `identity_seed` bytes, and those bytes are key-sorted JSON, so a
-`legacy-edge` seed compares on `dst`, then `kind`, then `src`. Two total orders
-over the same set, neither of them anybody's authoring order. A world whose
-edges happen to agree under both keys round-trips byte-exactly; one that does
-not comes back permuted with a new id. The check is now
-`relation/v2/migration/the-two-encodings-sort-by-different-keys`, and it asserts
-that each side really is sorted by its own key rather than merely that the two
-disagree.
+**One thing I got wrong twice, and the second wrong answer was far more
+expensive than the first.**
+
+The round-trip check was first written as "a downgrade returns the original
+bytes". It failed. I weakened it to a multiset comparison and explained the
+failure as: *V1 leaves the order of `edges` to whoever typed the world, and V2
+tidies it up.* That is false — `canonicalizeGraph` sorts. I caught that, and
+replaced it with a better explanation: both encodings canonicalise, and they
+disagree about the **key**. V1 sorts `edges` by the tuple it stores them as,
+`(kind, src, dst)`; V2 sorts `relations` by canonical `identity_seed` bytes,
+which are key-sorted JSON, so a `legacy-edge` seed compares on `dst`, then
+`kind`, then `src`. Two total orders over the same set, neither authored.
+
+All of that is true. The conclusion I drew from it — that the round trip must
+therefore permute and the `sem-` must move — does not follow, and I only saw it
+because a live browser probe of `runnableV1Artifact` came back `false` on byte
+equality after I had already declared the slice done. An order is canonical only
+*within* an encoding, so the encoding that decides on the way out is the one
+being **written**, and a downgrade writes V1. `downgradeV2ToV1` was reading its
+relations off in V2's order and emitting them unchanged. That is not a
+translation; it is a V1 artifact in the wrong encoding's order — valid against
+every field rule, correct as a set, and carrying a `sem-` that no seal of that
+world could ever produce.
+
+Fixed: the downgrade now asks the frozen `canonicalizeGraph` for the target's
+order rather than restating the key, and **V1 → V2 → V1 is byte-exact and
+preserves the `sem-`**. Your §7 still holds for the ordinary reason — the V2
+world is different bytes, so it has its own id.
+
+Two checks had been weakened to accommodate the bug and are now back at full
+strength: `relation/v2/migration/the-round-trip-returns-the-original-bytes`
+(was `…/the-relation-set-survives-the-round-trip`, a multiset comparison) and
+`relation/v2/consumer/a-v2-world-runs-as-the-v1-world-it-validated` (compared
+`edges` as a bag and every *other* key byte-wise — a comparison that excludes
+the field the bug is in is not a weaker check, it is a check of something else;
+it now asserts byte equality and that the result seals to the pinned demo
+`sem-`). `relation/v2/migration/the-two-encodings-sort-by-different-keys`
+survives with its conclusion replaced: it pins that each side is sorted by its
+own key, that the keys genuinely disagree **on this world** — the vacuity guard,
+without which the row passes against an encoding that never reorders anything —
+and that the downgrade lands in V1's order regardless.
+
+The reusable part: **a failing check is a claim about the world only after the
+code under it has been ruled out**, and an explanation that makes a failure feel
+inevitable is the most expensive kind to accept, because it retires the
+question. Order is where this bites hardest — it is the one part of an encoding
+that no field rule checks, so a private copy of a sort key, or the absence of
+one, fails silently and passes review.
 
 ### §8 — `NamedInitialAllocation` lands inside Path B
 
@@ -201,7 +235,7 @@ letting it drift.
 
 | file | state |
 |---|---|
-| `relation-v2.js` | **new**, 55.6 KB — B.1 schema + canonical bytes, B.2 validation + identity derivation, B.3 V1↔V2 migration, B.4 named-relation surface, B.5 formatter + consumer. Zero new runtime constructs; every hashing path delegates to `relation-identity.js` and `wrl.js` |
+| `relation-v2.js` | **new**, ~57 KB — B.1 schema + canonical bytes, B.2 validation + identity derivation, B.3 V1↔V2 migration, B.4 named-relation surface, B.5 formatter + consumer. Zero new runtime constructs; every hashing path — and now every sort key — delegates to `relation-identity.js` and `wrl.js` |
 | `relation-identity.js` | 0.1.2, unchanged by Path B except as a consumer |
 | `wrl.js` | **frozen**, untouched |
 | `test/conformance.mjs` | **828 checks**, 0 failed; 44 `relation/v2/…` |
