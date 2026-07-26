@@ -750,9 +750,17 @@ toolchain refuses it — deliberately <i>not</i> which diagnostic comes back fir
 because the first complaint about a future construct is usually a missing
 profile rather than the construct itself. Alongside it,
 <code class="inline">data-requires</code> names the capabilities the block is
-waiting on. The day one of them ships, the blocks that depend on it start
-parsing, <code class="inline">data-not-current</code> goes red, and the
-documentation has to be updated before the build is green again.</div>
+waiting on.
+<br><br>
+What happens when one of them ships is stated exactly in the
+<a href="#capabilities">promotion note above</a>, and it is <i>not</i> that the
+block starts parsing: marking a capability
+<span class="tier core">shipped</span> in the registry makes the suite fail
+every block that still lists it in
+<code class="inline">data-requires</code>, by file and block number. Each such
+block must then be promoted to a positive fixture, given an executable context,
+revised to wait on the capabilities it still needs, or removed. The failure is
+on the registry row; the snippet is what the failure names.</div>
 
 <h2 id="api">Browser API</h2>
 

@@ -94,7 +94,7 @@
   <a href="#part2">Status of Part II</a>
   <a href="#d1">D1 · Multilayer topology</a>
   <a href="#d2">D2 · Three connection kinds</a>
-  <a href="#d2-two-resolutions">D2.1 · Join vs driver-set resolution</a>
+  <a href="#d2-two-resolutions">D2.1 · Three resolver contracts</a>
   <a href="#d3">D3 · Route axes vs textures</a>
   <a href="#d4">D4 · Walls and computation</a>
   <a href="#d5">D5 · Derives and search</a>
@@ -103,6 +103,7 @@
   <a href="#d7">D7 · Falsification conditions</a>
   <a href="#d8">D8 · Relation, not Edge</a>
   <a href="#d8-identity">D8.1 · Relation identity</a>
+  <a href="#d8-identity-home">D8.2 · One home for lifecycle</a>
   <a href="#d9">D9 · Dynamic topology</a>
 </aside>
 
@@ -794,10 +795,14 @@ promised.</b> Every world sketched below is currently <b>rejected</b> by the
 toolchain, and the site's conformance suite asserts that rejection on every run
 — each sketch also names the
 <a href="reference.html#capabilities">promotion capabilities</a> it is waiting
-on. When one of those capabilities ships, the sketch starts sealing, the
-assertion goes red, and this section must be rewritten. That is the intended
-failure mode: the draft cannot quietly drift out of date, because the build
-stops.</div>
+on. Marking one of those capabilities <b>shipped</b> in the registry makes the
+suite fail every block still waiting on it, by file and block number, and this
+section must then be rewritten before the build is green again. The sketches do
+<i>not</i> begin sealing by themselves — most are fragments with no
+<code class="inline">profile</code> line, so they would go on being rejected for
+a reason unrelated to the capability. The trip-wire is the registry row, where a
+person must act; that is the intended failure mode, and it is stated exactly in
+<a href="reference.html#capabilities">the promotion note</a>.</div>
 
 <div class="note warn"><b>And this is not the whole forward map.</b> The authored
 Complete Design Draft already specifies most of what WRL intends to become —
@@ -917,7 +922,7 @@ provided the resolution obeys the laws in §D2.1 below.
 solving a system. That is a different execution model, which is what §D4 is
 for.</p>
 
-<h3 id="d2-two-resolutions">Two resolutions, and only one of them is a join</h3>
+<h3 id="d2-two-resolutions">Three resolver contracts, and only one of them is a join</h3>
 
 <p>An earlier version of the paragraph above said resolved ports settle in one
 pass "provided the resolution function is associative, commutative and
@@ -937,35 +942,60 @@ artifact, and §D9 makes even a changed topology a deterministic function of the
 ledger prefix. <b>The multiplicity is known exactly.</b> A law that pays for an
 unknown you do not have is not free — it is paid for in expressiveness.</p>
 
-<div class="tbl"><table>
-<thead><tr><th></th><th>Join resolution</th><th>Driver-set resolution</th></tr></thead>
-<tbody>
-<tr><td><b>Input</b></td><td>values arriving in unknown order and unknown multiplicity</td><td>one canonical map, <code class="inline">source terminal → drive value</code>, ordered by §11's existing terminal sort</td></tr>
-<tr><td><b>Required laws</b></td><td>associative, commutative, <b>idempotent</b></td><td>associative, commutative, <b>total</b>. Idempotence is <i>not</i> required</td></tr>
-<tr><td><b>Why those</b></td><td>the first two make the outcome independent of delivery order, the third of delivery count</td><td>the first two make the outcome independent of the canonical order chosen; count is not in question, because each source appears exactly once as a key</td></tr>
-<tr><td><b>Governs</b></td><td>§9 evidence merge, §D9's grow-only fact set</td><td>digital buses, drive strengths, contention and conflict tables</td></tr>
-<tr><td><b>Ships as</b></td><td>frozen, in §9</td><td>a <a href="#d6-bootstrap">§D6.1</a> finite resolution table over an enumerated type</td></tr>
-</tbody></table></div>
-
 <p>The cost of the borrowed law is concrete rather than theoretical. An
 idempotent resolution <b>cannot distinguish one driver from two</b> — that is
 precisely what <code class="inline">x ⊔ x = x</code> says. So it can never
 express <i>"two enabled drivers on this bus is a fault"</i>, which is an ordinary
-thing a hardware profile wants to say and a real bus-contention rule. Dropping
-idempotence admits conflict-detecting resolutions, and admits them without
-weakening anything: determinism comes from the canonical input order, and
-associativity and commutativity are still required so that the canonical order
-can be <i>chosen</i> without changing the answer.</p>
+thing a hardware profile wants to say and a real bus-contention rule.</p>
+
+<p>Dropping idempotence was the right correction and <b>not the whole of it</b>.
+The first version of this section kept associativity and commutativity, on the
+grounds that they let the canonical order "be <i>chosen</i> without changing the
+answer" — and that sentence refutes itself, because §11 <b>already chose</b> the
+order. If the input is one normatively-ordered map, there is nothing left for
+those two laws to protect either. They were retained by the same reflex that
+supplied idempotence: the laws came as a set, so they were kept as a set. Below
+they are separated by what each one actually buys.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Contract</th><th>Input</th><th>Required properties</th><th>What it buys</th></tr></thead>
+<tbody>
+<tr><td><b>Canonical-map resolver</b></td><td>one map, <code class="inline">source terminal → drive value</code>, in §11's existing terminal order</td><td><b>pure</b>, <b>total</b>, <b>deterministic</b>, plus a declared value for the empty map</td><td>the semantic contract. Sufficient for a defined, replayable result. Admits <i>positional</i> resolutions — "the strongest driver wins, ties are a fault" — that no fold expresses</td></tr>
+<tr><td><b>Parallel-fold resolver</b></td><td>the same map, folded in any order, partitioned, or resolved incrementally</td><td><b>associative</b>, <b>commutative</b>, <b>total</b>, plus a declared value for the empty map</td><td>an <i>implementation</i> permit, not a meaning. A profile pays these two laws to buy the freedom to split the driver set across workers or reuse a partial result</td></tr>
+<tr><td><b>Join resolver</b></td><td>values arriving in unknown order and unknown multiplicity</td><td><b>associative</b>, <b>commutative</b>, <b>idempotent</b>, with an identity</td><td>redelivery safety. This is §9's evidence merge and §D9's grow-only fact set, and it is frozen</td></tr>
+</tbody></table></div>
+
+<p>A profile declares which one it is writing —
+<code class="inline">resolver_kind = canonical_map</code> or
+<code class="inline">parallel_fold</code> — and that declaration is checkable
+against a finite table by <a href="#d6-bootstrap">§D6.1</a>'s validators rather
+than trusted. The two are not ranked: a <code class="inline">parallel_fold</code>
+is the stronger claim and the weaker expression, and a profile that will never
+partition a bus of four drivers has no reason to make it.</p>
+
+<div class="note stop"><b>Every resolution table must answer the empty driver
+set.</b> A binary operation does not define the value of a terminal with no
+enabled drivers, and this is not an edge case — it is a floating bus, which is
+the normal state of a tri-state line between transactions.
+<code class="inline">std_logic</code> answers <code class="inline">'Z'</code>;
+another profile may answer <i>absence</i>, and another may answer that it is a
+fault. All three are legitimate and they are not interchangeable, so the value is
+a <b>required declaration</b> on the table, not a default the runtime picks. A
+table that omits it is rejected at profile-load, not at the first quiet
+period.</div>
 
 <div class="note"><b>Nothing already true stops being true.</b>
 <code class="inline">std_logic</code> resolution <a class="cite" href="#r-vhdl">[V]</a>
 <i>is</i> idempotent — <code class="inline">resolve('1','1') = '1'</code> — and
-remains a perfectly good member of the wider class. The change is that
-idempotence becomes a property a particular table <i>may</i> have rather than an
-admission requirement every table must satisfy. And because §D6.1 makes these
-tables finite and enumerated, whether a given one is associative, commutative,
-total or idempotent is decided by <b>counting over the type</b>, not by proof —
-so the laws that remain are checked rather than asserted.</div>
+remains a perfectly good member of the wider class, and it satisfies the
+<code class="inline">parallel_fold</code> contract as well. The change is that
+these become properties a particular table <i>may</i> have and <i>may</i> trade
+on, rather than admission requirements every table must satisfy. And because
+§D6.1 makes these tables finite and enumerated, whether a given one is
+associative, commutative, total or idempotent is decided by <b>counting over the
+type</b>, not by proof — so a profile claiming
+<code class="inline">parallel_fold</code> can be <i>held to it</i> mechanically,
+which is what makes the split worth having rather than merely tidy.</div>
 
 <h2 id="d3"><span class="secnum">§D3</span>Route axes are not route textures<span class="draft">draft</span></h2>
 
@@ -1316,17 +1346,19 @@ something it cannot hold:</p>
 <p><b>Draft rule D8.</b> The runtime ontology keeps six entity types. The third
 is renamed and broadened:</p>
 
-<pre class="code"><code>RelationInstance { relation_id, current_revision }
+<pre class="code"><code>RelationAllocation { world_id, issuer, nonce }
 
-RelationRevision  { domain, kind, endpoints, orientation,
-                    texture?, attributes, policy, provenance,
-                    predecessor? }
+RelationRevision   { domain, kind, endpoints, orientation,
+                     texture?, attributes, policy, provenance }
 
 Endpoint { terminal, role }</code></pre>
 
-<p>The split into an <b>instance</b> and a <b>revision</b> is the subject of
-<a href="#d8-identity">§D8 identity</a> below; the field table describes the
-revision, which is what replaces the old <code class="inline">Edge</code>.
+<p>An <b>allocation</b> names the relation; a <b>revision</b> is its value. The
+split is the subject of <a href="#d8-identity">§D8 identity</a> below, and the
+revision is what replaces the old <code class="inline">Edge</code>. There is no
+stored record joining the two: the current revision of a relation is
+<a href="#d8-identity-ledger">derived from the ledger</a>, for the same reason
+<a href="#d8-derived">cardinality is derived</a> from the endpoints.
 <code class="inline">texture</code> is written <code class="inline">texture?</code>
 because it is genuinely optional — the table's own row says it is <b>absent</b>
 for an acausal relation, and a record that prints a field it does not always
@@ -1480,8 +1512,8 @@ as the identity. That is a category error, not a bug, and it has a standard
 resolution — separate the thing that persists from the thing that changes.</p>
 
 <div class="note stop"><b>Draft rule D8.1 — relation identity.</b> A relation has
-a <b>stable <code class="inline">relation_id</code></b>, minted once when the
-relation is created and never recomputed, and an ordered sequence of
+a <b>stable <code class="inline">relation_id</code></b>, minted once from an
+<b>allocation</b> and never recomputed, and a succession of
 <b>content-addressed <code class="inline">RelationRevision</code>s</b>. The
 <code class="inline">relation_id</code> is the lifecycle handle: it is what a
 ledger fact, a diagnostic, a fault report and a film row name. The revision id is
@@ -1489,6 +1521,61 @@ the value: it is what canonicalisation hashes and what a merge compares. Two
 parallel cables have two <code class="inline">relation_id</code>s and may share
 one revision id, and that is the correct description of two identical
 cables.</div>
+
+<h4 id="d8-identity-mint">Where the name comes from, without a cycle</h4>
+
+<p>The first draft of this rule left the minting mechanism open and offered two
+options, one of which was "the creating event's canonical id". That option is
+<b>not viable</b>, and the reason is worth keeping rather than deleting, because
+it is a cycle that reads as a reasonable sentence:</p>
+
+<pre class="code"><code>relation_id      = H(attach_event)
+attach_event_id  = H(operation, arguments…)     ; arguments include relation_id</code></pre>
+
+<p>Canonical event identity is a content address over the operation and its
+arguments (§D9), and the id being minted is one of those arguments. Neither hash
+can be computed first. An identity scheme needs an <b>allocation source</b> that
+is prior to the event, not derived from it:</p>
+
+<pre class="code"><code>RelationAllocation { world_id, issuer, nonce }
+
+relation_id = H("WRL_RELATION" ‖ world_id ‖ issuer ‖ nonce)
+
+RelationAttached { allocation, revision_id }</code></pre>
+
+<p>The cycle is broken because <code class="inline">relation_id</code> is a
+function of the allocation, and the allocation is an ordinary argument of the
+event. The event id may still be taken over <i>all</i> its arguments with no
+exception carved out, and the derived id adds no information to that preimage
+because it is recoverable from one of them. The alternative — defining the event
+id over a preimage that deliberately <b>excludes</b> the derived
+<code class="inline">relation_id</code> — is also sound, but it makes the
+sentence "event identity hashes the operation and its arguments" false, and a
+rule with one silent exception is a rule that will acquire a second.</p>
+
+<div class="note"><b><code class="inline">RelationAttached</code> carries the
+allocation, not both ids.</b> Carrying <code class="inline">relation_id</code>
+alongside the allocation it is computed from would put one fact in two places —
+the defect <a href="#d8-derived">§D8 rejects for cardinality</a> and
+<a href="#d8-identity-ledger">again below</a> for revision history. A validator
+computes the id from the allocation; there is nothing to disagree with.</div>
+
+<p>The nonce does not need to be random, and <b>must not be</b>: a random or
+clock-derived nonce is not replayable, and replay is the one property this
+language actually has today. It needs only to be unique within an issuer, and the
+two cases have different natural answers:</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Relation</th><th><code class="inline">issuer</code></th><th><code class="inline">nonce</code></th></tr></thead>
+<tbody>
+<tr><td><b>Present at period 0</b> — authored in the sealed world</td><td>the world itself</td><td>the <b>authored relation name</b>, where the surface provides one. Where it does not, the triple (<code class="inline">kind</code>, <code class="inline">src</code>, <code class="inline">dst</code>) — legal <i>only</i> where that triple is unique, which is the <a href="#d8-identity-cost">same precondition</a> the V1 projection already depends on. One condition, stated once, doing both jobs</td></tr>
+<tr><td><b>Attached at runtime</b> — §D9 operation 3</td><td>the proposing claimant identity</td><td>a <b>claimant-owned monotonic sequence</b>. Uniqueness is then local and needs no coordination, which matters because §D9 operation 3 must remain proposable under partition</td></tr>
+</tbody></table></div>
+
+<p>Other issuers are admissible under the same shape and are named here so the
+mechanism is not read as narrower than it is: a deterministic spawn path, a
+capability-issued lease id, or a parent identity plus a local allocation index.
+What is <b>not</b> admissible is any nonce a replay cannot reproduce.</p>
 
 <p>This is not a new mechanism invented for relations. It is the mechanism every
 other entity in the ontology already has, and writing the four out together shows
@@ -1512,27 +1599,73 @@ part.</p>
 <h4 id="d8-identity-ledger">What the ledger facts have to carry</h4>
 
 <p>Three of §D9's eight operations act on a relation, and each becomes
-expressible only once both ids exist. The <code class="inline">prior</code> field
-is what makes revision an <i>edit</i> rather than a coincidence, and it is why
-<code class="inline">predecessor?</code> appears on the revision record: the chain
-is recoverable from the revisions alone even if a ledger is read out of
-order.</p>
+expressible only once both ids exist:</p>
 
-<pre class="code"><code>RelationAttached { relation_id, revision_id }
-RelationRevised  { relation_id, prior_revision_id, next_revision_id }
-RelationRetired  { relation_id, prior_revision_id }</code></pre>
+<pre class="code"><code>RelationAttached { allocation, revision_id }
+RelationRevised  { relation_id, expected_prior_revision, next_revision }
+RelationRetired  { relation_id, expected_prior_revision }</code></pre>
 
 <p>Each still obeys §D9's eight obligations unchanged, and two of them get
 sharper rather than harder. <b>Canonical event identity</b> is a content address
 over the operation and its arguments — which now includes a stable
-<code class="inline">relation_id</code>, so two hosts proposing the same revision
-agree on the event id without having to agree on hashing the attributes first.
-<b>Conflict rules</b> become statable: two <code class="inline">RelationRevised</code>
-facts in one period naming the same <code class="inline">relation_id</code> with
-different <code class="inline">prior_revision_id</code>s is a
-detectable conflict, not a race that the smaller hash wins. Without a stable id
-there is no way to notice that the two facts are about the same relation at
-all.</p>
+<code class="inline">relation_id</code> (via its allocation), so two hosts
+proposing the same revision agree on the event id without having to agree on
+hashing the attributes first. <b>Conflict rules</b> become statable: two
+<code class="inline">RelationRevised</code> facts in one period naming the same
+<code class="inline">relation_id</code> with different
+<code class="inline">expected_prior_revision</code>s is a detectable conflict,
+not a race that the smaller hash wins. Without a stable id there is no way to
+notice that the two facts are about the same relation at all.</p>
+
+<h4 id="d8-identity-home">One fact, one home — including this one</h4>
+
+<p>The first version of this rule wrote history down in <b>three</b> places, and
+the mistake is instructive because each one looked individually justified: a
+<code class="inline">current_revision</code> field on an instance record (so the
+active value is cheap to read), a <code class="inline">predecessor?</code> field
+on the revision (so the chain survives a ledger read out of order), and the
+<code class="inline">prior → next</code> pair on the ledger fact (so revision is
+an edit rather than a coincidence). Three homes for one fact means they can
+disagree, and nothing said which one wins:</p>
+
+<pre class="code"><code>current_revision  = R3
+R3.predecessor    = R1
+RelationRevised { prior = R2, next = R3 }        ; which of these is true?</code></pre>
+
+<p>This is the defect §D8 rejects one section later for
+<a href="#d8-derived">cardinality</a>, committed in the section that rejects it.
+The rule is the same in both places, so the resolution is the same:</p>
+
+<div class="note stop"><b>Draft rule D8.2 — one home for lifecycle.</b> A
+<code class="inline">RelationRevision</code> is a <b>pure immutable value</b>
+with no reference to any other revision. Lifecycle history lives <b>only</b> in
+the ledger events. The active configuration is <b>derived</b>:
+<code class="inline">current_revision(relation_id, ledger_prefix)</code> is a
+fold over the prefix, and any materialised
+<code class="inline">RelationInstance</code> is a cache of that fold — derived,
+non-canonical, and <b>never hashed independently</b>.</div>
+
+<p>Renaming <code class="inline">prior_revision_id</code> to
+<code class="inline">expected_prior_revision</code> is part of the same
+correction rather than cosmetic. The field is not a record of history — the
+ledger already is that. It is a <b>precondition</b>: the operation asserts what
+it believed the current value to be, and is rejected if the fold disagrees. That
+is what makes two concurrent revisions a detectable conflict instead of a
+last-writer-wins race, and naming it <code class="inline">prior</code> invited
+exactly the redundant back-pointer that produced the three homes.</p>
+
+<p>Dropping <code class="inline">predecessor?</code> buys something beyond
+tidiness, and it is a property this language should want:</p>
+
+<div class="note"><b>A revision id now describes a value, not a path to it.</b>
+With a predecessor in the preimage, a capacity of 3 reduced to 2 and a capacity
+of 1 raised to 2 hash <b>differently</b> despite being the same relation in the
+same state — so two worlds that have genuinely converged cannot be recognised as
+having converged, and a diff between them reports a difference that is not there.
+Without it, they share one revision id. History is not lost: it is in the ledger
+and in the film, which is where §10 already says the record of what occurred
+belongs. The revision hash goes back to answering the question a content address
+should answer — <i>what is this?</i> — rather than <i>how did it get here?</i></div>
 
 <h4 id="d8-identity-cost">What it costs the frozen artifact</h4>
 
@@ -1556,12 +1689,15 @@ newer <code class="inline">ir_version</code>. This is a real limit on V1, not a
 defect in D8.1 — and it is better as a stated precondition that a validator can
 check than as an assumption that holds until the first redundant link.</div>
 
-<p>Whether <code class="inline">relation_id</code> is minted from the sealed
-artifact (for relations present at period 0) or from the creating event's
-canonical id (for relations attached at runtime) is a mechanism question D8.1
-leaves open. Both are deterministic and both replay identically; the rule that
-matters is that whichever is chosen, the id is minted <b>once</b> and never
-recomputed from content that can later change.</p>
+<p>The uniqueness precondition above is doing double duty, which is the reason to
+notice it: it is also the <a href="#d8-identity-mint">period-0 nonce rule</a>. A
+world whose relations are distinguished by
+(<code class="inline">kind</code>, <code class="inline">src</code>,
+<code class="inline">dst</code>) can both be encoded in
+<code class="inline">ir_version 1.0</code> and have its relation ids minted
+without any new authored syntax, and a world that needs parallel relations fails
+both at once. That is one condition to check and one condition to explain, rather
+than two that happen to coincide until they do not.</p>
 
 <h3 id="d8-derived">Cardinality is derived, and therefore never stored</h3>
 
@@ -1733,11 +1869,11 @@ it, and records which capabilities it waits on:</p>
 
 <ol>
 <li><b>A canonical form</b> that leaves every existing <code class="inline">sem-</code> id where it is (the note above).</li>
-<li><b>A minting rule for <code class="inline">relation_id</code></b> (<a href="#d8-identity">§D8.1</a>), and a validator that enforces the V1 projection's precondition — that (<code class="inline">kind</code>, <code class="inline">src</code>, <code class="inline">dst</code>) is unique within any artifact encoded as <code class="inline">ir_version 1.0</code>. Without that check, the first genuine multigraph world silently seals as something it is not.</li>
+<li><b>An allocation surface and its validator.</b> The minting rule is now specified (<a href="#d8-identity-mint">§D8.1</a>), but two things it depends on are not: a way to <i>write</i> an authored relation name in the surface, and a validator that enforces the V1 projection's precondition — that (<code class="inline">kind</code>, <code class="inline">src</code>, <code class="inline">dst</code>) is unique within any artifact encoded as <code class="inline">ir_version 1.0</code>. Without that check, the first genuine multigraph world silently seals as something it is not.</li>
 <li><b>An attribute type system.</b> <code class="inline">capacity=3</code> is meaningless without a unit and a range. This is the same requirement as typed ports (§D2), and neither should ship without the other.</li>
 <li><b>Terminal-level validation.</b> Single-writer becomes a property of a terminal rather than a global law, so validation must move with it: an owned terminal with two <code class="inline">source</code> endpoints reaching it is still an error, and must still be caught before the seal. A terminal declaring <code class="inline">resolved(f)</code> is the one exemption, and the exemption is visible on the terminal.</li>
 <li><b>A well-formedness rule per orientation.</b> Roles and orientation can contradict each other and the checker must say so: <code class="inline">directed</code> requires at least one <code class="inline">source</code> and at least one <code class="inline">target</code> and admits no other role; <code class="inline">symmetric</code> admits only <code class="inline">peer</code>; <code class="inline">acausal</code> admits only <code class="inline">terminal</code> and carries no texture. Each violation needs its own code.</li>
-<li><b>A settlement rule per orientation.</b> <code class="inline">directed</code> settles by the existing REACT pass — including into a resolved terminal, in one pass, provided the resolution is associative, commutative and total over its type (<a href="#d2-two-resolutions">§D2.1</a> — <i>not</i> idempotent; that law belongs to §9's join and forbids conflict-detecting resolutions here). <code class="inline">acausal</code> does not settle by passing values at all and requires a solver wall (§D4). <code class="inline">symmetric</code> has no settlement rule yet, which is the honest state of it.</li>
+<li><b>A settlement rule per orientation.</b> <code class="inline">directed</code> settles by the existing REACT pass — including into a resolved terminal, in one pass, provided the resolution is a pure, total, deterministic function of the canonical driver map with a declared empty value (<a href="#d2-two-resolutions">§D2.1</a>. Algebraic laws are <i>not</i> required: idempotence belongs to §9's join, and associativity and commutativity are priced separately as a <code class="inline">parallel_fold</code> opt-in). <code class="inline">acausal</code> does not settle by passing values at all and requires a solver wall (§D4). <code class="inline">symmetric</code> has no settlement rule yet, which is the honest state of it.</li>
 <li><b>A film schema.</b> A relation's attributes are state, and §10 requires every state variable that determines future behaviour to be serialised.</li>
 </ol>
 
@@ -1813,9 +1949,9 @@ topology operations is an open set of ways for two hosts to disagree.</p>
 <tbody>
 <tr><td>1</td><td><b>create identity</b></td><td>adds an object with a role, config and ports</td><td><code class="inline">IdentityCreated</code></td></tr>
 <tr><td>2</td><td><b>retire identity</b></td><td>marks an object non-participating; its history stays addressable</td><td><code class="inline">IdentityRetired</code></td></tr>
-<tr><td>3</td><td><b>attach relation</b></td><td>adds a relation over existing terminals (§D8), minting its <code class="inline">relation_id</code></td><td><code class="inline">RelationAttached { relation_id, revision_id }</code></td></tr>
-<tr><td>4</td><td><b>detach relation</b></td><td>ends a relation's participation; the id stays addressable</td><td><code class="inline">RelationRetired { relation_id, prior_revision_id }</code></td></tr>
-<tr><td>5</td><td><b>replace relation attributes</b></td><td>changes capacity, cost, latency … without changing endpoints <i>or</i> the <code class="inline">relation_id</code> (<a href="#d8-identity">§D8.1</a>)</td><td><code class="inline">RelationRevised { relation_id, prior_revision_id, next_revision_id }</code></td></tr>
+<tr><td>3</td><td><b>attach relation</b></td><td>adds a relation over existing terminals (§D8), minting its <code class="inline">relation_id</code> from a claimant-owned <a href="#d8-identity-mint">allocation</a></td><td><code class="inline">RelationAttached { allocation, revision_id }</code></td></tr>
+<tr><td>4</td><td><b>detach relation</b></td><td>ends a relation's participation; the id stays addressable</td><td><code class="inline">RelationRetired { relation_id, expected_prior_revision }</code></td></tr>
+<tr><td>5</td><td><b>replace relation attributes</b></td><td>changes capacity, cost, latency … without changing endpoints <i>or</i> the <code class="inline">relation_id</code> (<a href="#d8-identity">§D8.1</a>)</td><td><code class="inline">RelationRevised { relation_id, expected_prior_revision, next_revision }</code></td></tr>
 <tr><td>6</td><td><b>transfer ownership</b></td><td>moves an owned terminal's single writer from one identity to another, atomically — no period has zero writers or two</td><td><code class="inline">OwnershipTransferred</code></td></tr>
 <tr><td>7</td><td><b>open / close boundary</b></td><td>admits or refuses crossings at a wall</td><td><code class="inline">BoundaryStateChanged</code></td></tr>
 <tr><td>8</td><td><b>expire lease</b></td><td>the timed form of 2, 4 or 7, scheduled at attach time</td><td>the corresponding fact, with the deadline as its cause</td></tr>

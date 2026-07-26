@@ -775,6 +775,36 @@ for (const cap of REGISTRY.keys()) {
        `the capability registry is published out of order. Sort rows by ` +
        `(step, capability). Expected:\n    ` +
        sorted.map(([c, r]) => `${r.step} ${c}`).join("\n    "));
+
+    /* THE README COPY. README.md restates the ladder in prose, and prose that
+       restates a machine-read table drifts from it. It did: the arrow chain
+       there put dynamic topology BEFORE supervision -- the exact inversion the
+       ladder itself had already been corrected for -- and omitted step 3
+       entirely, while the ladder check above passed, because the check had no
+       idea the README existed. A third copy of a fact needs a third edge in
+       the graph, not a promise to remember. */
+    const readme = readFileSync(join(ROOT, "README.md"), "utf8");
+    const listed = [...readme.matchAll(
+      /^(\d+)\. [^\n]*— (`[a-z-]+`(?:, `[a-z-]+`)*)$/gm)]
+      .map((m) => ({
+        step: Number(m[1]),
+        caps: [...m[2].matchAll(/`([a-z-]+)`/g)].map((c) => c[1]).sort(),
+      }));
+    ok("readme/ladder-is-present", listed.length === rungs.length,
+       `README.md must restate all ${rungs.length} ladder steps as a numbered ` +
+       `list ending in backticked capability ids; found ${listed.length}. ` +
+       `If this is 0, the list was reworded into a form the check cannot read.`);
+    for (const r of rungs) {
+      const line = listed.find((l) => l.step === r.step);
+      const want = [...r.caps].sort();
+      ok(`readme/step-${r.step}-agrees`,
+         line !== undefined && line.caps.join(",") === want.join(","),
+         line === undefined
+           ? `README.md has no entry for ladder step ${r.step}.`
+           : `README.md says step ${r.step} delivers [${line.caps.join(", ")}]; ` +
+             `direction.html's ladder says [${want.join(", ")}]. The roadmap ` +
+             `is published twice and the two copies disagree.`);
+    }
   }
 }
 

@@ -94,7 +94,7 @@ film. The direction that follows from taking *that* seriously:
 > and replayed exactly after they do.
 
 That is an argument, not an achievement. [`direction.html`](direction.html)
-makes the case, scores where the language actually is today, orders the ten
+makes the case, scores where the language actually is today, orders the eleven
 things that have to be built, and lists the conditions under which the whole
 thesis would be wrong. [`spec.html` Part II](spec.html#part2) states the same
 thing in the spec's own language, non-normatively.
@@ -213,15 +213,32 @@ logical route declaration *distinct from* the structural edge declaration — an
 async message does not settle within the period, so it cannot be an ordinary
 edge.
 
-After that, in dependency order and not in order of appeal: typed ports →
-attributed relations → behaviours → `==` verified routes → dynamic topology →
-a supervision floor and `!!` → effect adapters → derives with checkers → domain
-profiles. The full ladder, with the gate each step must pass, is in
-[`direction.html#ladder`](direction.html#ladder).
+After that, in dependency order and not in order of appeal. This list is
+**checked against [`direction.html#ladder`](direction.html#ladder)** — the
+capability names in backticks are the registry ids, and the suite fails if a
+step here disagrees with the step recorded there:
+
+1. Typed ports and message schemas — `typed-ports`
+2. `~~` async route and mailbox surface — `async-route`
+3. Profile *mechanism* (`ProfileSchemaV1`) — `profile-mechanism`
+4. Attributed relations and resolved terminals — `attributed-relations`, `resolved-terminals`
+5. Behaviours — `behaviours`, `collections`, `expression-notation`, `generics-traits`, `numerics`, `resources`
+6. `==` verified route — `merge-routes`, `verified-route`
+7. Supervision floor and `!!` — `supervision`
+8. Dynamic topology — `dynamic-topology`
+9. Effect adapters and the solver wall — `acausal-relations`, `effect-walls`, `migration`, `podium`
+10. Derive boundary and checkers — `derives`, `ffi`, `metaprogramming`, `modules`, `reflection`, `testing`
+11. Production domain profiles — `domain-profiles`
+
+An earlier version of this paragraph was a prose arrow chain. It put dynamic
+topology *before* supervision — the exact inversion the ladder had already been
+corrected for — and omitted step 3 entirely. Prose that restates a machine-read
+table will drift from it, so this copy is now read by the same check.
 
 The argued next primitive is **not another actor feature**. It is broadening the
-runtime's third entity from a binary directed `Edge` to a general `Relation`
-carrying participants, directionality, cardinality, domain and typed attributes,
+runtime's third entity from a binary directed `Edge` to a general `Relation`:
+a **stable relation identity** whose value is a content-addressed **revision**
+carrying role-bearing endpoints, an orientation, a domain and typed attributes,
 with today's route as its simplest specialisation — the case is
 [`spec.html#d8`](spec.html#d8), and the rules for changing a topology at runtime
 are [`spec.html#d9`](spec.html#d9). The smallest thing worth building first is

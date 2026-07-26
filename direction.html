@@ -543,20 +543,29 @@ from a binary directed <code class="inline">Edge</code> to a general
 <code class="inline">Relation</code>, with today's route as its simplest
 specialisation.</p>
 
-<pre class="code"><code>RelationInstance { relation_id, current_revision }
+<pre class="code"><code>RelationAllocation { world_id, issuer, nonce }
 
-RelationRevision  { domain, kind, endpoints, orientation,
-                    texture?, attributes, policy, provenance,
-                    predecessor? }
+RelationRevision   { domain, kind, endpoints, orientation,
+                     texture?, attributes, policy, provenance }
 
-Endpoint { terminal, role }</code></pre>
+Endpoint { terminal, role }
+
+relation_id      = H("WRL_RELATION" ‖ world_id ‖ issuer ‖ nonce)
+current_revision = fold over the ledger prefix — derived, never stored</code></pre>
 
 <p>The split into a stable <code class="inline">relation_id</code> and a
 content-addressed revision is <a href="spec.html#d8-identity">§D8.1</a>, and it
 is what lets two physically distinct but identical relations — parallel cables,
 a redundant link, two lanes of one segment — be told apart, revised and failed
-independently. <code class="inline">texture?</code> is optional because an
-acausal relation has none.</p>
+independently. The name comes from an <b>allocation</b> rather than from the
+event that creates the relation, because
+<a href="spec.html#d8-identity-mint">deriving it from the event is circular</a>:
+the event id is a hash over its arguments, and the id would be one of them. The
+revision carries no back-pointer to its predecessor, so lifecycle history has
+<a href="spec.html#d8-identity-home">exactly one home</a> — the ledger — and two
+relations that reach the same value by different routes share one revision id.
+<code class="inline">texture?</code> is optional because an acausal relation has
+none.</p>
 
 <p>Three unusual capabilities fall out of that one change, and none of them is
 reachable by improving actors:</p>
@@ -789,7 +798,7 @@ right answer that hardware engineers already know.</p>
 <tr><td>Three drivers on a <b>resolved</b> terminal, one enabled</td><td>legal. The value is the enabled driver's; the two <code class="inline">Z</code> contributions are absorbed by the resolution function</td></tr>
 <tr><td>Two enabled drivers disagreeing</td><td>legal to <i>write</i>, and resolves to <code class="inline">X</code> — contention is a <b>value</b>, not a crash, exactly as in <code class="inline">std_logic</code><sup><a href="#c3">3</a></sup></td></tr>
 <tr><td>The same world sealed on two machines</td><td>identical <code class="inline">sem-</code> id, because the resolution table is in the document</td></tr>
-<tr><td>REACT settling a resolved terminal</td><td>one pass, because the resolution is associative, commutative and total over its type. <b>Not</b> idempotent: that law belongs to <a href="spec.html#d2-two-resolutions">§9's join</a>, where it exists to make redelivery harmless, and a driver set has no unknown multiplicity to protect against. Requiring it here would forbid <i>"two enabled drivers is a fault"</i>, which is an ordinary bus rule</td></tr>
+<tr><td>REACT settling a resolved terminal</td><td>one pass, because the resolution is a <b>pure, total, deterministic</b> function of one canonically ordered driver map, with a declared value for the empty map. It needs no algebraic laws at all: <a href="spec.html#d2-two-resolutions">§D2.1</a> keeps idempotence for §9's join, where it makes redelivery harmless, and keeps associativity and commutativity only for a profile that opts into <i>folding</i> the driver set. Demanding any of them here would forbid <i>"two enabled drivers is a fault"</i> and <i>"the strongest driver wins"</i>, which are ordinary bus rules</td></tr>
 </tbody></table></div>
 
 <div class="note"><b>Why this one is the right first build.</b> It needs no
