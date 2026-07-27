@@ -729,7 +729,35 @@ export const ALLOCATION_FIELDS = deepFreeze({
  * at the boundary where the construction happens.
  */
 export const IMPORTABLE_VARIANTS = deepFreeze(["legacy-edge"]);
-export const AUTHORABLE_VARIANTS = deepFreeze([]);
+
+/**
+ * Which variants ANY authoring surface, in any encoding, may mint.
+ *
+ * This was `[]` through 0.1.2, and the value was wrong the moment B.4 shipped
+ * a surface that writes `named-initial` seeds -- but nothing caught it,
+ * because V2's own list was stated locally and the global one was never
+ * consulted again. A constant whose name makes a claim about every encoding
+ * has to be true of every encoding; one that is only true of the encoding it
+ * was written beside is a fact that goes stale silently.
+ *
+ * The encoding-scoped answers live beside their encodings, and each is an
+ * INTERSECTION of this list with what that encoding's initial bytes admit --
+ * so a variant cannot become authorable in one encoding without becoming
+ * authorable in general, and cannot stay authorable in general once no
+ * encoding admits it.
+ */
+export const AUTHORABLE_VARIANTS = deepFreeze(["named-initial"]);
+
+/**
+ * V1's share of that authority: none, and the emptiness is a property of the
+ * ENCODING rather than of the variant.
+ *
+ * A V1 artifact records `{ kind, src, dst }` per edge and has nowhere to put a
+ * name, so `named-initial` -- authorable in general -- is unwritable here.
+ * That is the distinction the single `[]` above used to hide: it read as "no
+ * one may author a named relation", and what is true is "V1 cannot spell one".
+ */
+export const V1_AUTHORABLE_SEED_VARIANTS = deepFreeze([]);
 
 /**
  * The V1 importer's authority. A V1 artifact records only `{ kind, src, dst }`
@@ -750,23 +778,27 @@ export function assertImportableAllocation(allocation) {
 }
 
 /**
- * An authoring surface's authority, which in 0.1.2 admits nothing.
+ * An authoring surface's authority, in any encoding.
  *
- * The empty list is the statement. There is no writable relation surface, so
- * `named-initial` -- the variant a surface would emit -- has no producer, and
- * saying so with a typed refusal is better than the silence that reads as "not
- * implemented yet" and gets implemented locally.
+ * `named-initial` is in and the other two are out, and both halves are the
+ * statement. An author names a relation; that is what authoring a relation
+ * IS. A `legacy-edge` allocation records that a relation was never named and
+ * arrived through a migration, so emitting one from a surface would claim a
+ * provenance that did not happen. A `granted` allocation is drawn at runtime
+ * from an authority that does not exist while a world is being written.
+ *
+ * Which SURFACE can spell a named relation is a further question, and it is
+ * the encoding's: see `V1_AUTHORABLE_SEED_VARIANTS` and V2's counterpart.
  */
 export function assertAuthorableAllocation(allocation) {
   validateAllocation(allocation);
   if (!AUTHORABLE_VARIANTS.includes(allocation.variant))
     fail("WRL_UNWRITABLE_ALLOCATION",
-         `no authoring surface in this build may emit a ` +
-         `'${allocation.variant}' allocation` +
-         (AUTHORABLE_VARIANTS.length
-            ? `; it may emit ${AUTHORABLE_VARIANTS.join(", ")}`
-            : `. There is no writable relation surface yet, so period-0 ` +
-              `relations are named by the seal and not by an author`),
+         `an authoring surface may emit ${AUTHORABLE_VARIANTS.join(", ")} ` +
+         `allocations, not '${allocation.variant}'. A legacy-edge allocation ` +
+         `records that a relation was never named and arrived through a ` +
+         `migration; a granted one is drawn at runtime from an authority that ` +
+         `does not exist while a world is being written`,
          { fieldPath: "variant" });
   return allocation;
 }

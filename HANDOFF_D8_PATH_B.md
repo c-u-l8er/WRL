@@ -1,13 +1,17 @@
-# Handoff — Path B, Semantic IR V2 (slices B.1 – B.5)
+# Handoff — Path B, Semantic IR V2 (slices B.1 – B.6)
 
-**Status: your §8 build order is exhausted. B.1 through B.5 are landed, the
-battery is green at 828/828, the register is at 92 rows with 80 model rows all
-executable and model debt 0, and both pinned `sem-` ids are unmoved.**
+**Status: your B.6 ruling is discharged. All seven deliverables and all eight
+mutation checks are landed, the battery is green at 835/835, the register is at
+100 rows with 87 model rows all executable and model debt 0, both pinned `sem-`
+ids are unmoved, and `wrl.js` is byte-identical.**
 
-This memo is the Path B counterpart to `HANDOFF_D8_PATH_A.md`. It is organised
-by your nine-item closing ruling: §1 records what each of your decisions turned
-into, §2 records the five things I decided on my own that I would rather you
-overturn now than later, and §3 is the file map.
+Per your instruction — *"push after B.6, not before"* — the closure is a third
+commit on top of `12b12e0` and `738d94a`, and all three go up together.
+
+This memo is the Path B counterpart to `HANDOFF_D8_PATH_A.md`. §1 records what
+each item of your nine-item closing ruling turned into, §2 records what happened
+to the five decisions I took on my own and you then ruled on, §3 records the B.6
+closure itself, §4 is the file map, and §5 is what is left.
 
 ---
 
@@ -15,7 +19,7 @@ overturn now than later, and §3 is the file map.
 
 ```
 node test/conformance.mjs
-  828 passed, 0 failed  (70 annotated doc blocks of 115 swept, 26/26 capabilities cited)
+  835 passed, 0 failed  (70 annotated doc blocks of 115 swept, 26/26 capabilities cited)
 ```
 
 | | |
@@ -30,14 +34,15 @@ suite still asserts that first, before it runs anything else.
 Register, live in the browser:
 
 ```
-92 rows · 80 model · 80 model · executable · model debt 0
+100 rows · 87 model · 87 model · executable · model debt 0
 ```
 
-Forty-four of the 828 checks are new and namespaced `relation/v2/…`.
+The 13 non-model rows are 2 `surface · awaiting`, 7 `runtime · awaiting`, 4
+`film · awaiting`. Forty-eight of the 835 checks are namespaced `relation/v2/…`.
 
 ---
 
-## 1. Your ruling, item by item
+## 1. Your closing ruling, item by item
 
 ### §4 — `relations` replaces `edges` outright at V2
 
@@ -70,7 +75,7 @@ a field to an allocation, the seed schema follows without an edit here
 ### §6 — the variant authorities
 
 ```js
-V2_INITIAL_SEED_VARIANTS   = ["named-initial", "legacy-edge"]
+V2_INITIAL_SEED_VARIANTS    = ["named-initial", "legacy-edge"]
 V2_AUTHORABLE_SEED_VARIANTS = ["named-initial"]
 V2_IMPORTABLE_SEED_VARIANTS = R.IMPORTABLE_VARIANTS   // reused, not restated
 ```
@@ -82,7 +87,8 @@ name is `WRL_MISSING_RELATION_NAME` and never falls back to `legacy-edge`
 
 There are now four separate authorities — which variants **exist**, which a
 trusted **importer** may construct, which a **surface** may emit, which may
-appear in **initial bytes** — and they are four different lists on purpose.
+appear in **initial bytes** — and they are four different lists on purpose. B.6
+made the kernel's `AUTHORABLE_VARIANTS` truthful across all of them; see §2b.
 
 ### §7 — the §D8.8 projection is the V1 compatibility adapter and nothing else
 
@@ -149,8 +155,7 @@ item 2 — "an allocation surface" — is struck through and marked shipped.
 `[clock_feed]: [p0] --sig--> [r0]`, exactly as ruled. The name is unique in the
 world, present in the canonical V2 bytes, order-independent, and absent from
 `revision`. An unnamed route under native V2 is `WRL_MISSING_RELATION_NAME`. No
-name is ever derived from endpoints — there is no code path that could, which is
-the point of the two refusals in §2 below.
+name is ever derived from endpoints.
 
 **How the name gets attached, and why not by line index.** Sugar expands one
 authored line into several emitted ones, and the spine sorts the edges, so
@@ -168,86 +173,195 @@ direction.** Reading, a route line is not matched by a regex spelling `-->`; it
 is defined as *a line that produced an edge*, read off the same provenance map.
 Writing, `formatNamedWorld` asks the frozen `formatCore` for the V1 text and
 then prefixes names at lines it locates the same way. That is asserted
-behaviourally rather than by grep: strip the names off the V2 formatter's output
-and you get, byte for byte, what the frozen formatter emits
-(`relation/v2/format/the-formatter-does-not-know-the-arrow`).
+behaviourally rather than by grep: strip the names **and the encoding header**
+off the V2 formatter's output and you get, byte for byte, what the frozen
+formatter emits (`relation/v2/format/the-formatter-does-not-know-the-arrow`).
 
 ---
 
-## 2. Five decisions I took autonomously
+## 2. The five decisions I took autonomously — and your rulings on them
 
-### 2a. There is no `ir_version 2.0` source header
+### 2a. There was no `ir_version 2.0` source header — **you rejected this**
 
-Your §9 rules exactly one piece of V2 syntax and it is per-route. A document
-header would be a second, unruled one. So the encoding is the **caller's**
-choice, not a declaration inside the text: `parseNamedWorld` is the V2 parser,
-`sealWorld` is the V1 one. This is also what keeps "an unnamed route under
-native V2" a meaningful phrase — under V1 the same text is simply a V1 world.
+Ruled: a document that can be read two ways is not a document. B.6 adds §D8.15,
+the encoding declaration.
 
-If you want a header, it is a small change, but it needs ruling because it
-creates a way for the text to disagree with the caller.
+`ir 2.0` is now a **required** second line of every V2 source, immediately after
+`profile`. `stripIrHeader` does not count lines to find it — it asks
+`W.validateProfileHeader` where the frozen header block ends and reads the next
+line, so "the profile comes first" stays one rule with one implementation.
+Missing → `WRL_MISSING_IR_HEADER`; twice → `WRL_DUPLICATE_IR_HEADER`; `ir`
+alone, `ir version 2.0`, or `ir 3.0` → `WRL_MALFORMED_IR_HEADER`; no `profile`
+line at all → the frozen spine's own `WRL_MISSING_PROFILE`, unchanged. A line
+that is commented out is text, not a declaration, and is accepted.
 
-### 2b. V1's `AUTHORABLE_VARIANTS` stays `[]`
+`formatNamedWorld` emits the header by `splice(1, …)` **after** the name-prefix
+loop, not before it — every line index that loop uses came from the frozen
+formatter's own output, and inserting a line first would shift all of them and
+put the surface back to counting lines instead of asking.
 
-The V2 module keeps its own `V2_AUTHORABLE_SEED_VARIANTS = ["named-initial"]`
-rather than mutating the kernel's list, which reads slightly against a literal
-reading of your §6 ("`AUTHORABLE_VARIANTS = ["named-initial"]` by end of Path
-B"). The reason: the two lists answer the same question about two different
-encodings, and V1 has no field a name could live in. Merging them would make one
-encoding's silence read as the other's permission. `IMPORTABLE_VARIANTS` **is**
-reused from the kernel, because that one really is a property of the relation
-family and not of an encoding.
+The argument the check pins (`relation/v2/source/an-encoding-is-declared-not-
+assumed`) is the one your ruling makes: a world with no routes is valid text in
+both encodings and seals to two different `sem-` ids, so without a declaration
+the same bytes have two identities and the reader picks. Eight cases in
+`relation/v2/source/one-declaration-in-one-place-in-one-spelling`.
 
-### 2c. A migrated world has no source form, and is refused rather than named
+### 2b. V1's `AUTHORABLE_VARIANTS` stayed `[]` — **you rejected this as named**
 
-A world that came in through `migrateV1ToV2` carries `legacy-edge` seeds. Those
-have no names, and §9 gives no nameless route form, so `formatNamedWorld` raises
-`WRL_UNWRITABLE_SEED`. The alternative — let the formatter mint a name — is
-exactly what §D8.1 forbids, so I would rather it be a hard refusal than a
-plausible-looking file. `relation/v2/format/a-migrated-world-has-no-source-form`.
+Ruled: the constant is named after the relation family, so an empty list is a
+globally false statement, not a locally true one. B.6 makes it truthful:
 
-This does mean there is currently no path from a legacy world to an editable
-V2 source. If you want one, it is a *naming* operation and it needs its own
-ruling about who chooses the names.
+```js
+AUTHORABLE_VARIANTS          = ["named-initial"]   // the family: some surface can write this
+V1_AUTHORABLE_SEED_VARIANTS  = []                  // V1's share: no field a name could live in
+V2_AUTHORABLE_SEED_VARIANTS  = ["named-initial"]   // V2's share
+```
 
-### 2d. Two relations over the same terminals have no source form either
+The kernel's list is now the union it always claimed to be, and the per-encoding
+shares carry the per-encoding fact under per-encoding names. `IMPORTABLE_VARIANTS`
+is still reused straight from the kernel, because that one really is a property
+of the family and not of an encoding. The spec note that used to read
+"autonomous decision, flagged for review" is rewritten as **what an authorability
+constant is allowed to be named after**.
 
-V2 keys relations by name, so `{a: p0→r0, b: p0→r0}` is well-formed V2 and
-something V1 could never represent. Printed, it is one route line twice, and the
-spine refuses a duplicate edge key. So `formatNamedWorld` raises
-`WRL_UNWRITABLE_RELATION` rather than emit text that will not re-read.
+### 2c. A migrated world had no source form — **you ratified it, and ordered an exit**
 
-This is the first place where V2 is strictly more expressive than the surface
-that writes it. It is a real gap, not a bug, and closing it means ruling a
-parallel-relation syntax.
+Ratified: a formatter that mints a name is exactly what §D8.1 forbids, so
+`WRL_UNWRITABLE_SEED` stays. But a world that can never become editable is a
+trap, so B.6 adds §D8.16, `adoptLegacyRelations` — the *naming* operation, with
+the names supplied by the caller and never generated.
 
-### 2e. V2 is an encoding version over the same profile
+```js
+V2_ADOPTION_FIELDS = [...V2_SEED_FIELDS["legacy-edge"], "relation_name"].sort()
+```
 
-`ir_version` moves to `"2.0"`; `profile_id` stays `forge.world.core.v1`. The
-world model did not change — the encoding of relations did. Everything in
-`revision` is shared with V1 through the kernel's `edgeToRelationRevision`, and
-`relation/v2/the-revision-model-is-shared-with-V1` asserts that rather than
-letting it drift.
+derived from the seed schema, not restated, so the selector cannot drift from
+the thing it selects. An assignment carries exactly those fields: the four that
+identify a legacy relation, plus the name to give it. `legacyEdgeSeed` both
+validates the selector and builds it — one construction, so a selector that is
+accepted is a selector that exists. `namedInitialSeed` validates the name, so
+adoption inherits `WRL_BAD_RELATION_NAME` rather than restating the grammar.
+Naming a relation the world does not have is `WRL_UNKNOWN_RELATION`; adopting one
+relation twice under two names is `WRL_DUPLICATE_ADOPTION`. A repeated **name**
+is deliberately left to the encoder's `WRL_DUPLICATE_RELATION_SEED`, following
+the same precedent as the surface: one fact, one rule.
+
+The returned correspondence pairs on `revision_id`, which is a total bijection
+precisely because adoption is the operation that leaves structure alone. It
+reports `identityPreserved: false` and `revisionsPreserved: true` — two facts
+pointing opposite ways, and both of them true: naming a relation changes what
+the relation *is*, and changes nothing about what it *does*.
+
+A partly-adopted world is still unwritable, and the check says so
+(`relation/v2/adoption/a-partly-adopted-world-is-still-unwritable`).
+
+### 2d. Two relations over the same terminals had no source form — **you rejected the framing**
+
+Ruled: the debt was misfiled. B.6 reclassifies it.
+
+The normative D8.13 clause claiming parallel relations are *impossible to write*
+is removed. Two named routes over the same terminals — `[a]: [p0] --sig--> [r0]`
+and `[b]: [p0] --sig--> [r0]` — are two distinct source lines and the surface can
+emit both perfectly well. What actually happens is that the **world** is refused,
+by the frozen spine's `WRL_CONTROLLER_CONFLICT`, in either encoding. That is a
+profile fact, not a surface fact.
+
+So the register row is now executable and points at
+`relation/v2/profile/parallel-relations-are-not-permitted-yet`, and a new
+`surface · awaiting` row — `a-profile-that-admits-parallel-relations` — carries
+the real obligation, which is a *profile* obligation and not mine to discharge.
+`WRL_UNWRITABLE_RELATION` stays in the code as a typed implementation boundary,
+now correctly documented as unreachable under `forge.world.core.v1`. The B.5
+banner that said "TWO WORLDS THIS SURFACE CANNOT WRITE" now says "ONE WORLD THIS
+SURFACE CANNOT WRITE — AND ONE THAT WAS FILED UNDER THE SAME HEADING BY MISTAKE".
+
+### 2e. V2 is an encoding version over the same profile — **you ratified it, conditionally**
+
+Ratified, with the condition that the gate be real rather than ceremonial. It
+was ceremonial: `ir_version` moved to `"2.0"` and `profile_id` stayed
+`forge.world.core.v1`, but nothing on the V2 path ever checked the world against
+that profile before hashing it. B.6 adds §D8.14, the V2 world gate.
+
+Every V2 artifact is now validated **profile-aware, before canonicalization and
+before hashing**. The gate does not re-list the registries — it delegates to
+`W.graphToIr`, which already runs `validateGraph`, so object roles, duplicate
+ids, terminal existence, domains, kinds, ports, controller conflicts and
+`static_config` are all judged by the frozen spine's own rules.
+
+The mutation battery
+(`relation/v2/world/an-invalid-world-mints-no-id`) proves **no `sem-` is minted**
+for any of the eight mutations you named:
+
+| mutation | refused with |
+|---|---|
+| unknown object role | `WRL_UNSUPPORTED_FEATURE` |
+| duplicate object id | `WRL_DUPLICATE_ID` |
+| terminal names an object that does not exist | `WRL_UNKNOWN_ENDPOINT` |
+| undeclared domain | `WRL_UNSUPPORTED_FEATURE` |
+| undeclared kind | `WRL_UNSUPPORTED_FEATURE` |
+| illegal port | `WRL_ILLEGAL_PORT_PAIR` |
+| controller-conflicting relation set | `WRL_CONTROLLER_CONFLICT` |
+| invalid `static_config` | `WRL_CLOCK_RANGE` |
+
+The companion check
+`relation/v2/world/the-world-gate-delegates-to-the-profile` asserts that every
+one of those codes is in `W.CODES` and **none** is in `RELATION_V2_CODES` — the
+executable form of "the gate delegates, it does not restate". If a future edit
+makes V2 answer one of these questions itself, that check fails.
+
+Two things that went wrong writing this battery, both worth recording:
+
+*The last row was originally `{nonsense: 1}` on a Door, and it **minted a real
+`sem-`**.* That is not a hole — it is correct. `canonConfig` passes unknown
+config keys through unchanged and `validateConfig` only constrains Pulser and
+Spinner, so `{nonsense: 1}` on a Door is a legal V1 world. The gate was right
+and my test case was wrong. Blanking a **Pulser's** config is the honest
+mutation.
+
+*And `sig` came back `-1`* because I searched for kind `"signal_wire"`. The
+frozen spelling is `"SignalWire"`. A mutation battery that mutates nothing
+passes.
 
 ---
 
-## 3. Files
+## 3. What B.6 changed, as a checklist against your ruling
+
+| your deliverable | landed as |
+|---|---|
+| 1. profile-aware V2 world validation before canonicalization or hashing | §D8.14, delegating to `W.graphToIr` |
+| 2. object / terminal / port / kind / domain / controller checks | all eight, via the frozen spine; battery above |
+| 3. the required `ir 2.0` source header | §D8.15, `stripIrHeader` + `formatNamedWorld` splice |
+| 4. globally truthful authorability declarations | `AUTHORABLE_VARIANTS = ["named-initial"]` + two per-encoding shares |
+| 5. explicit legacy-relation adoption | §D8.16, `adoptLegacyRelations` + `V2_ADOPTION_FIELDS` |
+| 6. parallel-source debt reclassified | normative clause removed; executable profile row + `surface · awaiting` obligation; typed boundary retained |
+| 7. three stale "kept the id that world minted" prose fixes | done, plus a broken anchor `#d8-provenance` → `#d8-identity-provenance` |
+| 8 mutation checks, no `sem-` minted | `relation/v2/world/an-invalid-world-mints-no-id` |
+
+Constraints held: every pre-existing check still green, both pinned V1 ids
+unmoved, the V1 round trip still byte-exact, model debt still 0, `wrl.js` not
+widened (`git diff --stat wrl.js` is empty).
+
+---
+
+## 4. Files
 
 | file | state |
 |---|---|
-| `relation-v2.js` | **new**, ~57 KB — B.1 schema + canonical bytes, B.2 validation + identity derivation, B.3 V1↔V2 migration, B.4 named-relation surface, B.5 formatter + consumer. Zero new runtime constructs; every hashing path — and now every sort key — delegates to `relation-identity.js` and `wrl.js` |
-| `relation-identity.js` | 0.1.2, unchanged by Path B except as a consumer |
-| `wrl.js` | **frozen**, untouched |
-| `test/conformance.mjs` | **828 checks**, 0 failed; 44 `relation/v2/…` |
-| `spec.html` | new §D8.9 – §D8.13 under `#d8-v2` (`#d8-v2-seed`, `#d8-v2-profile`, `#d8-v2-boundary`, `#d8-v2-derive`, `#d8-v2-migrate`, `#d8-v2-surface`, `#d8-v2-write`), register 47 → 92 rows, model debt 0, `#d8-owes` item 2 struck |
+| `relation-v2.js` | ~77 KB — B.1 schema + canonical bytes, B.2 validation + identity derivation, B.3 V1↔V2 migration, B.4 named-relation surface, B.5 formatter + consumer, **B.6 world gate + `ir` header + adoption**. Zero new runtime constructs; every hashing path, every sort key, and now every profile question delegates to `relation-identity.js` and `wrl.js` |
+| `relation-identity.js` | 0.1.2; B.6 widened `AUTHORABLE_VARIANTS` and added `V1_AUTHORABLE_SEED_VARIANTS` |
+| `wrl.js` | **frozen**, untouched — byte-identical across all of Path A and Path B |
+| `test/conformance.mjs` | **835 checks**, 0 failed; 48 `relation/v2/…` |
+| `spec.html` | §D8.9 – §D8.16 under `#d8-v2` (`#d8-v2-seed`, `#d8-v2-profile`, `#d8-v2-boundary`, `#d8-v2-derive`, `#d8-v2-migrate`, `#d8-v2-surface`, `#d8-v2-write`, **`#d8-v2-world`, `#d8-v2-header`, `#d8-adoption`**), register 47 → 100 rows, model debt 0, `#d8-owes` item 2 struck |
 | `playground.html` | unchanged; re-verified live |
-| `WRL.zip` | rebuilt, now includes `relation-v2.js` |
+| `WRL.zip` | rebuilt |
 
-New typed codes, all nine of them in `RELATION_V2_CODES`:
+Fifteen typed codes in `RELATION_V2_CODES` — nine from B.1–B.5:
 `WRL_LEGACY_EDGES_IN_V2`, `WRL_BAD_IDENTITY_SEED`, `WRL_UNWRITABLE_SEED`,
 `WRL_MISSING_RELATION_NAME`, `WRL_DUPLICATE_RELATION_SEED`,
 `WRL_BAD_V2_ARTIFACT`, `WRL_BAD_RELATION_NAME`, `WRL_AMBIGUOUS_RELATION_NAME`,
-`WRL_UNWRITABLE_RELATION`.
+`WRL_UNWRITABLE_RELATION`; plus `WRL_V2_WORLD_MISMATCH` from the world binding,
+and five from B.6: `WRL_MISSING_IR_HEADER`, `WRL_DUPLICATE_IR_HEADER`,
+`WRL_MALFORMED_IR_HEADER`, `WRL_UNKNOWN_RELATION`, `WRL_DUPLICATE_ADOPTION`.
 
 There is deliberately **no** `WRL_DUPLICATE_RELATION_NAME`. A repeated name is a
 repeated seed, and the encoder already refuses that with
@@ -257,18 +371,37 @@ its own is itself checked
 (`relation/v2/surface/a-repeated-name-is-a-repeated-seed`) — an earlier spelling
 keyed its intermediate map by name, which silently swallowed the collision
 before the encoder could see it, and that bug is what the check exists to
-prevent recurring.
+prevent recurring. B.6's adoption path follows the same precedent for the same
+reason.
+
+Note that none of B.6's five new codes is a *world* code. The eight mutations in
+the gate battery refuse under six distinct codes and every one of them is a
+`W.CODES` entry. V2 grew no error surface for anything the profile already
+answers — the only questions it answers itself are questions about the V2
+encoding: its header, and its adoption operation.
 
 ---
 
-## 4. What I need from you
+## 5. What is left
 
-Your §8 sequence is exhausted, so there is no next slice I can start without a
-ruling. In rough order of how much they block:
+Path B is closed. The two remaining `surface · awaiting` register rows are the
+honest edge of it:
 
-1. **2c and 2d** — the two unwritable worlds. Both are one syntax decision away
-   from being writable, and neither syntax is mine to invent.
-2. **2a** — header or no header.
-3. **2b** — whether the two `AUTHORABLE` lists stay separate.
-4. Whether V2 should reach the **playground** and the **runtime** now, or stay a
-   library-level encoding until the surface gaps above are closed.
+1. **`a-profile-that-admits-parallel-relations`** — the reclassified 2d debt.
+   This is a *profile* question, not a surface one: `forge.world.core.v1` admits
+   at most one controller per socket, so two relations over the same terminals
+   are refused before any surface sees them. Whether a successor profile admits
+   them, and under what rule, is yours.
+2. The `runtime · awaiting` and `film · awaiting` rows are unchanged from B.5 —
+   V2 is a library-level encoding and has not reached the playground or the
+   runtime.
+
+So the open questions, in order of how much they block:
+
+1. Should V2 reach the **playground** and the **runtime** now, or stay
+   library-level until a parallel-relation profile is ruled?
+2. If a successor profile is on the table, does it version `profile_id` (a new
+   world model) or `ir_version` again (a new encoding)? 2e's answer says these
+   are different axes, and this would be the first time they move independently.
+3. Anything in B.6 you want spelled differently before it is load-bearing —
+   particularly `V2_ADOPTION_FIELDS`, which is the newest public shape.

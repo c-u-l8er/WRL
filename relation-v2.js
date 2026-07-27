@@ -69,12 +69,23 @@
  * touching the encoding. The admission gate is still the whole tuple, exactly
  * as A.4 made it for V1; only the version coordinate moved.
  *
- * WHAT THIS MODULE DOES NOT VALIDATE
- * ----------------------------------
- * It is a relation-layer encoder, not a whole-artifact validator. `schemas`,
- * `objects`' internal shape, and the non-rulepack policy ids pass through
- * untouched. Checking them here would duplicate `wrl.js`'s validation in a
- * module that cannot be the one that fails first.
+ * WHAT THIS MODULE VALIDATES (B.6, and it used to be the opposite)
+ * ----------------------------------------------------------------
+ * Through B.5 this header said the module was "a relation-layer encoder, not a
+ * whole-artifact validator", and that `schemas`, `objects`' internal shape and
+ * the non-rulepack policy ids "pass through untouched" because checking them
+ * "would duplicate `wrl.js`'s validation in a module that cannot be the one
+ * that fails first". Every clause of that was true except the conclusion. This
+ * module IS the one that fails first -- nothing downstream of a sealed V2
+ * artifact ever ran the frozen validator -- so `domain: "banana"`, kind
+ * `"WarpTunnel"`, a terminal naming an object that does not exist, port
+ * `"made_up"`, two objects sharing an id and role `"Alien"` all sealed, and
+ * each got a real `sem-`.
+ *
+ * So it validates the whole world now, and it does so WITHOUT restating a
+ * registry: `assertV2World` derives the V1 world the artifact describes and
+ * hands it to `wrl.js`'s own `graphToIr`. Duplicating the validation was never
+ * the alternative to skipping it. Delegating to it was.
  *
  * DEPENDENCY DIRECTION
  * --------------------
@@ -131,6 +142,18 @@ export const RELATION_V2_CODES = deepFreeze({
     "a relation name does not name exactly one relation",
   WRL_UNWRITABLE_RELATION:
     "a well-formed V2 relation has no form in the minimal surface",
+  WRL_V2_WORLD_MISMATCH:
+    "a V2 artifact states a derived field that its own world does not derive",
+  WRL_MISSING_IR_HEADER:
+    "a V2 source does not declare which encoding it is written in",
+  WRL_DUPLICATE_IR_HEADER:
+    "a V2 source declares its encoding more than once",
+  WRL_MALFORMED_IR_HEADER:
+    "a V2 source's encoding declaration is not one version token",
+  WRL_UNKNOWN_RELATION:
+    "an adoption names a relation the world does not have",
+  WRL_DUPLICATE_ADOPTION:
+    "one relation is adopted twice, under two names",
 });
 
 /* -------------------------------------------------- the V2 source family */
@@ -208,14 +231,17 @@ export const V2_SEED_FIELDS = deepFreeze(Object.fromEntries(
 /**
  * Which variants an AUTHORING surface may write into a V2 world.
  *
- * `named-initial` only, once B.4 ships the surface. It is stated here rather
- * than reused from the kernel's `AUTHORABLE_VARIANTS` because that list is
- * about V1, where the answer is `[]` and stays `[]` -- V1 has no field to hold
- * a name, so the two lists are answers to the same question about two
- * different encodings, and merging them would make one encoding's silence read
- * as the other's permission.
+ * DERIVED, not restated: the kernel's `AUTHORABLE_VARIANTS` says which
+ * variants an author may mint at all, `V2_INITIAL_SEED_VARIANTS` says which
+ * may appear in a world's initial bytes, and this is the intersection. It used
+ * to be a local literal beside a comment explaining that the kernel's list was
+ * "about V1, where the answer is `[]` and stays `[]`" -- which made a global
+ * name's wrong value invisible from here, and left the two lists free to
+ * disagree about whether authoring a named relation is a thing that happens.
+ * It is; V1 simply has no syntax for it, which is now V1's own list to say.
  */
-export const V2_AUTHORABLE_SEED_VARIANTS = deepFreeze(["named-initial"]);
+export const V2_AUTHORABLE_SEED_VARIANTS = deepFreeze(
+  R.AUTHORABLE_VARIANTS.filter((v) => V2_INITIAL_SEED_VARIANTS.includes(v)));
 
 /**
  * A well-formed seed of a variant initial bytes admit, or a typed refusal.
@@ -302,8 +328,10 @@ export function assertAuthorableSeed(seed, where = "identity_seed") {
          `an authoring surface may write ` +
          `${V2_AUTHORABLE_SEED_VARIANTS.join(", ")} seeds, not ` +
          `'${seed.variant}'. A legacy-edge seed records that a relation ` +
-         `arrived through the V1 migration and kept the id that world minted ` +
-         `for it; authoring one would claim a provenance that did not happen`,
+         `crossed the V1 migration WITHOUT EVER BEING NAMED -- its id moved ` +
+         `with the world id, as every relation's does -- so authoring one ` +
+         `would claim a provenance that did not happen. To name such a ` +
+         `relation, adopt it: see adoptLegacyRelations`,
          { fieldPath: `${where}.variant` });
   return seed;
 }
@@ -391,6 +419,10 @@ export const V2_REQUIRED_KEYS =
  * rulepack_id)`, each coordinate answering with its own code, because "this
  * version is not one I read" and "this rulepack is not the one that version
  * declares" are different repairs.
+ *
+ * RETURNS the V1 world it derived on the way, because admitting an artifact
+ * and deriving its world are one walk and running them separately is how the
+ * two answers get to differ. Callers that only want the refusal ignore it.
  */
 export function assertV2Artifact(artifact) {
   if (!artifact || typeof artifact !== "object" || Array.isArray(artifact))
@@ -448,24 +480,167 @@ export function assertV2Artifact(artifact) {
    * explicitly rather than inheriting it -- but the encoder cannot check that
    * the stated one belongs to the profile without the profile saying so. */
   R.profileDefaultDomain(artifact.profile_id);
-  return artifact;
+
+  /* ...and then the world itself. Everything above judges the ENVELOPE: the
+   * version tuple, which topology key is present, that two arrays are arrays.
+   * None of it opens an object or an endpoint, and for one slice that was
+   * defensible -- until it wasn't. See `assertV2World`. */
+  return assertV2World(artifact);
+}
+
+/* ------------------------------------------------- the world behind the keys
+ *
+ * B.6. Through B.5 this module validated the relation LAYER and let the rest
+ * of the artifact pass through, on the stated ground that "checking them here
+ * would duplicate `wrl.js`'s validation in a module that cannot be the one
+ * that fails first". The reasoning was wrong in a specific and checkable way,
+ * and the review that found it did so by asking for ids rather than by reading
+ * the argument: `domain: "banana"`, `kind: "WarpTunnel"`, a terminal naming an
+ * object that does not exist, port `"made_up"`, two objects with one id, role
+ * `"Alien"` -- every one of them produced an accepted artifact and a real
+ * `sem-`. A gate that admits those is not a narrow gate, it is an open one,
+ * and the module WAS the one that failed first because nothing downstream ran.
+ *
+ * The repair is not to restate `wrl.js`'s registries here. It is to DERIVE the
+ * V1 world this V2 artifact describes and hand it to the frozen validator --
+ * the same one a written world goes through -- so that every check is the
+ * profile's own, reported with the profile's own code, and a profile that
+ * widens widens both encodings at once. What this module adds is exactly one
+ * check the frozen validator cannot make, because it never sees two copies of
+ * anything: that the fields the V2 artifact STATES agree with the fields its
+ * own objects and relations DERIVE.
+ */
+
+/**
+ * The V1 world a V2 artifact describes, as the frozen lowering produces it.
+ *
+ * Every relation is projected to its V1 edge first, which is where a kind, a
+ * domain, a texture, an orientation, an arity, an attribute set and a port
+ * pairing are judged (`projectRelationRevisionToV1Edge`); the resulting graph
+ * then goes through `graphToIr`, which is where a role, an object id, a static
+ * config, an endpoint's existence and the controller counts are judged.
+ *
+ * A V2 world that no V1 world corresponds to therefore cannot be sealed today,
+ * and that is a PROFILE limit rather than an encoding one: `forge.world.core.v1`
+ * declares one domain, two kinds and one texture, so under this profile the
+ * two encodings describe the same set of worlds and only spell them
+ * differently. A wider profile arrives with its own projection, and this
+ * function is where the fork goes.
+ */
+export function v2WorldAsV1(artifact) {
+  const g = new W.WrlGraph();
+  g.profile = artifact.profile_id;
+  g.periods = 0;   /* run inputs are not in an artifact, in either encoding */
+
+  artifact.objects.forEach((o, i) => {
+    const where = `objects[${i}]`;
+    if (!o || typeof o !== "object" || Array.isArray(o))
+      fail("WRL_BAD_V2_ARTIFACT", "an object record is an object",
+           { fieldPath: where });
+    if (typeof o.object_id !== "string" || typeof o.role !== "string")
+      fail("WRL_BAD_V2_ARTIFACT",
+           "an object record carries a string object_id and role",
+           { fieldPath: where });
+    if (!o.static_config || typeof o.static_config !== "object" ||
+        Array.isArray(o.static_config))
+      fail("WRL_BAD_V2_ARTIFACT",
+           `object '${o.object_id}' carries no static_config record. An ` +
+           `absent one is not an empty one: the roles that need configuring ` +
+           `are exactly the roles whose validation would crash reading it`,
+           { fieldPath: `${where}.static_config` });
+    const node = [o.role, o.object_id, o.static_config];
+    node.line = i + 1;   /* declaration order, so a duplicate blames the later */
+    g.nodes.push(node);
+  });
+
+  for (const rel of artifact.relations) {
+    const { kind, src, dst } = R.projectRelationRevisionToV1Edge(rel.revision);
+    g.edges.push([kind, src, dst]);
+  }
+
+  return W.graphToIr(W.canonicalizeGraph(g));
+}
+
+/* The keys a V2 artifact states that its own world also derives.
+ *
+ * `ir_version` is excluded and its exclusion is the one asymmetry: it is the
+ * coordinate that MOVED, so the derived V1 value ("1.0" or "1.1") disagreeing
+ * with the stated "2.0" is the encoding change rather than a defect. Every
+ * other derived field is the same function of the same roles in both
+ * encodings, so a disagreement is a claim about a world that is not this one.
+ *
+ * `objects` is compared separately, as a bag -- see below. */
+const V2_DERIVED_KEYS = deepFreeze(["semantic_policies", "schemas"]);
+
+/**
+ * Refuse a V2 artifact whose world does not validate, or does not agree with
+ * the fields the artifact states about it.
+ *
+ * Returns the derived V1 artifact, because the caller needs it: canonical
+ * object order is the frozen lowering's answer, and asking for it here is what
+ * stops this module from keeping a private copy of a sort key.
+ */
+export function assertV2World(artifact) {
+  const derived = v2WorldAsV1(artifact);
+
+  for (const k of V2_DERIVED_KEYS) {
+    const want = W.serializeArtifact(derived[k]);
+    const have = Object.prototype.hasOwnProperty.call(artifact, k)
+      ? W.serializeArtifact(artifact[k]) : "<absent>";
+    if (want !== have)
+      fail("WRL_V2_WORLD_MISMATCH",
+           `this artifact states ${k} = ${have}, and the world it encodes ` +
+           `derives ${want}. These fields are functions of the objects -- a ` +
+           `stated copy that disagrees is a second source of truth, and the ` +
+           `stated one is the one a reader believes`,
+           { fieldPath: k });
+  }
+
+  /* Objects are compared as a BAG, not as a sequence, because their order is
+   * this function's to decide and the caller's to accept -- refusing an
+   * unsorted artifact would make canonicalisation something the author has to
+   * do first. Content is another matter: `ports` and `state_schema_ref` are
+   * derived from the role, so an artifact carrying its own values for them is
+   * describing objects the profile does not define, and a canonicaliser that
+   * silently substituted the right ones would let the wrong ones be believed
+   * everywhere the artifact is read and nowhere it is sealed. */
+  const bag = (objs) =>
+    W.serializeArtifact(objs.map((o) => W.serializeArtifact(o)).sort());
+  if (bag(derived.objects) !== bag(artifact.objects))
+    fail("WRL_V2_WORLD_MISMATCH",
+         `this artifact's objects are not the objects its roles derive. ` +
+         `state_schema_ref and ports are functions of the role, so a stated ` +
+         `value for either describes an object this profile does not define`,
+         { fieldPath: "objects" });
+
+  return derived;
 }
 
 /**
  * The canonical V2 artifact.
  *
  * Two array orders are decided here and one is not. `relations` sorts by
- * canonical seed bytes (§5). `objects` keeps V1's `(role, object_id)` order,
- * unchanged, because V2 changes the TOPOLOGY encoding and nothing else -- and
- * a canonicalisation that quietly reordered the objects too would make every
- * migrated world's bytes differ for a reason unrelated to the change being
- * made. Endpoint order inside a revision is the kernel's, untouched.
+ * canonical seed bytes (§5). `objects` keeps V1's order, unchanged, because V2
+ * changes the TOPOLOGY encoding and nothing else -- and a canonicalisation
+ * that quietly reordered the objects too would make every migrated world's
+ * bytes differ for a reason unrelated to the change being made. Endpoint order
+ * inside a revision is the kernel's, untouched.
+ *
+ * "Unchanged" is now ASKED rather than reproduced: the objects come back from
+ * the derivation, which got them from `graphToIr`. Until B.6 this function
+ * sorted them locally by `(role, object_id)` under a comment claiming that was
+ * V1's order. V1 sorts objects IDENTITY-FIRST, by `(object_id, role)`. The two
+ * agree on the demo world and on every world where no two objects share an id
+ * prefix ordering -- which is to say the bug was invisible to every test that
+ * existed, exactly as the edge-order bug one commit earlier was. Order is the
+ * one part of an encoding no field rule checks, so a private copy of a sort
+ * key fails silently and reads as correct.
  *
  * Key order is not decided here at all: `serializeArtifact` sorts keys
  * recursively, so an object's field order is not in its bytes.
  */
 export function canonicalizeV2Artifact(artifact) {
-  assertV2Artifact(artifact);
+  const derived = assertV2Artifact(artifact);
 
   const relations = artifact.relations.map(canonicalizeV2Relation);
 
@@ -493,10 +668,7 @@ export function canonicalizeV2Artifact(artifact) {
     return x < y ? -1 : x > y ? 1 : 0;
   });
 
-  const objects = artifact.objects.slice().sort((a, b) =>
-    cmp(a.role, b.role) || cmp(a.object_id, b.object_id));
-
-  return { ...artifact, objects, relations };
+  return { ...artifact, objects: derived.objects, relations };
 }
 
 /** Canonical bytes. The value `sem-` hashes below, and nothing else. */
@@ -844,6 +1016,169 @@ export async function migrationCorrespondence(sealedV1, sealedV2) {
   };
 }
 
+/* --------------------------------------------------------------- adoption */
+/*
+ * §D8.16. The way OUT of the state a migration leaves a world in.
+ *
+ * A migrated world's relations were never named -- that is a FACT about their
+ * history, and `legacy-edge` records it -- so the surface cannot write them
+ * (§D8.13) and `assertAuthorableSeed` refuses to author them. Left there, the
+ * limit is permanent: a world that crossed the migration could never again be
+ * handed to an author as text, which makes the migration a one-way door out of
+ * the language.
+ *
+ * Adoption is the door back, and it is an ACT rather than a fix-up. Someone
+ * supplies the names. That is the whole design:
+ *
+ *   THE NAMES COME FROM THE CALLER. Never from the endpoints, never from a
+ *   counter, never from the old world. A generated name would make the
+ *   formatter's forbidden move legal by moving it one function to the left,
+ *   and the generated name would then be indistinguishable in the bytes from
+ *   one an author chose -- which is precisely the confusion `legacy-edge`
+ *   exists to prevent.
+ *
+ *   THE STRUCTURE DOES NOT MOVE. Every `rev-` recurs, because a revision is
+ *   standalone (§D8.3) and a name is not in it. Adoption changes what a
+ *   relation is CALLED, not what it connects.
+ *
+ *   THE IDENTITY DOES MOVE, all of it. The seeds changed, so the world's bytes
+ *   changed, so the world `sem-` moved, so every allocation moved with it and
+ *   every `rel-` is new -- including the relations that were NOT adopted.
+ *   §D8.5 again, and the correspondence returned says so rather than letting a
+ *   caller assume otherwise.
+ *
+ * The selector is the seed's own preimage -- `{ kind, src, dst }`, read out of
+ * `V2_SEED_FIELDS` rather than restated -- so a caller names a relation by the
+ * only name it has.
+ */
+
+/** An adoption assignment: the legacy seed's own fields, plus the new name. */
+export const V2_ADOPTION_FIELDS = deepFreeze(
+  [...V2_SEED_FIELDS["legacy-edge"], "relation_name"].sort());
+
+/**
+ * A migrated world, with some or all of its relations given names. §D8.16.
+ *
+ * Returns `{ artifact, correspondence }`. The correspondence pairs on
+ * `revision_id`, which is available because the structure is exactly what
+ * adoption leaves alone, and is a total bijection for the same reason.
+ *
+ * Adoption may be PARTIAL -- a caller names the relations it has names for --
+ * and a partially adopted world is still unwritable by the surface. That is
+ * not a special case to smooth over: the surface's requirement is that EVERY
+ * route have a name, and half a name-set does not meet it.
+ */
+export async function adoptLegacyRelations(v2artifact, assignments) {
+  const canonical = canonicalizeV2Artifact(v2artifact);
+
+  if (!Array.isArray(assignments) || assignments.length === 0)
+    fail("WRL_BAD_V2_ARTIFACT",
+         `an adoption is a non-empty list of assignments; adopting nothing ` +
+         `would move every id in the world and change nothing about it`,
+         { fieldPath: "assignments" });
+
+  /* the relations there are to adopt, keyed by the seed each one already is */
+  const available = new Map();
+  for (const rel of canonical.relations)
+    if (rel.identity_seed.variant === "legacy-edge")
+      available.set(seedKey(rel.identity_seed), rel);
+
+  const chosen = new Map();
+  assignments.forEach((a, i) => {
+    const where = `assignments[${i}]`;
+    if (!a || typeof a !== "object" || Array.isArray(a))
+      fail("WRL_BAD_V2_ARTIFACT", "an assignment is a record",
+           { fieldPath: where });
+
+    const keys = Object.keys(a).sort();
+    if (W.serializeArtifact(keys) !== W.serializeArtifact(V2_ADOPTION_FIELDS))
+      fail("WRL_BAD_V2_ARTIFACT",
+           `an assignment carries exactly ${V2_ADOPTION_FIELDS.join(", ")}; ` +
+           `this one carries ${keys.join(", ") || "nothing"}`,
+           { fieldPath: where });
+
+    if (typeof a.relation_name !== "string")
+      fail("WRL_MISSING_RELATION_NAME",
+           `${where} selects a relation and supplies no name. Adoption is ` +
+           `how a migrated relation GETS a name; it never derives one, ` +
+           `because a derived name is re-minted the moment an object is ` +
+           `renamed and is indistinguishable in the bytes from a chosen one`,
+           { fieldPath: `${where}.relation_name` });
+
+    /* both of these VALIDATE as well as build: the selector through the
+     * importer's own seed constructor, the name through the surface's */
+    const seed = legacyEdgeSeed(a);
+    namedInitialSeed(a.relation_name);
+
+    const k = seedKey(seed);
+    if (!available.has(k))
+      fail("WRL_UNKNOWN_RELATION",
+           `${where} adopts ${a.src} --${a.kind}--> ${a.dst}, and this world ` +
+           `has no unnamed relation over those terminals. A relation that is ` +
+           `already named is not adoptable: it has a name, and replacing it ` +
+           `would be a rename`,
+           { fieldPath: where, locator: `${a.src}->${a.dst}` });
+
+    if (chosen.has(k))
+      fail("WRL_DUPLICATE_ADOPTION",
+           `${where} adopts ${a.src} --${a.kind}--> ${a.dst} a second time, ` +
+           `as '${a.relation_name}' after '${chosen.get(k)}'. One of the two ` +
+           `names would silently win, and a relation has one name`,
+           { fieldPath: where, locator: `${a.src}->${a.dst}` });
+
+    chosen.set(k, a.relation_name);
+  });
+
+  /* A repeated NAME is a repeated seed, and the encoder below refuses it --
+   * including a name that collides with a relation this world already had.
+   * The surface's rule applies here for the same reason it applies there: a
+   * second rule about the same fact can disagree with the first. */
+  const relations = canonical.relations.map((rel) => {
+    if (rel.identity_seed.variant !== "legacy-edge") return rel;
+    const name = chosen.get(seedKey(rel.identity_seed));
+    if (name === undefined) return rel;
+    return { identity_seed: namedInitialSeed(name), revision: rel.revision };
+  });
+
+  const artifact = canonicalizeV2Artifact({ ...canonical, relations });
+
+  const before = await deriveV2Relations(canonical);
+  const after = await deriveV2Relations(artifact);
+
+  const wasNamed = new Map(
+    before.relations.map((r) => [r.revision_id, r]));
+  const pairs = [];
+  let revisionsPreserved = wasNamed.size === after.relations.length;
+  for (const r of after.relations) {
+    const was = wasNamed.get(r.revision_id);
+    if (!was) { revisionsPreserved = false; continue; }
+    pairs.push({
+      revision_id: r.revision_id,
+      from_relation: was.relation_id,
+      to_relation: r.relation_id,
+      adopted: was.identity_seed.variant !== r.identity_seed.variant,
+      relation_name: r.identity_seed.variant === "named-initial"
+        ? r.identity_seed.relation_name : null,
+    });
+  }
+  pairs.sort((x, y) => cmp(x.revision_id, y.revision_id));
+
+  return {
+    artifact,
+    correspondence: {
+      derived: true,
+      canonical: false,
+      inArtifactBytes: false,
+      from_world: before.world_id,
+      to_world: after.world_id,
+      /* both of these are load-bearing, and they point opposite ways */
+      identityPreserved: before.world_id === after.world_id,
+      revisionsPreserved,
+      pairs,
+    },
+  };
+}
+
 /* ============================================================ B.4: surface */
 /*
  * The minimal named-relation surface. §9: `[clock_feed]: [p0] --sig--> [r0]`.
@@ -881,17 +1216,110 @@ export async function migrationCorrespondence(sealedV1, sealedV2) {
  * edge. A line the author must name is identified by what it did, not by a
  * regex kept in step with a frozen one by hand.
  *
- * WHY THERE IS NO `ir_version 2.0` HEADER
- * ---------------------------------------
- * AUTONOMOUS DECISION, flagged for review. §9 rules exactly one spelling and
- * it is a per-route one, so a document-level header would be a second, unruled
- * piece of V2 syntax. Instead the ENCODING IS THE CALLER'S CHOICE:
- * `parseNamedWorld` is the V2 parser, `W.sealWorld` is the V1 one, and a
- * source is native V2 because it was handed to the V2 parser. This keeps
- * §9's `WRL_MISSING_RELATION_NAME` meaningful -- "unnamed route under native
- * V2" needs "native V2" to be a fact about the request, since an unnamed route
- * under V1 is simply a route.
+ * THE `ir 2.0` HEADER, AND THE ARGUMENT THAT USED TO BE HERE
+ * ----------------------------------------------------------
+ * This banner used to explain why there was no header: §9 rules one spelling
+ * and it is a per-route one, so a document-level declaration would be a
+ * second, unruled piece of V2 syntax -- and instead "the encoding is the
+ * caller's choice", `parseNamedWorld` being the V2 parser and `W.sealWorld`
+ * the V1 one.
+ *
+ * The refutation is one source. Take an empty world -- a profile line and
+ * nothing else -- and hand it to both parsers. Both accept. They produce two
+ * DIFFERENT valid artifacts with two different `sem-` ids, and there is
+ * nothing in the text that says which one those bytes mean. "The caller
+ * decides" is only a workable rule while a document is in the caller's hands;
+ * a file on disk has no caller, and a `sem-` is a claim about bytes.
+ *
+ * So the encoding is declared IN the source, as the second declaration, in
+ * exactly the shape the profile line already has: required, singular, fixed in
+ * position, with its own four refusals. It is not a new kind of syntax. It is
+ * the kind of syntax the very first line of every world already is, which is
+ * the argument the old banner was missing -- a header is unruled only if no
+ * rule is written for it.
+ *
+ * §9's `WRL_MISSING_RELATION_NAME` survives unharmed and is now better off:
+ * "unnamed route under native V2" no longer needs "native V2" to be a fact
+ * about which function was called.
  */
+
+/* The encoding declaration, matched the way the profile line is: loosely
+ * enough that a malformed one is reported as a malformed HEADER rather than
+ * falling through to the core parser and coming back as an unrecognised
+ * notation. `ir` cannot collide with anything else in the grammar -- every
+ * other line in a world either opens with `[` or is a profile line. */
+const IR_HEADER_RE = /^ir(?:\s+(\S+))?(\s+\S[\s\S]*)?$/;
+
+/**
+ * A V2 source, split into the encoding it declares and the source without it.
+ *
+ * REQUIRED, SINGULAR, and SECOND -- the same three properties
+ * `validateProfileHeader` gives the profile line, for the same reason. A world
+ * that does not say which encoding its bytes are in is a world whose `sem-`
+ * depends on who opened it.
+ *
+ * Where the header must sit is ASKED rather than restated: the frozen spine's
+ * own `validateProfileHeader` is what establishes that the first non-comment
+ * line is the profile, and this only requires the encoding to be the next one.
+ * A local check for "line 1 is a profile line" would be a second copy of a
+ * frozen rule, and the copy is the one that goes stale.
+ *
+ * The header is blanked LINE-PRESERVINGLY, keeping any comment tail, so every
+ * line number the spine reports is a line number in the source the author
+ * wrote.
+ */
+export function stripIrHeader(source) {
+  if (typeof source !== "string")
+    fail("WRL_MALFORMED_ARTIFACT", "a world source must be a string");
+
+  W.validateProfileHeader(source);   /* the profile is first, and says so */
+
+  const raws = source.split("\n");
+  const codeLines = [];
+  const hits = [];
+  raws.forEach((raw, i) => {
+    const line = raw.split(";")[0].trim();
+    if (!line) return;
+    codeLines.push(i + 1);
+    if (line === "ir" || line.startsWith("ir ") || line.startsWith("ir\t"))
+      hits.push([i + 1, line]);
+  });
+
+  if (!hits.length)
+    fail("WRL_MISSING_IR_HEADER",
+         `a V2 world declares its encoding: 'ir ${V2_IR_VERSION}', on the ` +
+         `line after the profile. Without it the same bytes seal to one world ` +
+         `through the V1 parser and a different one through the V2 parser, ` +
+         `and nothing in the source says which was meant`,
+         { line: codeLines[1] ?? codeLines[0] ?? null });
+
+  if (hits.length > 1)
+    fail("WRL_DUPLICATE_IR_HEADER",
+         `the encoding is declared ${hits.length} times (lines ` +
+         `${hits.map(([n]) => n).join(", ")}); a world is written in one`,
+         { line: hits[1][0] });
+
+  const [lineNo, line] = hits[0];
+  if (lineNo !== codeLines[1])
+    fail("WRL_MISSING_IR_HEADER",
+         `the encoding must be declared immediately after the profile; line ` +
+         `${codeLines[1]} declares something before it`, { line: lineNo });
+
+  const m = IR_HEADER_RE.exec(line);
+  if (!m || !m[1] || m[2] !== undefined)
+    fail("WRL_MALFORMED_IR_HEADER",
+         `'${line}' is not exactly 'ir <version>'`, { line: lineNo });
+
+  if (!Object.prototype.hasOwnProperty.call(V2_RELATION_SOURCE_FAMILIES, m[1]))
+    fail("WRL_UNSUPPORTED_IR_VERSION",
+         `ir_version ${JSON.stringify(m[1])} is outside the V2 family this ` +
+         `surface reads (${V2_IR_VERSIONS.join(", ")})`, { line: lineNo });
+
+  const out = raws.slice();
+  const semi = out[lineNo - 1].indexOf(";");
+  out[lineNo - 1] = semi === -1 ? "" : out[lineNo - 1].slice(semi);
+  return { source: out.join("\n"), irVersion: m[1] };
+}
 
 /**
  * The shape of a relation name.
@@ -978,11 +1406,17 @@ export function stripRelationNames(source) {
  * The surface and the migration differ in ONE field -- the seed -- and that
  * is the honest size of the difference between authoring a relation and
  * carrying one across.
+ *
+ * The encoding is read from the text (§D8.15) rather than assumed. The
+ * `ir_version` on the artifact this returns is the one the SOURCE declared,
+ * so a world's bytes are decided by what it says it is, and never by which
+ * function the caller happened to reach for.
  */
 export async function parseNamedWorld(source) {
-  let denamed, names;
+  let denamed, names, irVersion;
   try {
-    ({ source: denamed, names } = stripRelationNames(source));
+    ({ source: denamed, irVersion } = stripIrHeader(source));
+    ({ source: denamed, names } = stripRelationNames(denamed));
   } catch (e) {
     if (e instanceof W.WrlError) return { ok: false, ...W.mapDiagnostic(e) };
     throw e;
@@ -1057,14 +1491,14 @@ export async function parseNamedWorld(source) {
     const out = {};
     for (const k of Object.keys(sealed.artifact))
       if (k !== "ir_version" && k !== "edges") out[k] = sealed.artifact[k];
-    out.ir_version = V2_IR_VERSION;
+    out.ir_version = irVersion;
     out.relations = relations;
 
     /* A repeated name is a repeated SEED, and the encoder already refuses
      * that. The surface deliberately has no duplicate-name rule of its own:
      * a second one could disagree with the first, and the encoder's is the
      * one that decides bytes. */
-    return { ok: true, source, denamed, v1: sealed.artifact, names,
+    return { ok: true, source, denamed, irVersion, v1: sealed.artifact, names,
              artifact: canonicalizeV2Artifact(out) };
   } catch (e) {
     if (e instanceof W.WrlError) return { ok: false, ...W.mapDiagnostic(e) };
@@ -1086,25 +1520,39 @@ export async function parseNamedWorld(source) {
  * following the parser's own provenance back to the line each edge came from.
  * Neither direction of the surface contains a copy of the arrow syntax.
  *
- * TWO WORLDS THIS SURFACE CANNOT WRITE, AND SAYS SO
- * ------------------------------------------------
- * Both are real V2 worlds that the minimal surface has no text for, and both
- * are refused rather than approximated:
+ * ONE WORLD THIS SURFACE CANNOT WRITE -- AND ONE THAT WAS FILED UNDER THE
+ * SAME HEADING BY MISTAKE
+ * ------------------------------------------------------------------------
+ *   1. An UNADOPTED MIGRATED world. Its relations carry `legacy-edge` seeds
+ *      and therefore have no names, and §9 gives the surface no way to write
+ *      a route without one. So a migration produces a world that runs, seals
+ *      and compares, but is not authorable text until someone names its
+ *      relations. That limit is real, and it is now EXITABLE: `adoptLegacy-
+ *      Relations` (§D8.16) is the operation that supplies the names, as an
+ *      explicit act with names the caller carries. What the formatter still
+ *      may not do is mint them, which is the one thing §D8.1 forbids.
  *
- *   1. A world with `legacy-edge` seeds -- every MIGRATED world. Its relations
- *      have no names, and §9 gives the surface no way to write a route
- *      without one. So a migration produces a world that runs, seals and can
- *      be compared, but cannot be handed back to an author as text until
- *      someone names its relations. That is a real limit of a minimal surface
- *      and is FLAGGED for review, not papered over: the alternative -- letting
- *      the formatter mint names -- is the one thing §D8.1 forbids.
+ *   2. A world with two relations over the SAME terminals was listed here as
+ *      the second such world, on the grounds that it is "well-formed V2" and
+ *      only the text is missing. Both halves were wrong.
  *
- *   2. A world with two relations over the SAME terminals. V2 keys relations
- *      by name, so this is well-formed V2 and is the multigraph V1 could never
- *      have; but the route line it would print is the same line twice, and the
- *      spine refuses a duplicate edge key. A formatter that emitted it anyway
- *      would produce text that seals to a different world than the one it was
- *      given -- silently, and only for the world V2 exists to make possible.
+ *      The text is not missing. `[a]: [p0] --sig--> [r0]` and
+ *      `[b]: [p0] --sig--> [r0]` are two distinct, unambiguous source lines,
+ *      and `stripRelationNames` reads them back as two names on two lines.
+ *
+ *      And the world is not well-formed. `forge.world.core.v1` admits one
+ *      signal-wire input per object, so the second relation is a
+ *      WRL_CONTROLLER_CONFLICT -- in EITHER encoding, from the same law. It
+ *      only ever looked well-formed because the encoder did not look at the
+ *      world (§D8.14). The multigraph is therefore a PROFILE debt and not a
+ *      surface one, and it clears when a profile ships a wider controller law.
+ *
+ *      `WRL_UNWRITABLE_RELATION` stays as the implementation boundary that
+ *      wider profile will meet -- one route per line and a spine that refuses
+ *      a duplicate edge key -- but it is unreachable today, because the world
+ *      gate refuses such a world before the formatter ever sees it. A code
+ *      that names a real boundary is worth keeping; a code that names an
+ *      impossibility is not, and this one changed categories.
  */
 
 /**
@@ -1167,6 +1615,12 @@ export function formatNamedWorld(v2artifact) {
       W.serializeArtifact([edge[0], edge[1], edge[2]]));
     lines[at] = `[${name}]: ${lines[at]}`;
   }
+
+  /* §D8.15: the encoding is declared, not inferred. It goes in AFTER the name
+   * prefixes, not before, because every line index above came from the frozen
+   * formatter's own output -- inserting a line first would shift them all, and
+   * the surface would be back to counting lines instead of asking. */
+  lines.splice(1, 0, `ir ${canonical.ir_version}`);
   return lines.join("\n");
 }
 

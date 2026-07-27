@@ -2250,16 +2250,38 @@ for (const [id, entries] of futurePairs) {
                      `expected ${wantSurface}`);
     }
 
+    /* and the list is GLOBALLY true, not true of the file it sits in. B.4
+     * shipped a surface that emits `named-initial` seeds while this list still
+     * read `[]`, and nothing noticed, because V2 stated its own answer locally
+     * and never consulted this one. So the law is stated the way the defect
+     * would have been caught: build the allocation the shipped surface emits,
+     * and ask the global authority to admit it. */
+    const authored = refusal(s.assertAuthorableAllocation,
+      { variant: "named-initial", world_id: world,
+        relation_name: "clock_feed" });
+    /* the encoding-scoped lists are shares of it, never supersets */
+    const v2Authorable = (await import("../relation-v2.js"))
+      .V2_AUTHORABLE_SEED_VARIANTS;
+    const shares =
+      v2Authorable.every((v) => s.AUTHORABLE_VARIANTS.includes(v)) &&
+      s.V1_AUTHORABLE_SEED_VARIANTS.every(
+        (v) => s.AUTHORABLE_VARIANTS.includes(v));
+
     ok("relation/unwritable-variants-are-refused",
-       results.length === 0 &&
+       results.length === 0 && authored === null && shares &&
        s.IMPORTABLE_VARIANTS.length === 1 &&
-       s.AUTHORABLE_VARIANTS.length === 0 &&
+       s.AUTHORABLE_VARIANTS.length === 1 &&
+       s.V1_AUTHORABLE_SEED_VARIANTS.length === 0 &&
        s.ALLOCATION_VARIANTS.length === 3,
        results.join("; ") ||
-       `the three authorities are ${s.ALLOCATION_VARIANTS.length} known / ` +
+       `the authorities are ${s.ALLOCATION_VARIANTS.length} known / ` +
        `${s.IMPORTABLE_VARIANTS.length} importable / ` +
-       `${s.AUTHORABLE_VARIANTS.length} authorable; V1 has three variants, ` +
-       `one importer and no writable relation surface`);
+       `${s.AUTHORABLE_VARIANTS.length} authorable in general ` +
+       `[${s.AUTHORABLE_VARIANTS.join(", ")}], of which V1 can spell ` +
+       `${s.V1_AUTHORABLE_SEED_VARIANTS.length} and V2 ` +
+       `${v2Authorable.length}; the shipped surface's own allocation is ` +
+       `admitted: ${authored === null}, and every encoding's list is a share ` +
+       `of the global one: ${shares}`);
   }
 
   /* -- and the §D8.1 preimage laws the conflation had been hiding.
@@ -3065,6 +3087,11 @@ for (const [id, entries] of futurePairs) {
   const refuse = (fn) => {
     try { fn(); return null; } catch (e) { return e.code || String(e); }
   };
+  /* the same, for the operations that hash -- a rejected promise is a
+   * refusal, and `refuse` would report one as a pass */
+  const refuseAsync = async (fn) => {
+    try { await fn(); return null; } catch (e) { return e.code || String(e); }
+  };
 
   /* one legal V2 world, assembled from the demo world's objects and a relation
    * per demo edge -- same terminals, same revision model, native seeds */
@@ -3344,6 +3371,154 @@ for (const [id, entries] of futurePairs) {
        `${W.serializeArtifact(after)}\n      granted seed still ${still}`);
   }
 
+  /* -- §D8.14: THE MUTATION BATTERY. An invalid world mints no `sem-`.
+   *
+   * This is the check the V2 encoder did not have, and the omission was not
+   * visible from anything the encoder did. It validated the tuple, the
+   * arrays, the relation record shape and the generic revision vocabulary --
+   * every one of them a check about the ENCODING -- and then sealed. Nothing
+   * asked whether the thing being sealed was a legal world under the profile
+   * it named, so an object with role `Alien`, a terminal on an object called
+   * `ghost`, a port called `made_up` and a domain called `banana` all came
+   * back with well-formed ids. An id that names an impossible world is worse
+   * than a refusal: it exists, it is stable, it compares, and every consumer
+   * downstream believes it.
+   *
+   * The gate does not re-list the registries. It DERIVES the V1 world from
+   * the V2 one and hands it to the frozen `graphToIr`, so each refusal below
+   * carries the profile's own code, and a profile that later widens widens
+   * both encodings at once. That is why the codes here are V1 codes.
+   *
+   * Every mutation is applied to a world that seals, so a refusal is
+   * attributable to the mutation and nothing else. */
+  {
+    const mint = async (build) => {
+      let w;
+      try { w = build(); } catch (e) { return `BUILD:${e.code || e}`; }
+      try { return await v2.v2WorldIdOfArtifact(w); }
+      catch (e) { return e.code || String(e); }
+    };
+    const rel = (i) => JSON.parse(JSON.stringify(world().relations[i]));
+    const withRel = (i, r) => {
+      const w = world();
+      w.relations = w.relations.map((x, j) => (j === i ? r : x));
+      return w;
+    };
+    /* the relation whose target is a signal-wire controller, cloned under a
+     * second name: two well-formed V2 relations onto one controller input */
+    const sig = world().relations.findIndex(
+      (r) => r.revision.kind === "SignalWire");
+    /* the profile checks a Pulser's clock and checks nothing about a Door's
+     * config, so an invalid config has to be an invalid PULSER config -- an
+     * unknown key on a Door is legal V1 and the gate says so */
+    const pulser = world().objects.findIndex((o) => o.role === "Pulser");
+
+    const legal = await mint(() => world());
+
+    const cases = {
+      "an unknown object role": () => {
+        const w = world();
+        w.objects = w.objects.map(
+          (o, i) => (i === 0 ? { ...o, role: "Alien" } : o));
+        return w;
+      },
+      "a duplicate object id": () => {
+        const w = world();
+        w.objects = [...w.objects, { ...w.objects[0] }];
+        return w;
+      },
+      "a terminal on an object that does not exist": () => {
+        const r = rel(0);
+        r.revision.endpoints = r.revision.endpoints.map(
+          (e) => (e.role === "source"
+            ? { ...e, terminal: { ...e.terminal, object_id: "ghost" } } : e));
+        return withRel(0, r);
+      },
+      "an undeclared domain": () => {
+        const r = rel(0);
+        r.revision.domain = "banana";
+        return withRel(0, r);
+      },
+      "an undeclared kind": () => {
+        const r = rel(0);
+        r.revision.kind = "WarpTunnel";
+        return withRel(0, r);
+      },
+      "an illegal port": () => {
+        const r = rel(0);
+        r.revision.endpoints = r.revision.endpoints.map(
+          (e) => (e.role === "source"
+            ? { ...e, terminal: { ...e.terminal, port: "made_up" } } : e));
+        return withRel(0, r);
+      },
+      "a controller-conflicting relation set": () => {
+        const w = world();
+        const clone = JSON.parse(JSON.stringify(w.relations[sig]));
+        clone.identity_seed = { variant: "named-initial",
+                                relation_name: "second_controller" };
+        w.relations = [...w.relations, clone];
+        return w;
+      },
+      "an invalid static_config": () => {
+        const w = world();
+        w.objects = w.objects.map(
+          (o, i) => (i === pulser ? { ...o, static_config: {} } : o));
+        return w;
+      },
+    };
+
+    const got = {};
+    for (const [what, build] of Object.entries(cases))
+      got[what] = await mint(build);
+
+    const minted = Object.entries(got)
+      .filter(([, r]) => typeof r === "string" && r.startsWith("sem-"));
+
+    ok("relation/v2/world/an-invalid-world-mints-no-id",
+       typeof legal === "string" && legal.startsWith("sem-") &&
+       minted.length === 0 && Object.keys(got).length === 8,
+       `the unmutated world seals (${typeof legal === "string" &&
+         legal.startsWith("sem-")}), and ${Object.keys(got).length} ` +
+       `mutations of it seal none:\n      ` +
+       Object.entries(got).map(([k, r]) => `${k} -> ${r}`).join("\n      ") +
+       (minted.length
+         ? `\n      MINTED ANYWAY: ${minted.map(([k]) => k).join(", ")}`
+         : ""));
+  }
+
+  /* -- and the gate DELEGATES rather than re-listing.
+   *
+   * Evidence rather than assertion: the refusals above carry the FROZEN
+   * spine's codes, not a parallel V2 vocabulary. A gate with its own registry
+   * would answer with its own codes, and would then be a second opinion about
+   * what a legal world is -- free to drift from the profile it claims to
+   * enforce, and drifting silently, because nothing compares two registries
+   * that never meet. */
+  {
+    const codes = new Set();
+    const build = [
+      () => { const w = world();
+              w.objects = w.objects.map((o, i) =>
+                (i === 0 ? { ...o, role: "Alien" } : o)); return w; },
+      () => { const w = world();
+              w.objects = [...w.objects, { ...w.objects[0] }]; return w; },
+    ];
+    for (const b of build)
+      codes.add(await refuseAsync(() => v2.v2WorldIdOfArtifact(b())));
+
+    const spineCodes = Object.keys(W.CODES);
+    const v2Codes = Object.keys(v2.RELATION_V2_CODES);
+    const fromSpine = [...codes].every((c) => spineCodes.includes(c));
+    const notV2 = [...codes].every((c) => !v2Codes.includes(c));
+
+    ok("relation/v2/world/the-world-gate-delegates-to-the-profile",
+       codes.size === 2 && fromSpine && notV2,
+       `[${[...codes].join(", ")}] -- every one of them a code the FROZEN ` +
+       `spine defines (${fromSpine}) and none of them a V2 code ` +
+       `(${notV2}). The V2 gate derives the V1 world and asks ` +
+       `graphToIr; it holds no registry of its own to drift`);
+  }
+
   }
 
   /* ============================================= 21d. V2 identity, B.2
@@ -3468,19 +3643,31 @@ for (const [id, entries] of futurePairs) {
 
   /* -- §D8.5, arriving in V2: a relation id is WORLD-scoped.
    *
-   * Edit one relation's attributes and every relation's `rel-` moves, because
-   * the world id moved and the world id is in every allocation. Only the
-   * edited relation's `rev-` moves, because a revision is standalone (§D8.3).
+   * Edit one relation and every relation's `rel-` moves, because the world id
+   * moved and the world id is in every allocation. Only the edited relation's
+   * `rev-` moves, because a revision is standalone (§D8.3).
    *
    * That asymmetry is not an inconvenience to be engineered away -- it is the
    * reason a migration has to be an explicit claim someone carries rather than
-   * an id that happens to survive. */
+   * an id that happens to survive.
+   *
+   * The perturbation is a REWIRE -- one relation's source terminal moved from
+   * one Pulser to the other -- and it used to be `attributes: { note: ... }`.
+   * B.6's world gate refuses that world, correctly: `forge.world.core.v1`
+   * declares no attribute vocabulary, so a relation carrying one is not a
+   * world this profile defines and no `sem-` should exist for it. A law about
+   * identity has to be perturbed by something the profile ADMITS, or it is
+   * measuring the id of a world that cannot be built. */
   {
     const edited = world();
+    const rel0 = edited.relations[0];
     edited.relations[0] = {
-      identity_seed: edited.relations[0].identity_seed,
-      revision: { ...edited.relations[0].revision,
-                  attributes: { note: "revised" } },
+      identity_seed: rel0.identity_seed,
+      revision: { ...rel0.revision,
+                  endpoints: rel0.revision.endpoints.map((e) =>
+                    e.role === "source"
+                      ? { ...e, terminal: { ...e.terminal, object_id: "p1" } }
+                      : e) },
     };
     const after = await v2.deriveV2Relations(edited);
 
@@ -3804,10 +3991,26 @@ for (const [id, entries] of futurePairs) {
    * §D8.5's "silence is not continuity", from the other direction: a relation
    * with no V1 preimage is not a relation the V1 world quietly also had. */
   {
-    const grown = { ...migrated, relations: [
+    /* The added relation is a REAL new wire -- a spare Door, and the second
+     * Pulser's signal retargeted onto it -- rather than a second copy of an
+     * existing revision. Copying one used to be enough, because nothing
+     * checked the world; B.6 refuses it as `WRL_CONTROLLER_CONFLICT`, which is
+     * what a duplicated wire actually is. */
+    const spare = {
+      object_id: "d1", role: "Door", static_config: {},
+      state_schema_ref: "state.door.v1", ports: W.objectPorts("Door"),
+    };
+    const onto = migrated.relations.find(
+      (r) => s.projectRelationRevisionToV1Edge(r.revision).dst === "d0");
+    const grown = { ...migrated, objects: [...migrated.objects, spare],
+      relations: [
       ...migrated.relations,
       { identity_seed: { variant: "named-initial", relation_name: "fresh" },
-        revision: migrated.relations[0].revision }] };
+        revision: { ...onto.revision,
+                    endpoints: onto.revision.endpoints.map((e) =>
+                      e.role === "target"
+                        ? { ...e, terminal: { ...e.terminal, object_id: "d1" } }
+                        : e) } }] };
     const semGrown = await v2.v2WorldIdOfArtifact(grown);
     const corr = await v2.migrationCorrespondence(
       { artifact: v1, semanticId: demo.semanticId },
@@ -3848,6 +4051,145 @@ for (const [id, entries] of futurePairs) {
        `placed to be wrong about one of them`);
   }
 
+  /* -- §D8.16: adoption is the way OUT of the state a migration leaves a
+   *    world in, and it is an ACT rather than a fix-up.
+   *
+   * Without it the migration is a one-way door out of the language: a
+   * migrated world runs, seals and compares, and can never again be handed to
+   * an author as text. With it, the limit is a step someone takes.
+   *
+   * Four things are checked together because they only mean anything
+   * together. The structure does not move -- every `rev-` recurs, since a
+   * revision is standalone and a name is not in it. The identity moves
+   * entirely -- the seeds changed, so the bytes changed, so the world `sem-`
+   * moved, so EVERY `rel-` is new including the ones nobody adopted. The
+   * names are the caller's. And the formatter, which refuses a migrated
+   * world, accepts an adopted one -- which is the whole point of the
+   * operation, stated as a difference in behaviour rather than a claim. */
+  {
+    const assign = migrated.relations.map((r, i) => {
+      const e = s.projectRelationRevisionToV1Edge(r.revision);
+      return { kind: e.kind, src: e.src, dst: e.dst,
+               relation_name: `adopted_${i}` };
+    });
+    const { artifact: adopted, correspondence: corr } =
+      await v2.adoptLegacyRelations(migrated, assign);
+
+    const before = await v2.deriveV2Relations(migrated);
+    const after = await v2.deriveV2Relations(adopted);
+
+    const revs = (v) => W.serializeArtifact(
+      v.relations.map((r) => r.revision_id).sort());
+    const structureKept = revs(before) === revs(after);
+    const worldMoved = corr.from_world !== corr.to_world;
+    const beforeIds = new Set(before.relations.map((r) => r.relation_id));
+    const allMoved = after.relations.every((r) => !beforeIds.has(r.relation_id));
+    const allNamed = adopted.relations.every(
+      (r) => r.identity_seed.variant === "named-initial");
+    /* the names are the ones supplied, and no others exist */
+    const namesGiven = W.serializeArtifact(
+      adopted.relations.map((r) => r.identity_seed.relation_name).sort()) ===
+      W.serializeArtifact(assign.map((a) => a.relation_name).sort());
+
+    /* the formatter refuses the migrated world and accepts the adopted one */
+    const beforeFmt = refuse(() => v2.formatNamedWorld(migrated));
+    let afterFmt = null;
+    try { afterFmt = v2.formatNamedWorld(adopted); }
+    catch (e) { afterFmt = null; }
+
+    ok("relation/v2/adoption/adoption-names-a-migrated-world",
+       structureKept && worldMoved && allMoved && allNamed && namesGiven &&
+       corr.revisionsPreserved === true && corr.identityPreserved === false &&
+       corr.pairs.length === migrated.relations.length &&
+       corr.pairs.every((p) => p.adopted === true) &&
+       beforeFmt === "WRL_UNWRITABLE_SEED" && typeof afterFmt === "string",
+       `every rev- recurs: ${structureKept}, the world id moves: ` +
+       `${worldMoved}, every rel- is new: ${allMoved}, every seed is now ` +
+       `named-initial: ${allNamed}, and the names are exactly the ones ` +
+       `supplied: ${namesGiven}. The formatter refuses the migrated world ` +
+       `(${beforeFmt}) and writes the adopted one ` +
+       `(${typeof afterFmt === "string" ? "accepted" : "refused"}). A ` +
+       `migration is a one-way door out of the language without this`);
+  }
+
+  /* -- and the names are SUPPLIED. Every way of not supplying one is refused,
+   *    and none of them falls back to deriving one.
+   *
+   * A generated name would make the formatter's forbidden move legal by
+   * moving it one function to the left, and would then be indistinguishable
+   * in the bytes from a name an author chose -- which is the confusion
+   * `legacy-edge` exists to prevent. */
+  {
+    const one = s.projectRelationRevisionToV1Edge(migrated.relations[0].revision);
+    const sel = { kind: one.kind, src: one.src, dst: one.dst };
+    const at = (a) => refuseAsync(() => v2.adoptLegacyRelations(migrated, a));
+
+    const nothing = await at([]);
+    /* an absent key and a present-but-empty one are different mistakes and
+     * get different answers: one assignment is the wrong SHAPE, the other is
+     * the right shape declining to supply the one thing adoption is for */
+    const omitted = await at([sel]);
+    const nameless = await at([{ ...sel, relation_name: undefined }]);
+    const notAName = await at([{ ...sel, relation_name: "not a name" }]);
+    const unknown  = await at([{ kind: one.kind, src: "ghost", dst: one.dst,
+                                 relation_name: "g" }]);
+    const twice = await at([{ ...sel, relation_name: "a" },
+                            { ...sel, relation_name: "b" }]);
+    const collide = migrated.relations.length > 1
+      ? await at(migrated.relations.slice(0, 2).map((r) => {
+          const e = s.projectRelationRevisionToV1Edge(r.revision);
+          return { kind: e.kind, src: e.src, dst: e.dst,
+                   relation_name: "same" };
+        }))
+      : "WRL_DUPLICATE_RELATION_SEED";
+    const stray = await at([{ ...sel, relation_name: "a", note: "hi" }]);
+
+    ok("relation/v2/adoption/a-name-is-supplied-never-generated",
+       nothing === "WRL_BAD_V2_ARTIFACT" &&
+       omitted === "WRL_BAD_V2_ARTIFACT" &&
+       nameless === "WRL_MISSING_RELATION_NAME" &&
+       notAName === "WRL_BAD_RELATION_NAME" &&
+       unknown === "WRL_UNKNOWN_RELATION" &&
+       twice === "WRL_DUPLICATE_ADOPTION" &&
+       collide === "WRL_DUPLICATE_RELATION_SEED" &&
+       stray === "WRL_BAD_V2_ARTIFACT",
+       `adopting nothing -> ${nothing}, an omitted name key -> ${omitted}, ` +
+       `an empty name -> ${nameless}, a non-identifier -> ${notAName}, a ` +
+       `relation this world does not have -> ${unknown}, one relation ` +
+       `adopted twice -> ${twice}, two relations under one name -> ` +
+       `${collide}, an unrecognised assignment key -> ${stray}. None of the ` +
+       `eight produces a name`);
+  }
+
+  /* -- adoption may be PARTIAL, and a partially adopted world is still not
+   *    writable.
+   *
+   * The surface's requirement is that EVERY route carry a name, and half a
+   * name-set does not meet it. Recording that here rather than smoothing it
+   * over is what keeps `formatNamedWorld`'s refusal a statement about names
+   * rather than about migrations. */
+  if (migrated.relations.length > 1) {
+    const e = s.projectRelationRevisionToV1Edge(migrated.relations[0].revision);
+    const { artifact: half } = await v2.adoptLegacyRelations(migrated,
+      [{ kind: e.kind, src: e.src, dst: e.dst, relation_name: "only_one" }]);
+
+    const variants = [...new Set(
+      half.relations.map((r) => r.identity_seed.variant))].sort();
+    const written = refuse(() => v2.formatNamedWorld(half));
+    /* and the one that WAS adopted cannot be adopted again -- it has a name */
+    const again = await refuseAsync(() => v2.adoptLegacyRelations(half,
+      [{ kind: e.kind, src: e.src, dst: e.dst, relation_name: "twice" }]));
+
+    ok("relation/v2/adoption/a-partly-adopted-world-is-still-unwritable",
+       W.serializeArtifact(variants) ===
+         W.serializeArtifact(["legacy-edge", "named-initial"]) &&
+       written === "WRL_UNWRITABLE_SEED" && again === "WRL_UNKNOWN_RELATION",
+       `a half-adopted world holds [${variants.join(", ")}] and the ` +
+       `formatter still refuses it: ${written}. Re-adopting the named one ` +
+       `-> ${again}: a relation that has a name is not adoptable, and ` +
+       `replacing its name would be a rename rather than an adoption`);
+  }
+
   }
 
   /* ================================================ 21f. the surface, B.4
@@ -3863,38 +4205,141 @@ for (const [id, entries] of futurePairs) {
    * which is the arrangement an index-based zip passes only by luck. */
   if (demo.ok) {
 
+  /* §D8.15: a V2 world declares its encoding on the line after the profile.
+   * The names are attached FIRST, off the V1 line indices, so `n9` stays the
+   * name of the line that was line 9 of the world these tests talk about. */
+  const withIr = (src, v = "2.0") => {
+    const l = src.split("\n");
+    l.splice(1, 0, `ir ${v}`);
+    return l.join("\n");
+  };
+  /* what a LINE-PRESERVING header stripper leaves behind: the V1 text with a
+   * blank line where the declaration was, so every reported line number is
+   * still a line number in the text the author wrote */
+  const blankIrLine = (src) => {
+    const l = src.split("\n");
+    l.splice(1, 0, "");
+    return l.join("\n");
+  };
   /* names chosen so the sorted-by-name V2 order disagrees with both the
    * authored order and the canonical `(kind, src, dst)` one */
-  const NAMED_DEMO = W.DEMO_WORLD.split("\n")
-    .map((l, i) => (/-->/.test(l) ? `[n${i}]: ${l}` : l)).join("\n");
+  const NAMED_DEMO = withIr(W.DEMO_WORLD.split("\n")
+    .map((l, i) => (/-->/.test(l) ? `[n${i}]: ${l}` : l)).join("\n"));
   const parsed = await v2.parseNamedWorld(NAMED_DEMO);
   const bad = async (src) => {
     const r = await v2.parseNamedWorld(src);
     return r.ok ? "ACCEPTED" : `${r.code}@${r.line}`;
   };
 
-  /* -- V2 adds names to routes and touches nothing else.
+  /* -- V2 adds an encoding declaration and names, and touches nothing else.
    *
-   * The evidence is that stripping the names returns the V1 source it was
-   * written over, byte for byte, and that the artifact the spine validated is
-   * the artifact the V1 parser produces from that source. A surface that
-   * also normalised whitespace, or re-ordered declarations, would be a second
-   * parser agreeing with `wrl.js` today. */
+   * The evidence is that stripping both returns the V1 source it was written
+   * over -- byte for byte once the header line is accounted for -- and that
+   * the artifact the spine validated is the artifact the V1 parser produces
+   * from that source. A surface that also normalised whitespace, or
+   * re-ordered declarations, would be a second parser agreeing with `wrl.js`
+   * today.
+   *
+   * Both strippers are LINE-PRESERVING, which is why the comparison is
+   * against the V1 source with a blank line where the header was rather than
+   * against the V1 source itself: every line number a diagnostic reports is a
+   * line number in the text the author wrote, and a stripper that deleted its
+   * line would shift every one of them. */
   {
-    const stripped = v2.stripRelationNames(NAMED_DEMO);
+    const stripped = v2.stripRelationNames(v2.stripIrHeader(NAMED_DEMO).source);
     const v1seal = await W.sealWorld(W.DEMO_WORLD);
+    const blanked = blankIrLine(W.DEMO_WORLD);
+
+    const bytesBack = stripped.source === blanked;
+    const sameArtifact =
+      W.serializeArtifact(parsed.v1) === W.serializeArtifact(v1seal.artifact);
 
     ok("relation/v2/surface/a-name-is-the-only-thing-v2-adds",
-       parsed.ok === true && stripped.source === W.DEMO_WORLD &&
-       W.serializeArtifact(parsed.v1) === W.serializeArtifact(v1seal.artifact) &&
+       parsed.ok === true && bytesBack && sameArtifact &&
        stripped.source.split("\n").length === NAMED_DEMO.split("\n").length,
        parsed.ok
-         ? `stripping returns the V1 source byte-for-byte: ` +
-           `${stripped.source === W.DEMO_WORLD}, line count preserved, and ` +
-           `the validated artifact is the one the V1 parser produces: ` +
-           `${W.serializeArtifact(parsed.v1) ===
-              W.serializeArtifact(v1seal.artifact)}`
+         ? `stripping the header and the names returns the V1 source with the ` +
+           `header line blanked, byte-for-byte: ${bytesBack}, line count ` +
+           `preserved, and the validated artifact is the one the V1 parser ` +
+           `produces from the unheadered V1 source: ${sameArtifact}`
          : `the named demo world did not parse: ${parsed.code}`);
+  }
+
+  /* -- §D8.15: a world says which encoding it is written in, and the reason
+   *    is that otherwise SOME WORLDS HAVE TWO IDS.
+   *
+   * This is not a style rule. Take a route-free source -- a profile line and
+   * nothing else -- and hand it to both parsers. Both accept. They produce
+   * two DIFFERENT valid artifacts with two different `sem-` ids, and there is
+   * nothing in the text that says which one those bytes mean. The id of a
+   * world would then depend on which function a caller happened to reach for,
+   * which is the one thing an identity spine may not permit.
+   *
+   * With the header the text decides, and the two ids belong to two texts. */
+  {
+    const bare = "profile forge.world.core.v1\n";
+    const asV1 = await W.sealWorld(bare);
+    const asV2 = await v2.parseNamedWorld(withIr(bare));
+    const v2id = asV2.ok ? await v2.v2WorldIdOfArtifact(asV2.artifact) : null;
+    /* and the SAME bytes, unheadered, are no longer a V2 world at all */
+    const undeclared = await v2.parseNamedWorld(bare);
+
+    ok("relation/v2/source/an-encoding-is-declared-not-assumed",
+       asV1.ok === true && asV2.ok === true &&
+       typeof v2id === "string" && v2id !== asV1.semanticId &&
+       undeclared.ok === false &&
+       undeclared.code === "WRL_MISSING_IR_HEADER",
+       `the same route-free text seals to ${asV1.semanticId} as V1 and ` +
+       `${v2id} as V2 -- two valid worlds, two ids, one byte string -- so ` +
+       `the undeclared source is refused: ${undeclared.code}. A world's id ` +
+       `may not depend on which parser the caller reached for`);
+  }
+
+  /* -- and every way of getting the declaration wrong has its own answer.
+   *
+   * Modelled on the profile header's checks line for line, because it is the
+   * same shape of mistake: an author writes one declaration, in one place, in
+   * one spelling, and each of the four ways of failing that is a different
+   * thing to tell them. `stripIrHeader` asks `validateProfileHeader` where
+   * the block starts rather than counting lines itself, so `profile` staying
+   * first is one rule and not two. */
+  {
+    const at = (src) => v2.stripRelationNames && (() => {
+      try { v2.stripIrHeader(src); return "ACCEPTED"; }
+      catch (e) { return e.code || String(e); }
+    })();
+    const lines = NAMED_DEMO.split("\n");
+
+    const missing = at(W.DEMO_WORLD);
+    const twice = at([lines[0], "ir 2.0", "ir 2.0", ...lines.slice(2)]
+      .join("\n"));
+    const bald = at([lines[0], "ir", ...lines.slice(2)].join("\n"));
+    const wordy = at([lines[0], "ir 2.0 please", ...lines.slice(2)].join("\n"));
+    const future = at(withIr(W.DEMO_WORLD, "3.0"));
+    /* declared, but not FIRST: an object comes between it and the profile */
+    const late = at([lines[0], "[orb:zz]{pose}", "ir 2.0", ...lines.slice(2)]
+      .join("\n"));
+    /* the profile's own rule still fires, and from the profile's own checker */
+    const noProfile = at("ir 2.0\n");
+    /* a comment is not a declaration, in either direction */
+    const commented = at([lines[0], "; ir 2.0", "ir 2.0", ...lines.slice(2)]
+      .join("\n"));
+
+    ok("relation/v2/source/one-declaration-in-one-place-in-one-spelling",
+       missing === "WRL_MISSING_IR_HEADER" &&
+       twice === "WRL_DUPLICATE_IR_HEADER" &&
+       bald === "WRL_MALFORMED_IR_HEADER" &&
+       wordy === "WRL_MALFORMED_IR_HEADER" &&
+       future === "WRL_UNSUPPORTED_IR_VERSION" &&
+       late === "WRL_MISSING_IR_HEADER" &&
+       noProfile === "WRL_MISSING_PROFILE" &&
+       commented === "ACCEPTED",
+       `absent -> ${missing}, declared twice -> ${twice}, no version -> ` +
+       `${bald}, more than a version -> ${wordy}, a version this surface ` +
+       `does not read -> ${future}, declared after something else -> ` +
+       `${late}, no profile at all -> ${noProfile} (raised by the FROZEN ` +
+       `profile checker, not a second copy of it), and a commented-out ` +
+       `declaration is not one -> ${commented}`);
   }
 
   /* -- §9: an unnamed route under native V2 is an error, never a name
@@ -3906,8 +4351,8 @@ for (const [id, entries] of futurePairs) {
    * AUTHORED one, which matters because names are stripped before the spine
    * ever sees the text. */
   {
-    const unnamed = await v2.parseNamedWorld(W.DEMO_WORLD);
-    const routeLine = W.DEMO_WORLD.split("\n")
+    const unnamed = await v2.parseNamedWorld(withIr(W.DEMO_WORLD));
+    const routeLine = withIr(W.DEMO_WORLD).split("\n")
       .findIndex((l) => /-->/.test(l)) + 1;
     /* the same source under the V1 parser is simply a world -- "native V2" is
      * a fact about which parser was asked, not about the text */
@@ -3953,6 +4398,7 @@ for (const [id, entries] of futurePairs) {
    * single name over all of them would make one id out of several. */
   {
     const fanout = `profile forge.world.core.v1
+ir 2.0
 
 [pulser:p0](every 2){sig_out}
 [relay:r0]{sig_in, sig_out}
@@ -3969,7 +4415,7 @@ for (const [id, entries] of futurePairs) {
       NAMED_DEMO.replace("[pulser:p0]", "[oops]: [pulser:p0]"));
 
     ok("relation/v2/surface/a-name-denotes-exactly-one-relation",
-       many === "WRL_AMBIGUOUS_RELATION_NAME@9" &&
+       many === "WRL_AMBIGUOUS_RELATION_NAME@10" &&
        none.startsWith("WRL_AMBIGUOUS_RELATION_NAME@"),
        `one name over a two-way fan-out -> ${many}, a name on a declaration ` +
        `-> ${none}. Both are the same fault -- the name fails to denote -- ` +
@@ -4165,14 +4611,14 @@ for (const [id, entries] of futurePairs) {
       const dst = r.revision.endpoints.find((e) => e.role === "target");
       return [r.revision.kind, src.terminal.object_id, dst.terminal.object_id];
     });
-    const frozen = W.formatCore(g);
-    const stripped = v2.stripRelationNames(formatted);
+    const frozen = blankIrLine(W.formatCore(g));
+    const stripped = v2.stripRelationNames(v2.stripIrHeader(formatted).source);
 
     ok("relation/v2/format/the-formatter-does-not-know-the-arrow",
        stripped.source === frozen && stripped.names.size ===
          parsed.artifact.relations.length,
-       `names removed from the V2 output leave the frozen formatter's own ` +
-       `text: ${stripped.source === frozen}, and ` +
+       `names and encoding removed from the V2 output leave the frozen ` +
+       `formatter's own text: ${stripped.source === frozen}, and ` +
        `${stripped.names.size}/${parsed.artifact.relations.length} names came ` +
        `off. The V2 side contributes prefixes only, so there is no second ` +
        `copy of the route syntax to drift`);
@@ -4202,34 +4648,58 @@ for (const [id, entries] of futurePairs) {
        `names would be deriving identity`);
   }
 
-  /* -- and neither do two relations over the same terminals.
+  /* -- two relations over the same terminals: refused by the PROFILE, and not
+   *    for want of a way to write them.
    *
-   * This one matters more than it looks. It is well-formed V2 -- relations are
-   * keyed by name -- and it is the multigraph V1 could never have, which is a
-   * thing V2 exists to make possible. So the check asserts BOTH halves: the
-   * world validates and derives two distinct ids, and the surface still
-   * refuses to write it, because the text it would print reads back as a
-   * different world. Silently emitting it would break exactly the case the
-   * encoding was introduced for. */
+   * This check used to be called `parallel-relations-have-no-source-form`, and
+   * it asserted that the world "validates and derives two distinct ids" while
+   * the surface refused to write it -- as though the multigraph existed and
+   * only the text were missing. Both halves were wrong. The world does not
+   * validate: `forge.world.core.v1` admits one signal-wire input per object,
+   * so a second relation onto the same terminals is a controller conflict and
+   * always was; it only "validated" because the V2 gate never looked at the
+   * world. And the text is not missing: `[n1]:` and `[twin]:` on two otherwise
+   * identical route lines are two distinct, unambiguous lines, which the name
+   * stripper reads back as two names on two lines.
+   *
+   * So the debt is reclassified, and the reclassification is the point. It is
+   * not "V2 source cannot represent parallel relations". It is "no profile in
+   * this build permits them yet". The first is a property of the encoding and
+   * would be permanent; the second is a row that clears when a profile ships
+   * a controller law that admits more than one. */
   {
     const twin = { ...parsed.artifact, relations: [
       ...parsed.artifact.relations,
       { identity_seed: { variant: "named-initial", relation_name: "twin" },
         revision: parsed.artifact.relations[0].revision }] };
+    const refused = refuse(() => v2.assertV2Artifact(twin));
 
-    const valid = refuse(() => v2.assertV2Artifact(twin)) === null;
-    const derived = await v2.deriveV2Relations(twin);
-    const distinct = new Set(derived.relations.map((r) => r.relation_id)).size;
-    const written = refuse(() => v2.formatNamedWorld(twin));
+    /* the same world as TEXT: the first route line, written twice under two
+     * names. The stripper reads two names on two lines -- the source form is
+     * there -- and the frozen spine refuses the world for the same reason the
+     * V2 gate just did, which is what makes it one law rather than two. */
+    const lines = formatted.split("\n");
+    const routeAt = lines.findIndex((l) => /-->/.test(l));
+    const route = lines[routeAt].replace(/^\s*\[[^\]]*\]:\s*/, "");
+    const twinSource = [...lines.slice(0, routeAt + 1),
+                        `[twin]: ${route}`,
+                        ...lines.slice(routeAt + 1)].join("\n");
+    const spelled = v2.stripRelationNames(twinSource).names;
+    const twoNames = spelled.get(routeAt + 1) === lines[routeAt]
+      .replace(/^\s*\[([^\]]*)\]:[\s\S]*$/, "$1") &&
+      spelled.get(routeAt + 2) === "twin";
+    /* the code only: a controller conflict is reported against the OBJECT that
+     * has two controllers, so it has a locator and no line -- there is no one
+     * line to blame when the defect is that two of them agree */
+    const asText = (await v2.parseNamedWorld(twinSource)).code;
 
-    ok("relation/v2/format/parallel-relations-have-no-source-form",
-       valid && distinct === derived.relations.length &&
-       written === "WRL_UNWRITABLE_RELATION",
-       `the world is valid V2: ${valid}, with ${distinct} distinct rel- ids ` +
-       `over ${derived.relations.length} relations, and writing it -> ` +
-       `${written}. Two relations over one pair of terminals is the ` +
-       `multigraph V1 could not have; the minimal surface writes one route ` +
-       `per line, so there is no text for it that reads back as this world`);
+    ok("relation/v2/profile/parallel-relations-are-not-permitted-yet",
+       refused === "WRL_CONTROLLER_CONFLICT" && twoNames &&
+       asText === "WRL_CONTROLLER_CONFLICT",
+       `the artifact -> ${refused}, the same world as source -> ${asText}, ` +
+       `and the two route lines carry two distinct names: ${twoNames}. A ` +
+       `profile that admits one controller refuses a second relation onto it ` +
+       `in whichever encoding it arrives; nothing here is a limit of the text`);
   }
 
   /* -- formatting is normalisation, never a gate.
@@ -4241,8 +4711,13 @@ for (const [id, entries] of futurePairs) {
   {
     const sameV2 = await v2.v2WorldIdOfArtifact(parsed.artifact) ===
       (reparsed.ok ? await v2.v2WorldIdOfArtifact(reparsed.artifact) : null);
-    /* the V1 world underneath is the demo world, formatted or not */
-    const v1seal = await W.sealWorld(v2.stripRelationNames(formatted).source);
+    /* the V1 world underneath is the demo world, formatted or not. Both
+     * strippers run, and the header stripper is why the pinned V1 id is still
+     * reachable at all: it blanks its line rather than deleting it, so the
+     * text the frozen parser gets differs from `DEMO_WORLD` by whitespace
+     * only -- and whitespace is not in the artifact. */
+    const v1seal = await W.sealWorld(
+      v2.stripRelationNames(v2.stripIrHeader(formatted).source).source);
     const sameV1 = v1seal.ok && v1seal.semanticId === demo.semanticId;
 
     ok("relation/v2/format/formatting-moves-no-identity",
