@@ -1,0 +1,155 @@
+Captured 2026-07-27T14:29:03Z -- worktree /tmp/trvm-c4 (branch c4-projection, base d09472e)
+Python Python 3.14.2, node v25.2.1
+
+======== probe3.py ========
+vector set wrl.projection-vectors.1 -- 5 vectors
+
+[pinned-fixture]
+  ok   pinned-fixture/parses-exactly                  sem-8ae91fe9cbc5fd08...
+  ok   pinned-fixture/verifies                        
+  ok   pinned-fixture/world-id-agrees                 sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a
+  ok   pinned-fixture/view-id-agrees                  sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a
+  ok   pinned-fixture/bindings-count                  4 bindings
+  ok   pinned-fixture/executable                      4 edges
+  ok   pinned-fixture/round-trips                     
+
+[starter-world]
+  ok   starter-world/parses-exactly                   sem-67e954cfe3115166...
+  ok   starter-world/verifies                         
+  ok   starter-world/world-id-agrees                  sem-67e954cfe3115166b49388366df3f062a46572ba2baf53380f1520f4050b60ae
+  ok   starter-world/view-id-agrees                   sem-67e954cfe3115166b49388366df3f062a46572ba2baf53380f1520f4050b60ae
+  ok   starter-world/bindings-count                   3 bindings
+  ok   starter-world/executable                       3 edges
+  ok   starter-world/round-trips                      
+
+[named-relations]
+  ok   named-relations/parses-exactly                 sem-42078ab22b3bb2bc...
+  ok   named-relations/verifies                       
+  ok   named-relations/world-id-agrees                sem-42078ab22b3bb2bcb5721db7fb2a8d3c366ea5fe70a591c8ce3eb97ddb39dd7d
+  ok   named-relations/view-id-agrees                 sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a
+  ok   named-relations/bindings-count                 4 bindings
+  ok   named-relations/executable                     4 edges
+  ok   named-relations/round-trips                    
+
+[bigint-rotor]
+  ok   bigint-rotor/parses-exactly                    sem-4f927defd2e60b03...
+  ok   bigint-rotor/verifies                          
+  ok   bigint-rotor/world-id-agrees                   sem-4f927defd2e60b03f3511670b0aead801c09e67facaf283a3bb9cf3857bd65d2
+  ok   bigint-rotor/view-id-agrees                    sem-4f927defd2e60b03f3511670b0aead801c09e67facaf283a3bb9cf3857bd65d2
+  ok   bigint-rotor/bindings-count                    4 bindings
+  ok   bigint-rotor/executable                        4 edges
+  ok   bigint-rotor/round-trips                       
+
+[bigint-rotor-named]
+  ok   bigint-rotor-named/parses-exactly              sem-eaad059ddf810b93...
+  ok   bigint-rotor-named/verifies                    
+  ok   bigint-rotor-named/world-id-agrees             sem-eaad059ddf810b93fdb0c0934af5e5e6cf081edac6336e368773c70150a208dc
+  ok   bigint-rotor-named/view-id-agrees              sem-4f927defd2e60b03f3511670b0aead801c09e67facaf283a3bb9cf3857bd65d2
+  ok   bigint-rotor-named/bindings-count              4 bindings
+  ok   bigint-rotor-named/executable                  4 edges
+  ok   bigint-rotor-named/round-trips                 
+
+
+35 passed, 0 failed
+
+======== probe4.py ========
+control
+
+  ok   the-untouched-record                       admitted
+  ok   the-untouched-bigint-record                admitted
+
+lying claims
+
+  ok   a-lying-semantic-world-id                  WRL_SEMANTIC_ID_MISMATCH
+  ok   a-lying-execution-view-id                  WRL_PROJECTION_MISMATCH
+
+the bindings
+
+  ok   reordered-relation-bindings                WRL_PROJECTION_MISMATCH
+  ok   a-changed-relation-id                      WRL_PROJECTION_MISMATCH
+  ok   a-changed-revision-id                      WRL_PROJECTION_MISMATCH
+  ok   a-changed-legacy-edge                      WRL_PROJECTION_MISMATCH
+
+the record's shape
+
+  ok   an-extra-field                             WRL_BAD_PROJECTION
+  ok   a-missing-field                            WRL_BAD_PROJECTION
+  ok   an-unknown-projection-version              WRL_BAD_PROJECTION
+
+the bytes themselves
+
+  ok   a-duplicate-json-key                       WRL_BAD_PROJECTION
+  ok   insignificant-whitespace                   WRL_BAD_PROJECTION
+  ok   trailing-bytes                             WRL_BAD_PROJECTION
+  ok   noncanonical-key-order                     WRL_BAD_PROJECTION
+
+exactness
+
+  ok   an-unsafe-integer-rounded                  WRL_SEMANTIC_ID_MISMATCH
+  ok   a-non-integral-number                      WRL_BAD_PROJECTION
+
+17 passed, 0 failed
+
+======== probe5.py ========
+[pinned-fixture]
+  ok   pinned-fixture/carries-no-run-inputs         
+  ok   pinned-fixture/seals-locally                 sem-8ae91fe9cbc5fd086ce4...
+  ok   pinned-fixture/seal-is-the-view-id           
+  ok   pinned-fixture/compiles                      bcnt bcnt-8eba78591f1565d...
+
+[starter-world]
+  ok   starter-world/carries-no-run-inputs          
+  ok   starter-world/seals-locally                  sem-67e954cfe3115166b493...
+  ok   starter-world/seal-is-the-view-id            
+  ok   starter-world/compiles                       bcnt bcnt-37646c9db682e78...
+
+[named-relations]
+  ok   named-relations/carries-no-run-inputs        
+  ok   named-relations/seals-locally                sem-8ae91fe9cbc5fd086ce4...
+  ok   named-relations/seal-is-the-view-id          
+  ok   named-relations/compiles                     bcnt bcnt-8eba78591f1565d...
+
+[bigint-rotor]
+  ok   bigint-rotor/carries-no-run-inputs           
+  ok   bigint-rotor/seals-locally                   sem-4f927defd2e60b03f351...
+  ok   bigint-rotor/seal-is-the-view-id             
+       -- not compiled: spinner w=64 exceeds the stated budget of 32.
+          This world's IDENTITY is fully established above; only its
+          backend term is out of budget. See the module docstring.
+
+[bigint-rotor-named]
+  ok   bigint-rotor-named/carries-no-run-inputs     
+  ok   bigint-rotor-named/seals-locally             sem-4f927defd2e60b03f351...
+  ok   bigint-rotor-named/seal-is-the-view-id       
+       -- not compiled: spinner w=64 exceeds the stated budget of 32.
+          This world's IDENTITY is fully established above; only its
+          backend term is out of budget. See the module docstring.
+
+cross-encoding agreement
+
+  ok   named-relations/executes-as-pinned-fixture   same view id, same backend term
+  ok   bigint-rotor-named/projects-to-the-same-view sem-4f927defd2e60b03f3511670b0aead801c09e67facaf283a3bb9cf3857bd65d2 (identity only; neither was compiled)
+  ok   the-pinned-world-is-unmoved                  sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a
+
+21 passed, 0 failed
+
+======== probe6.py (Python produces) ========
+  emitted pinned-fixture   sem-8ae91fe9cbc5fd086ce4... (2581 bytes)
+  emitted starter-world    sem-67e954cfe3115166b493... (2057 bytes)
+  emitted bigint-rotor     sem-4f927defd2e60b03f351... (2613 bytes)
+
+wrote /tmp/trvm-c4/forge/python-wire.json -- verify it with:  node probe6.mjs
+
+======== probe6.mjs (JS verifies Python's bytes) ========
+producer: forge/wrl_projection.py (python)
+
+  ok   pinned-fixture/verifies                        sem-8ae91fe9cbc5fd086ce4356d...
+  ok   pinned-fixture/re-renders-identically          
+  ok   starter-world/verifies                         sem-67e954cfe3115166b4938836...
+  ok   starter-world/re-renders-identically           
+  ok   bigint-rotor/verifies                          sem-4f927defd2e60b03f3511670...
+  ok   bigint-rotor/re-renders-identically            
+  ok   bigint-rotor/lane-is-exact                     9223372036854775807 (bigint)
+  ok   bigint-rotor/an-ordinary-reader-would-have-lost-it JSON.parse rounds it
+
+8 passed, 0 failed

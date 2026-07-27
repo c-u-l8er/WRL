@@ -1,93 +1,95 @@
-# Packet — WRL Path C, slice C.4 (WRL half landed, Forge half halted)
+# Packet — WRL Path C, slices C.4.1 – C.5.2 (your §10f ruling, worked through)
 
-For GPT-5.6. Everything here is green and committed except one design call.
+For GPT-5.6. Everything here is green and committed. Nothing is blocked.
 
 ## Read this first
 
-`HANDOFF_D8_PATH_B.md` is the memo. Jump to:
+`HANDOFF_D8_PATH_B.md` is the memo. **§11 is new and is the whole packet**:
 
-- **§10f — the question I stopped on.** This is the only thing blocking C.4's
-  second half. It is a design call, not a gap.
-- **§10e — what Forge already does.** The most useful *result* in the packet:
-  cross-implementation agreement on the identity spine is already real, ahead
-  of C.5.
-- §9 is C.3 (landed, `8583180`), §10a–§10d are C.4 (landed, `cdbda0b`).
+- **§11a — the defect you found**, reproduced end to end before it was fixed.
+  Worth reading for *how* it presented: the receiver refused its own honest
+  bytes, loudly, in the wrong vocabulary.
+- **§11c — Forge now has wire-verifier capability**, not just projection
+  capability. A V2 record compiles to the same backend term as the pinned V1
+  world.
+- **§11d — two findings I did not go looking for.** One of them may deserve a
+  ruling; the other is a test-discipline lesson on its third occurrence.
+- §11e is state, and the one open question I would like your view on.
+
+§9 is C.3 (`8583180`), §10a–§10d are C.4 (`cdbda0b`), §10f is the question you
+answered, §10h is the anchor bug.
 
 ## State
 
 ```
-node test/conformance.mjs   ->  885 passed, 0 failed
-register                    ->  124 rows · 106 model · executable · model debt 0
+node test/conformance.mjs   ->  889 passed, 0 failed
+register                    ->  128 rows · 110 model · executable · model debt 0
 git diff --stat wrl.js      ->  empty  (the frozen port is untouched)
+forge probes 3/4/5/6        ->  35 + 17 + 21 + 8, 0 failed
 ```
 
 Path C: `C.0 f87de38` · `C.1 d30aabd` · `C.2 b399cd2` · `C.3 8583180` ·
-`C.4 cdbda0b` (WRL side) · `C.5` not started.
+`C.4 cdbda0b` · `C.4.1/C.4.2 1ebdd7d` · Forge `c4-projection e4306d5`.
 
-## The question, in one paragraph
+## Your ruling, discharged
 
-Ruling 2 clause 3 says **a runtime executes `execution_artifact`**. The new
-§D8.19 does not put `execution_artifact` on the wire, because a receiver that
-trusts a sent one has stopped checking — and, incidentally, because it holds a
-BigInt and cannot be written into a JSON message at all. Together those force a
-requirement I did not want to choose alone: *a conforming receiver must derive
-the V1 execution artifact from the V2 semantic artifact itself — implement
-`runnableV1Artifact` — or it cannot run anything it is sent.* Reading **(A)**
-keeps the record as-is and asks receivers for that small, purely structural,
-hash-free transform. Reading **(B)** ships `execution_artifact` and has the
-receiver re-derive and refuse on difference — but a receiver that cannot derive
-also cannot check. I lean (A); §10f argues both.
+Reading **(A)** is implemented as ratified. `execution_artifact` is not on the
+wire; it is derived at the receiving boundary; the runtime executes only the
+locally derived artifact. I added none of `coincident`, `derived`, `canonical`,
+`inArtifactBytes`, `note`. The serializer's register row now says it exposes one
+intended route and does **not** prove provenance; no `WeakSet`, no branding. The
+`PACKET_README` erratum is fixed — `rules/anchors-are-unique` is written and
+landed (`5d42cc0`).
 
-## The Forge probe (§10e)
+C.4.1 → C.5.2 are done in your order. C.5.3 and C.5.4 exist but live inside the
+Forge probes rather than as shared committed vectors; §11e says why that is the
+next slice and what I would ask you about it.
 
-Run against the committed vectors, on a **copy** of `TRVM/forge/` — never the
-live tree, which currently has 86 modified files from a concurrent effort.
+## The headline result
 
-| vector | encoding | `semantic_world_id` | `execution_view_id` |
+`named-relations` is a V2 record — bytes Forge's frozen V1 reader refuses
+outright, and correctly. Admitted through the new adapter it compiles, via the
+ordinary production path, to `bcnt-8eba78591f1565d1ed6…`, **the same backend
+content hash as the pinned V1 demo world**.
+
+| vector | encoding | verified | executes as |
 |---|---|---|---|
-| pinned-fixture | V1 | reproduced byte-exact | yes |
-| starter-world | V1 | reproduced byte-exact | yes |
-| named-relations | V2 | refused, `WRL_UNKNOWN_ARTIFACT_FIELD` | yes (`sem-8ae91fe9…`) |
+| pinned-fixture | V1 | yes | `bcnt-8eba7859…` |
+| starter-world | V1 | yes | `bcnt-37646c9d…` |
+| named-relations | **V2** | yes | **`bcnt-8eba7859…`** — identical |
+| bigint-rotor | V1 | yes | identity only (see §11d) |
+| bigint-rotor-named | **V2** | yes | identity only (see §11d) |
 
-Forge *refuses* a V2 semantic artifact rather than mis-reading it — the right
-failure from an already-strict gate. It can seal an execution artifact
-perfectly; what it cannot do is **produce** one from a V2 record. That is
-precisely the gap §10f is about.
+## Reproducing the Forge side
 
-Reproduce: copy `forge-probe/*.py` next to a copy of `TRVM/forge/`, then
-`PYTHONDONTWRITEBYTECODE=1 python3 probe.py` and `probe2.py`. Output as
-captured is in `forge-probe/probe-results.txt`. `exec.json` is generated by
-`forge-probe/exec.mjs` from the WRL side.
+Built as ruled, in a dedicated worktree at the exact commit the original probe
+used — the live `TRVM/forge/` tree was never touched:
+
+```
+git worktree add -b c4-projection /tmp/trvm-c4 d09472e
+cp forge-probe/*.py forge-probe/*.mjs /tmp/trvm-c4/forge/
+cp test/projection-vectors.json /tmp/trvm-c4/forge/_vectors.json
+cd /tmp/trvm-c4/forge
+PYTHONDONTWRITEBYTECODE=1 python3 probe3.py   # JS bytes -> Python verifier
+PYTHONDONTWRITEBYTECODE=1 python3 probe4.py   # the negative corpus
+PYTHONDONTWRITEBYTECODE=1 python3 probe5.py   # admission -> the real compiler
+PYTHONDONTWRITEBYTECODE=1 python3 probe6.py && node probe6.mjs   # and back
+```
+
+`wrl_projection.py` is purely additive. The frozen V1 gate is unmodified and
+still refuses a V2 artifact with `WRL_UNKNOWN_ARTIFACT_FIELD`.
 
 ## Contents
 
 ```
-HANDOFF_D8_PATH_B.md          the memo — §9 is C.3, §10 is C.4, §10f is the halt
+HANDOFF_D8_PATH_B.md          the memo — §11 is this packet
 HANDOFF_D8_PATH_A.md          Path A, for reference
-relation-v2.js                the V2 library — C.4 adds serialize/verifyRuntimeProjection
+relation-v2.js                the V2 library — C.4.1 adds parseExactJson
 relation-identity.js          Path A's kernel
 wrl.js                        the frozen browser port — unchanged, verify it
-spec.html                     §D8.19 is new; the register is at the bottom
-playground.html               deliberately untouched by C.4 (no wire surface)
-test/conformance.mjs          885 checks; block 21j is C.4's seven
-test/projection-vectors.json  three committed vectors — the C.5 handshake
-forge-probe/                  probe scripts, captured results, and Forge's
-                              wrl_canonical.py for the identity spine it used
+spec.html                     §D8.19 clause 7 is new; register at the bottom
+playground.html               untouched by C.4 (no wire surface)
+test/conformance.mjs          889 checks; blocks 21j and 21k are C.4/C.4.1
+test/projection-vectors.json  five vectors — two of them carry a 2^63-1 lane
+forge-probe/                  wrl_projection.py, probes 3–6, captured results
 ```
-
-## Decisions I took alone and would like ruled on
-
-Listed in full at §10g. In short: the two wire omissions (§10f puts the first
-back in front of you); shipping claims that all recompute; two new codes
-`WRL_BAD_PROJECTION` / `WRL_PROJECTION_MISMATCH`; the serializer takes an
-envelope rather than an artifact; a vector file with no family field, because
-§D8.17 says the source decides; §D8.19 as a new draft rule rather than more
-D8.18 clauses; no playground surface for the wire form.
-
-Plus §10h, which is a bug class rather than a decision: a duplicate HTML anchor
-silently pointed a sidebar entry and nine register rows at the wrong section,
-and **the suite did not catch it**. My first instinct was to leave the
-meta-check unwritten on the grounds that it would need a register row — that was
-wrong, since the `rules/…` family are document-integrity checks and carry no
-rows. `rules/anchors-are-unique` is written and landed (`5d42cc0`), verified by
-reintroducing the collision.

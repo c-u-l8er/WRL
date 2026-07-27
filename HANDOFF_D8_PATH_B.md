@@ -1264,3 +1264,144 @@ Verified the way a check like this has to be: I put the collision back
 (`#d8-runtime-projection` → `#d8-projection`) and the suite went to **882 passed,
 3 failed** with `FAIL rules/anchors-are-unique` named; restoring gives **885
 passed, 0 failed**. It would have caught C.3 on the commit that introduced it.
+
+---
+
+## 11. C.4.1 – C.5.2, on your ruling
+
+Your ruling on §10f landed and I worked straight through the closure order.
+Everything below is committed and green. **Reading (A) is implemented as
+ratified**: `execution_artifact` is not on the wire, it is derived at the
+receiving boundary, and the runtime executes only the locally derived artifact.
+I added none of `coincident`, `derived`, `canonical`, `inArtifactBytes`, `note`.
+
+### 11a. C.4.1 — the exact reader (the defect you found)
+
+You were right, and the vectors did not exercise it. Reproduced end to end
+before fixing anything:
+
+```
+a frozen V1 world carries rotor lane   9223372036854775807   (2^63-1, exact)
+sealWorld accepts it                    -> sem-4f927defd2e60b03…
+serializeRuntimeProjection emits it     -> exactly, in the bytes
+JSON.parse reads those bytes back       -> 9223372036854776000
+verifyRuntimeProjection                 -> WRL_NUMERIC_RANGE
+```
+
+A receiver refusing **its own honest bytes**, and — the part I want to flag —
+refusing them *loudly in the wrong vocabulary*. It reported that a number was
+out of range, when what had happened was that its reader could not hold a
+number that was perfectly in range. I would have spent a long time looking at
+the range check.
+
+Rotor lanes are the one artifact scalar this protocol leaves unbounded; every
+other is capped at `SAFE_INT_MAX`. The loss happened in the single step that
+was **borrowed instead of written** — everything else on this wire is ours, and
+`JSON.parse` was the one component I did not think of as a component.
+
+Fixed as version 1, not `wrl.projection.2`. New `parseExactJson`: integer
+tokens are decided **by magnitude, not by whether `Number` happens to look
+right** (`Number(tok) === 9223372036854776000` is a perfectly ordinary number,
+and that is the entire problem), returning `Number` inside the safe range and
+`BigInt` outside it; fractions, exponents, duplicate keys, leading zeros and
+insignificant whitespace all refused. Then the gate that subsumes the ones
+nobody enumerated:
+
+```js
+if (W.serializeArtifact(out) !== text)   /* it parses, but re-rendering what
+                                            it denotes gives different bytes */
+```
+
+§D8.19 gained **clause 7** for this, and I checked the new checks are
+load-bearing by reverting the reader to `JSON.parse`: **884 passed, 5 failed**,
+including `the-committed-vectors-still-reproduce`. The corpus now detects the
+defect it previously missed.
+
+### 11b. C.4.2 — the fourth vector
+
+Five now, not four: `bigint-rotor` (V1) and `bigint-rotor-named` (V2), so the
+specimen exists in **both** encodings rather than only the one that was easy.
+The suite asserts the corpus contains a 2^63-1 lane, so this cannot silently
+regress to a set of vectors that all parse under an ordinary reader.
+
+### 11c. C.4.3 / C.4.4 — Forge, in an isolated worktree
+
+Built exactly as ruled: `git worktree add -b c4-projection /tmp/trvm-c4 d09472e`,
+the commit the original probe ran against. The live tree with its 86+
+concurrent modifications was never touched. New adapter module
+`forge/wrl_projection.py`; **the frozen V1 gate is unmodified** and its
+`WRL_UNKNOWN_ARTIFACT_FIELD` refusal of a V2 artifact still stands.
+
+Forge now has **wire-verifier capability** in your sense, not merely projection
+capability. Four probes, on branch `c4-projection` (`e4306d5`):
+
+| probe | what it establishes | result |
+|---|---|---|
+| `probe3` | all 5 vectors verified; every claim re-derived; re-serialised | **35/35**, byte-identical |
+| `probe4` | the negative corpus, all 12 classes you listed | **17/17** refused |
+| `probe5` | admission into the real compile path | **21/21** |
+| `probe6(.py/.mjs)` | Python emits from source → **JS verifies** | **8/8** |
+
+The result I would lead with is in `probe5`. `named-relations` is a V2 record —
+bytes Forge's frozen reader refuses outright — and admitted through the adapter
+it compiles, via the ordinary production path with no wire-specific entry, to
+`bcnt-8eba78591f1565d1ed6…`: **the same backend content hash as the pinned V1
+demo world.** Two encodings, one world, one execution, in an implementation
+that shares no code with the JS side.
+
+C.5.1 and C.5.2 both close. Python re-renders JS's bytes identically, and
+Python emitting from **source** produces bytes the JS verifier accepts, with
+the 2^63-1 lane arriving as a `bigint` rather than a rounded `number`.
+
+### 11d. Two findings I did not go looking for
+
+**Verifiable and executable are not the same property.** The artifact domain
+admits a 2^63-1 rotor lane. Its identity is exact and costs nothing. But that
+lane is only representable at `w=64`, and the backend term is quadratic in `w`
+with a large constant — measured on this machine, everything else held fixed:
+
+| `w` | compile | term |
+|---|---|---|
+| 8 | 0.2s | 2,108,528 chars |
+| 16 | 1.6s | 9,095,226 chars |
+| 24 | 5.7s | 20,890,304 chars |
+| 32 | 17.3s | 39,122,450 chars |
+| 40 | 47.6s | 61,842,093 chars |
+
+which puts `w=64` near **1.6 × 10⁸ characters** of term. A cost cliff, not a
+hang, and not a defect in anything C.4 built — but it means the domain admits
+worlds that are cheaply **verifiable** and impractically **executable**.
+`probe5` states that budget and prints the skip with its reason rather than
+quietly passing four checks instead of five. I do not think this needs a rule;
+I do think it should be written down before someone discovers it as a hang.
+
+**A broken fixture, for the third time.** `probe4`'s duplicate-key case
+replaced `{"projection_version"` — but the keys on this wire are sorted, so the
+record opens with `execution_view_id`, the replace matched nothing, and the case
+handed the verifier the *honest record* and demanded a refusal. It failed
+loudly, which was luck: the identical mistake pointed the other way is a
+negative test that **passes while asserting nothing**, and that one has now cost
+me twice before. Byte-level tampers in `probe4` now refuse to be no-ops and
+report a broken fixture as a named red — verified by reintroducing the
+mismatch.
+
+### 11e. State
+
+```
+node test/conformance.mjs   ->  889 passed, 0 failed
+register                    ->  128 rows · 110 model · executable · model debt 0
+git diff --stat wrl.js      ->  empty
+forge probes 3/4/5/6        ->  35 + 17 + 21 + 8, 0 failed
+```
+
+I have **not** opened grants, dynamic topology, or D9.
+
+What is left of the ruled order is C.5.3 and C.5.4 as *shared, committed*
+artifacts rather than probe-local ones: the positive V1/V2/BigInt matrix and the
+negative corpus both currently live in `probe3`/`probe4` on the Forge branch,
+where the JS suite cannot see them. Promoting the negative corpus to a committed
+vector file both sides read is the obvious next slice, and the one question I
+would want your view on first is whether a **negative** vector should commit the
+refusal *code* or only the refusal — committing the code pins vocabulary across
+implementations, which is either the point or an over-constraint, and C.4.1 is
+the reason I now think it might be the point.
