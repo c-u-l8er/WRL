@@ -2020,6 +2020,184 @@ export async function deriveRuntimeProjection(artifact,
  * exactly what C.5 goes looking for -- from silence into a refusal.
  */
 
+/**
+ * EXACT CANONICAL JSON (C.4.1). `JSON.parse` is not a reader for this wire.
+ *
+ * The defect this exists to fix was invisible to all three committed vectors,
+ * and is worth stating precisely, because it is a data-dependent hole rather
+ * than a bug in any one function. Rotor lanes are the ONE artifact scalar
+ * `wrl.js` leaves unbounded -- every other scalar is capped at the safe-integer
+ * limit, and lanes are held as BigInt so a 64-bit lane is exact. So:
+ *
+ *   sealWorld                    accepts rotor=9223372036854775807...
+ *   serializeRuntimeProjection   emits that integer EXACTLY (canonicalJson
+ *                                renders a BigInt by toString)
+ *   JSON.parse(wire)             yields the Number 9223372036854776000
+ *   verifyRuntimeProjection      refuses its own honest bytes, WRL_NUMERIC_RANGE
+ *
+ * Every step is individually correct. The loss happens in the one step that was
+ * borrowed rather than written: the wire was canonical on the way out and read
+ * by a general-purpose parser on the way in. A protocol whose identity is its
+ * bytes cannot use a reader that does not preserve them.
+ *
+ * Note WHERE it surfaced. The rounded value is not silently accepted -- it
+ * trips the range check on re-serialisation, so the failure was loud. But it
+ * was loud in the wrong vocabulary: a receiver is told a legal world's number
+ * is out of range, when what actually happened is that the reader could not
+ * hold it. Refusing a valid world is a smaller sin than admitting an invalid
+ * one, and it is still a refusal of something that should pass.
+ *
+ * So this reader is strict in four ways, and the fourth subsumes a great deal:
+ *
+ *   1. INTEGERS ARE EXACT. An integer token is measured, not converted: safe
+ *      ones become Number, the rest become BigInt. Both re-serialise to the
+ *      characters they arrived as.
+ *   2. NO NON-INTEGRAL NUMBERS. The artifact domain has none -- `canonicalJson`
+ *      already refuses any finite non-safe-integer Number -- so a fraction or
+ *      an exponent on the wire comes from something not speaking this protocol.
+ *   3. NO DUPLICATE KEYS. `JSON.parse` silently keeps the last one, so two
+ *      records with different bytes and different meanings parse to one object.
+ *      On a wire whose premise is that bytes are checkable, last-writer-wins is
+ *      a way to walk a field past a reader.
+ *   4. NO WHITESPACE, AND THE BYTES MUST BE THE CANONICAL ONES. Canonical form
+ *      has no insignificant space at all, so the scanner has no rule for it.
+ *      Then the parsed value is re-serialised and compared to the input. That
+ *      comparison is the real gate: it catches key order, escape spelling,
+ *      leading zeros, `-0`, and every other lexical variant at once, without
+ *      this reader having to enumerate them.
+ *
+ * A canonical protocol that accepted whitespace variants and duplicate keys
+ * while calling its own bytes canonical would be claiming something it had
+ * declined to check.
+ */
+const SAFE_INT_BIG = BigInt(W.SAFE_INT_MAX);
+
+function parseExactJson(text, at) {
+  let i = 0;
+
+  const bad = (why) =>
+    fail("WRL_BAD_PROJECTION",
+         `${why} at offset ${i} of a transmitted projection. This wire is ` +
+         `canonical JSON: no insignificant whitespace, integers only, sorted ` +
+         `keys, each key once`,
+         { fieldPath: at });
+
+  const lit = (word, val) => {
+    if (text.slice(i, i + word.length) !== word) bad(`expected a value`);
+    i += word.length;
+    return val;
+  };
+
+  function string() {
+    if (text[i] !== '"') bad(`expected a string`);
+    i++;
+    let out = "";
+    for (;;) {
+      if (i >= text.length) bad(`a string is unterminated`);
+      const c = text[i];
+      if (c === '"') { i++; return out; }
+      if (c === "\\") {
+        const e = text[i + 1];
+        i += 2;
+        if (e === "u") {
+          const hex = text.slice(i, i + 4);
+          if (!/^[0-9a-fA-F]{4}$/.test(hex)) bad(`a \\u escape is malformed`);
+          out += String.fromCharCode(parseInt(hex, 16));
+          i += 4;
+        } else {
+          const map = { '"': '"', "\\": "\\", "/": "/", b: "\b", f: "\f",
+                        n: "\n", r: "\r", t: "\t" };
+          if (!(e in map)) bad(`unknown escape`);
+          out += map[e];
+        }
+        continue;
+      }
+      if (c < "\u0020") bad(`a raw control character appears in a string`);
+      out += c;
+      i++;
+    }
+  }
+
+  function number() {
+    const start = i;
+    if (text[i] === "-") i++;
+    if (!/[0-9]/.test(text[i] || "")) bad(`a number has no digits`);
+    if (text[i] === "0" && /[0-9]/.test(text[i + 1] || ""))
+      bad(`a number has a leading zero`);
+    while (/[0-9]/.test(text[i] || "")) i++;
+    if (text[i] === "." || text[i] === "e" || text[i] === "E")
+      bad(`a non-integral number appears; artifact scalars are integers, and ` +
+          `a fraction or exponent is not a value this protocol can hold`);
+    const tok = text.slice(start, i);
+    /* EXACTNESS. Decide by magnitude, not by whether Number happens to look
+     * right: Number(tok) === 9223372036854776000 is a perfectly ordinary
+     * number, and that is the entire problem. */
+    const big = BigInt(tok);
+    return (big >= -SAFE_INT_BIG && big <= SAFE_INT_BIG) ? Number(big) : big;
+  }
+
+  function value() {
+    const c = text[i];
+    if (c === "{") {
+      i++;
+      const out = {};
+      const seen = new Set();
+      if (text[i] === "}") { i++; return out; }
+      for (;;) {
+        const k = string();
+        if (seen.has(k))
+          bad(`the key ${JSON.stringify(k)} appears twice; JSON.parse would ` +
+              `keep the last, so two records meaning different things would ` +
+              `read as one`);
+        seen.add(k);
+        if (text[i] !== ":") bad(`expected ':'`);
+        i++;
+        out[k] = value();
+        if (text[i] === ",") { i++; continue; }
+        if (text[i] === "}") { i++; return out; }
+        bad(`expected ',' or '}'`);
+      }
+    }
+    if (c === "[") {
+      i++;
+      const out = [];
+      if (text[i] === "]") { i++; return out; }
+      for (;;) {
+        out.push(value());
+        if (text[i] === ",") { i++; continue; }
+        if (text[i] === "]") { i++; return out; }
+        bad(`expected ',' or ']'`);
+      }
+    }
+    if (c === '"') return string();
+    if (c === "t") return lit("true", true);
+    if (c === "f") return lit("false", false);
+    if (c === "n") return lit("null", null);
+    if (c === "-" || (c >= "0" && c <= "9")) return number();
+    bad(`expected a value`);
+  }
+
+  if (typeof text !== "string" || text.length === 0)
+    fail("WRL_BAD_PROJECTION", `a transmitted projection has no bytes`,
+         { fieldPath: at });
+
+  const out = value();
+  if (i !== text.length) bad(`trailing bytes after the record`);
+
+  /* THE GATE THAT SUBSUMES THE OTHERS. Everything above rejects a lexical
+   * variant this reader knows the name of; this rejects every one it does not.
+   * If the bytes were canonical, re-rendering the value they denote returns
+   * them character for character. */
+  if (W.serializeArtifact(out) !== text)
+    fail("WRL_BAD_PROJECTION",
+         `a transmitted projection is not in canonical form: it parses, but ` +
+         `re-rendering what it denotes gives different bytes. This wire is ` +
+         `identified by its bytes, so a lexical variant of a valid record is ` +
+         `not a valid record`,
+         { fieldPath: at });
+  return out;
+}
+
 /** The wire record's version token. Not an `ir_version`: this is not a world. */
 export const RUNTIME_PROJECTION_VERSION = "wrl.projection.1";
 
@@ -2083,16 +2261,13 @@ export function serializeRuntimeProjection(projection) {
  * not a second implementation of the same comparison.
  */
 export async function verifyRuntimeProjection(message) {
-  let record = message;
-  if (typeof message === "string") {
-    try {
-      record = JSON.parse(message);
-    } catch {
-      fail("WRL_BAD_PROJECTION",
-           `a transmitted projection is not parseable as JSON`,
-           { fieldPath: "projection" });
-    }
-  }
+  /* Bytes are read EXACTLY (C.4.1) -- see `parseExactJson`. `JSON.parse` is
+   * lossy on the one artifact scalar this protocol leaves unbounded, and
+   * permissive about duplicate keys and lexical variants on a wire that claims
+   * its own bytes are canonical. */
+  const record = typeof message === "string"
+    ? parseExactJson(message, "projection")
+    : message;
 
   if (!record || typeof record !== "object" || Array.isArray(record))
     fail("WRL_BAD_PROJECTION",

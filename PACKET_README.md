@@ -86,5 +86,8 @@ D8.18 clauses; no playground surface for the wire form.
 
 Plus §10h, which is a bug class rather than a decision: a duplicate HTML anchor
 silently pointed a sidebar entry and nine register rows at the wrong section,
-and **the suite did not catch it**. I repaired it by hand and left the meta-check
-unwritten, because a meta-check would itself need a register row.
+and **the suite did not catch it**. My first instinct was to leave the
+meta-check unwritten on the grounds that it would need a register row — that was
+wrong, since the `rules/…` family are document-integrity checks and carry no
+rows. `rules/anchors-are-unique` is written and landed (`5d42cc0`), verified by
+reintroducing the collision.

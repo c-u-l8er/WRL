@@ -5645,10 +5645,15 @@ ir 2.0
               results.push(`${vec.name}: ${e.code || e.message}`);
             }
           }
+          /* The corpus must span the axes an implementation can differ on:
+           * both encodings, and -- since C.4.1 -- a lane no ordinary JSON
+           * reader can hold. A vector set without that last one is precisely
+           * the set that let the exactness defect ship. */
           vecOk = vdoc.vector_version === "wrl.projection-vectors.1" &&
-                  vdoc.vectors.length >= 3 && results.length === 0 &&
+                  vdoc.vectors.length >= 4 && results.length === 0 &&
                   vdoc.vectors.some((v) => /^ir 2\.0$/m.test(v.source)) &&
-                  vdoc.vectors.some((v) => !/^ir /m.test(v.source));
+                  vdoc.vectors.some((v) => !/^ir /m.test(v.source)) &&
+                  vdoc.vectors.some((v) => v.wire.includes("9223372036854775807"));
           detail = results.length ? results.join("; ")
                                   : `${vdoc.vectors.length} vectors reproduce`;
         }
@@ -5669,6 +5674,100 @@ ir 2.0
          `handing the serializer a bare artifact is refused. If it derived ` +
          `the projection itself it would be a second route to the wire, and ` +
          `the two routes could disagree about a world while both looked right`);
+
+      /* 21k -- C.4.1, THE WIRE READS ITS OWN BYTES EXACTLY.
+       *
+       * These four checks all failed to exist before C.4.1, and the reason is
+       * instructive: every one of them needs a world the three original
+       * vectors did not contain. The wire was total over the corpus that
+       * tested it, which is not the same claim as total over the domain. */
+      {
+        /* A frozen V1 world may carry a rotor lane of 2^63-1: lanes are the
+         * one artifact scalar `wrl.js` leaves unbounded, and it holds them as
+         * BigInt precisely so they stay exact. */
+        const bigSrc = W.DEMO_WORLD.replace(
+          "[spinner:sp](w=16, n=8, rotor=quarter_turn_z, configurable)",
+          "[spinner:sp](w=64, n=8, rotor=9223372036854775807.1.2." +
+          "9223372036854775806, configurable)");
+        const ba = await v2.admitWorldSource(bigSrc);
+        const bid = ba.ok ? ba.semanticId : null;
+        const bp = ba.ok ? await v2.deriveRuntimeProjection(ba.artifact, bid)
+                         : null;
+        const bwire = bp ? v2.serializeRuntimeProjection(bp) : "";
+
+        let survived = null;
+        try {
+          const back = await v2.verifyRuntimeProjection(bwire);
+          survived = back.semantic_world_id === bid;
+        } catch (e) { survived = e.code || e.message; }
+
+        /* what the old reader did, kept as the contrast rather than described */
+        const rounded = JSON.parse('{"v":9223372036854775807}').v;
+
+        ok("relation/v2/projection/an-exact-integer-survives-the-wire",
+           ba.ok === true &&
+           bwire.includes("9223372036854775807") && survived === true &&
+           rounded === 9223372036854776000,
+           `a 2^63-1 rotor lane is emitted exactly and read back exactly ` +
+           `(${survived}). JSON.parse renders that same token as ${rounded}, ` +
+           `so a receiver using it refuses a legal world -- and refuses it in ` +
+           `the wrong vocabulary, reporting a range error about a number the ` +
+           `world never contained`);
+
+        /* Duplicate keys. JSON.parse keeps the last silently, so two records
+         * with different bytes and different meanings read as one object. */
+        const dupKey = bwire.replace(
+          '"projection_version":', '"projection_version":"x","projection_version":');
+        /* A fraction is not in the artifact domain at all. */
+        const fraction = bwire.replace('"projection_version"',
+                                       '"pv_x":1.5,"projection_version"');
+        /* Lexical variants of a valid record: canonical bytes have no space,
+         * and their keys are sorted. */
+        const spaced = "{ " + bwire.slice(1);
+
+        const codes = {
+          dup: await refuseAsync(() => v2.verifyRuntimeProjection(dupKey)),
+          frac: await refuseAsync(() => v2.verifyRuntimeProjection(fraction)),
+          space: await refuseAsync(() => v2.verifyRuntimeProjection(spaced)),
+          trail: await refuseAsync(() => v2.verifyRuntimeProjection(bwire + " ")),
+          zero: await refuseAsync(
+            () => v2.verifyRuntimeProjection('{"projection_version":-0}')),
+        };
+        ok("relation/v2/projection/a-noncanonical-record-is-not-the-record",
+           Object.values(codes).every((c) => c === "WRL_BAD_PROJECTION"),
+           `duplicate keys, a fraction, leading whitespace, trailing bytes ` +
+           `and -0 are each refused as WRL_BAD_PROJECTION (${
+             Object.entries(codes).map(([k, c]) => `${k}=${c}`).join(" ")}). ` +
+           `A wire that claims its bytes are canonical cannot also accept ` +
+           `lexical variants of them: the two statements are not compatible`);
+
+        /* The canonical-form gate is the one that does not need to enumerate.
+         * Re-ordering keys produces a record that parses fine, means exactly
+         * the same thing, and is still not this record. */
+        const shuffled = (() => {
+          const o = JSON.parse(bwire);
+          return "{" + Object.keys(o).reverse().map((k) =>
+            JSON.stringify(k) + ":" + JSON.stringify(o[k])).join(",") + "}";
+        })();
+        ok("relation/v2/projection/canonical-form-is-checked-not-assumed",
+           await refuseAsync(() => v2.verifyRuntimeProjection(shuffled)) ===
+             "WRL_BAD_PROJECTION" && shuffled !== bwire,
+           `a key-reordered record denotes the same value and is still ` +
+           `refused. This is the gate that covers the variants no one thought ` +
+           `to name: re-rendering what the bytes denote must return the bytes`);
+
+        /* And the reader must not have become strict by becoming wrong: the
+         * pinned worlds still verify, and still to the ids they always had. */
+        const pinnedBack = await v2.verifyRuntimeProjection(
+          v2.serializeRuntimeProjection(pv1));
+        ok("relation/v2/projection/exact-reading-moves-no-pinned-id",
+           pinnedBack.semantic_world_id === pv1.semantic_world_id &&
+           pinnedBack.execution_view_id === pv1.execution_view_id &&
+           pinnedBack.coincident === true,
+           `the pinned V1 world round-trips through the exact reader to the ` +
+           `same two ids. A reader that fixed the 64-bit case by changing how ` +
+           `ordinary integers are read would have moved every id in the repo`);
+      }
     }
   }
 
