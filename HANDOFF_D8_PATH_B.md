@@ -1,18 +1,20 @@
-# Handoff — Path B, Semantic IR V2 (slices B.1 – B.6, plus the C.0 errata)
+# Handoff — Path B, Semantic IR V2 (slices B.1 – B.6, plus C.0 and C.1)
 
-**Status: your B.6 ruling is discharged and accepted, and your B.7 errata is
-landed. The battery is green at 840/840, the register is at 100 rows — 88
-executable, 12 awaiting, model debt 0 — both pinned `sem-` ids are unmoved, and
-`wrl.js` is byte-identical.**
+**Status: your B.6 ruling is discharged and accepted, your B.7 errata is landed,
+and Path C is open — C.0 and C.1 are both closed. The battery is green at
+865/865, the register is at 106 rows — 94 executable, 12 awaiting, model debt
+0 — both pinned `sem-` ids are unmoved, and `wrl.js` is byte-identical.**
 
 Per your instruction — *"push after B.6, not before"* — the closure was a third
-commit on top of `12b12e0` and `738d94a`. C.0 is a fourth, on top of those.
+commit on top of `12b12e0` and `738d94a`. C.0 is a fourth (`f87de38`); C.1 is a
+fifth.
 
 This memo is the Path B counterpart to `HANDOFF_D8_PATH_A.md`. §1 records what
 each item of your nine-item closing ruling turned into, §2 records what happened
 to the five decisions I took on my own and you then ruled on, §3 records the B.6
-closure itself, §4 is the file map, §5 is what is left, and **§6 is C.0** — the
-B.7 errata, which corrects two things this memo itself got wrong.
+closure itself, §4 is the file map, §5 is what is left, **§6 is C.0** — the B.7
+errata, which corrects two things this memo itself got wrong — and **§7 is
+C.1**, ruling 1 landed: V2 reaches the playground, dispatched on the source.
 
 ---
 
@@ -20,10 +22,11 @@ B.7 errata, which corrects two things this memo itself got wrong.
 
 ```
 node test/conformance.mjs
-  840 passed, 0 failed  (70 annotated doc blocks of 115 swept, 26/26 capabilities cited)
+  865 passed, 0 failed  (70 annotated doc blocks of 115 swept, 26/26 capabilities cited)
 ```
 
-(835 at B.6, as you reproduced; the five additions are C.0's, §6.)
+(835 at B.6, as you reproduced; 840 after C.0's five, §6; 865 after C.1's
+twenty-five, §7.)
 
 | | |
 |---|---|
@@ -34,15 +37,27 @@ Neither moved. V2 is a second **encoding** over the same worlds, not a second
 world model, so the V1 spine had to come out of Path B byte-identical — and the
 suite still asserts that first, before it runs anything else.
 
+There is now a third pinned id, and it is the first V2 one:
+
+| | |
+|---|---|
+| the playground's `ir 2.0` world | `sem-9a491fe3a718d8c7262458812c9c220c0bf4157fc2155616f99bcde44263b019` |
+
+It is pinned in three places that check each other — `README.md` prints it under
+a complete V2 world, `playground.html` re-derives it in its self-check, and the
+suite's playground sweep verifies both — and it is a `sem-` like any other,
+because a world id names a sealed world and V1 and V2 are two encodings of one.
+
 Register, live in the browser:
 
 ```
-100 rows · 87 model · 87 model · executable · model debt 0
+106 rows · 91 model · executable · model debt 0
 ```
 
-The 13 non-model rows are, after C.0, 1 `surface · executable`, 1
-`surface · awaiting`, 7 `runtime · awaiting`, 4 `film · awaiting` — 88
-executable in all. Fifty-two of the 840 checks are namespaced `relation/v2/…`.
+The 15 non-model rows are, after C.1, 3 `surface · executable`, 1
+`surface · awaiting`, 7 `runtime · awaiting`, 4 `film · awaiting` — 94
+executable in all. Fifty-six of the 865 checks are namespaced `relation/v2/…`,
+and 41 are `playground/…`.
 
 ---
 
@@ -357,11 +372,11 @@ widened (`git diff --stat wrl.js` is empty).
 | file | state |
 |---|---|
 | `relation-v2.js` | ~77 KB — B.1 schema + canonical bytes, B.2 validation + identity derivation, B.3 V1↔V2 migration, B.4 named-relation surface, B.5 formatter + consumer, **B.6 world gate + `ir` header + adoption**. Zero new runtime constructs; every hashing path, every sort key, and now every profile question delegates to `relation-identity.js` and `wrl.js` |
-| `relation-identity.js` | 0.1.2; B.6 widened `AUTHORABLE_VARIANTS` and added `V1_AUTHORABLE_SEED_VARIANTS` |
+| `relation-identity.js` | 0.1.2; B.6 widened `AUTHORABLE_VARIANTS` and added `V1_AUTHORABLE_SEED_VARIANTS`; C.1 reworded one shared code gloss (§7c) |
 | `wrl.js` | **frozen**, untouched — byte-identical across all of Path A and Path B |
-| `test/conformance.mjs` | **840 checks**, 0 failed; 52 `relation/v2/…` |
-| `spec.html` | §D8.9 – §D8.16 under `#d8-v2` (`#d8-v2-seed`, `#d8-v2-profile`, `#d8-v2-boundary`, `#d8-v2-derive`, `#d8-v2-migrate`, `#d8-v2-surface`, `#d8-v2-write`, **`#d8-v2-world`, `#d8-v2-header`, `#d8-adoption`**), register 47 → 100 rows, model debt 0, `#d8-owes` item 2 struck |
-| `playground.html` | unchanged; re-verified live |
+| `test/conformance.mjs` | **865 checks**, 0 failed; 56 `relation/v2/…`, 41 `playground/…` |
+| `spec.html` | §D8.9 – §D8.17 under `#d8-v2` (`#d8-v2-seed`, `#d8-v2-profile`, `#d8-v2-boundary`, `#d8-v2-derive`, `#d8-v2-migrate`, `#d8-v2-surface`, `#d8-v2-write`, **`#d8-v2-world`, `#d8-v2-header`, `#d8-adoption`, `#d8-admission`**), register 47 → 106 rows, model debt 0, `#d8-owes` item 2 struck |
+| `playground.html` | **C.1** — dispatches through `admitWorldSource`, holds no encoding control, shows two labelled ids, three new published examples (§7) |
 | `WRL.zip` | rebuilt |
 
 Fifteen typed codes in `RELATION_V2_CODES` — nine from B.1–B.5:
@@ -417,7 +432,7 @@ The three open questions this section ended on are all answered. V2 goes to both
 
 ```
 C.0  B.7 register/prose errata and atomic adoption        ← landed, §6
-C.1  unified V1/V2 playground admission
+C.1  unified V1/V2 playground admission                   ← landed, §7
 C.2  migration and adoption playground workflow
 C.3  derived runtime-projection envelope
 C.4  TRVM Forge static-runtime admission
@@ -488,3 +503,159 @@ own principle it now dispatches on the source's own `ir` declaration, so the V2
 example in the README is sealed by the V2 parser and its `sem-` is checked like
 every other id on the site. A documentation sweep that assumed an encoding would
 have printed the id of a world the reader was never shown.
+
+---
+
+## 7. C.1 — V2 reaches the playground, dispatched on the source
+
+Your ruling 1, landed. Twenty-five checks, 865 total, register 100 → 106.
+
+### 7a. The page has no encoding control, and the absence is checked
+
+The one thing you were explicit about is the one thing easiest to get wrong by
+building the obvious UI. So the playground grew **no** V1/V2 switch. `run()` is
+three lines of dispatch and none of them decide anything:
+
+```js
+const r = await V2.admitWorldSource(text);
+setFamily(r);
+return r.family === "v2" ? renderV2(r) : renderV1(r);
+```
+
+The page does not hold a copy of "what a declaration looks like" — it calls the
+admission and reads `r.family` off the answer. §D8.17 gained a sixth rule clause
+saying exactly that: *a surface calls this rule; it does not restate it.*
+
+The absence is now a **positive** check, `playground/no-encoding-switch`, which
+sweeps the published HTML for a `<select>` or a `data-ir` / `data-encoding` /
+`data-family` attribute. A future selector that reinterprets text already in the
+editor fails the build. (A selector that inserts starter *text* is fine, and the
+row's prose says why: text is the input; a control that reinterprets existing
+text would make the id on screen a function of which button was last pressed.)
+
+The conformance sweep dispatches the same way. It used to pick the parser
+itself; now it calls `admitWorldSource` and asserts `family` **before** it
+asserts the id. A sweep that chose the parser could not catch the page choosing
+a different one — it would have agreed with itself while disagreeing with the
+reader's screen.
+
+### 7b. `badir` is the example that matters most
+
+Three new one-click examples ship, each declaring its own encoding on line 2:
+
+| example | declares | outcome |
+|---|---|---|
+| `named` | `ir 2.0` | seals `sem-9a491fe3…` — the README world, `[clock_feed]: [pulser:p0] --sig--> [relay:r0]` |
+| `unnamed` | `ir 2.0` | `WRL_MISSING_RELATION_NAME` |
+| `badir` | `ir 3.0` | `WRL_UNSUPPORTED_IR_VERSION` |
+
+`badir` is a **well-formed V1 world** carrying one broken declaration. It is
+precisely the source a fallback would have handled most convincingly, which is
+why it is the one that is published and why its `family` is asserted: a page
+that quietly downgraded it would show a reader a real `sem-` and no sign that
+anything had gone wrong. `playground/badir-family` is the second new register
+row, and it pins "declared badly ≠ not declared" at the surface.
+
+### 7c. One repair the live page found: a gloss that argued with its own message
+
+Clicking `badir` in a real browser printed the V2 diagnostic
+
+> `ir_version "3.0" is outside the V2 family this surface reads (2.0)`
+
+directly above the hint
+
+> *an artifact's `ir_version` is outside the **V1** family this **adapter** reads*
+
+`WRL_UNSUPPORTED_IR_VERSION` is raised by the V1 adapter about an **artifact**
+and by the V2 header reader about a **source**, and its gloss named only the
+first. It read as a contradiction the moment the playground put the two on one
+screen. Reworded family-neutral in `relation-identity.js`:
+
+> *an `ir_version` is outside the family the reader that met it accepts*
+
+A code two readers share has to have a gloss true of both. Nothing pinned the
+old string; the battery is unchanged at 865 across the edit.
+
+The page's own error rendering learned the same lesson structurally: it reads
+three code tables in order — `W.CODES` ?? `V2.RELATION_V2_CODES` ??
+`R.RELATION_CODES` — because there are three layers and the frozen spine's error
+surface is not a derived module's to extend.
+
+### 7d. Two ids, and they are two different claims
+
+Your display requirement is the part of ruling 1 with the most ways to comply
+in letter and fail in spirit. Two `sem-` ids set identically in one box is how a
+reader comes to treat them as interchangeable, so they are separated four ways:
+
+* different labels — `Semantic V2 world id` above, `V1 execution view id` below
+  (a V1 world shows one row, relabelled `SemanticArtifactID`, because a V1 world
+  runs as itself: one id wearing both hats);
+* a rule between the rows, and the lower row set in quieter ink;
+* a byte-exactness verdict beside the lower id — the projection is compared
+  against `denamedV1Artifact` and says so;
+* a standing note under both saying which one a grant, a revision or a ledger
+  event may be scoped to, and that nothing may be scoped to the other.
+
+Two panels appear only for a V2 world, and they are deliberately **not** one
+panel: `Named relation seeds` is marked *canonical · IN the bytes*, and
+`Derived relations` is marked *derived · not canonical · not in the bytes*.
+Putting seeds and the `rel-`/`rev-` ids they produce under one heading is how a
+reader comes to believe a world carries its relation ids around, which is the
+thing `DERIVED_NEVER_STORED` refuses.
+
+The strongest demonstration on the page is a hand edit, and it was found by
+being wrong first. I wrote that deleting the `ir 2.0` line reseals the same
+topology to a different id; the live page answered `WRL_UNSUPPORTED_FEATURE`,
+because the `[clock_feed]:` name prefix is still there and the V1 spine has no
+rule for it. Deleting **both** markers yields `sem-90b3d0eb…` — which is
+exactly the execution view id the lower row was already showing. The correction
+is a better demonstration than the claim: type out the V1 world by hand and you
+land on the subordinate id, never the world's own.
+
+### 7e. What C.1 did not do
+
+`renderV2` computes the projection inline with `V2.runnableV1Artifact`. That is
+not the envelope of ruling 2 — C.3 owns `deriveRuntimeProjection` and its seven
+laws, and when it lands the page should call it rather than keep a second way of
+getting there. The projection shown today is a display of the downgrade, and it
+is labelled as derived everywhere it appears.
+
+*Import V1 as V2* and *Adopt legacy relations* are **not** on the page yet; they
+are C.2, and your "neither automatic on editor change" is the constraint they
+land under. `migrationCorrespondence` is already wired into the correspondence
+panel for a V2 world, where it correctly reports that nothing pairs — and the
+panel says so in words, because *nothing pairs* is an answer here rather than a
+gap.
+
+### 7f. Decisions I took on my own in C.0 and C.1
+
+1. **`family` is the admission discriminator**, and the V1 arm is returned
+   unreshaped — a V1 admission carries `semanticId` and `graph` exactly as
+   before, a V2 one carries `semanticWorldId` and `artifact`. I did not
+   normalise the two into one shape, because a caller that cannot tell them
+   apart without reading `family` is a caller that will eventually scope
+   something to the wrong id.
+2. **`declaresEncoding` was added rather than re-coding the misplaced-header
+   diagnostic.** It shares `irHeaderScan` with `stripIrHeader` so no second
+   grammar for `ir` exists. But this leaves something for you: §D8.15 still says
+   a *late* declaration is `WRL_MISSING_IR_HEADER`, and now that dispatch
+   depends on the declaration, "missing" is a false word for a line that is
+   plainly present and merely in the wrong place. I did not change it, because
+   renumbering a frozen-adjacent diagnostic is your call.
+3. **§D8.17's numbering and its new sixth clause** — the surface-calls-the-rule
+   clause is mine, not yours.
+4. **The doc sweep dispatches on the source** (§6c) rather than assuming V1.
+5. **The C.1 page computes the projection inline**, pending C.3 (§7e).
+6. **The family-neutral rewording of `WRL_UNSUPPORTED_IR_VERSION`** (§7c).
+
+### 7g. Verified live
+
+`agent-browser` against `http://localhost:8901/playground.html`: self-check
+green with all three ids re-derived in the browser, including `ir 2.0
+sem-9a491fe3…`; the V2 example showing `sem-9a491fe3…` over `sem-90b3d0eb…`
+with the byte-exact verdict; the V1 demo still showing its pinned id with
+`4 paired · ids preserved yes`; Format round-tripping a V2 world to the same id;
+desugar safe on V2; console clean.
+
+Constraints held: `git diff --stat wrl.js` empty, both V1 pinned ids unmoved,
+model debt 0.

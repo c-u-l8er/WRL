@@ -1334,11 +1334,9 @@ const IR_HEADER_RE = /^ir(?:\s+(\S+))?(\s+\S[\s\S]*)?$/;
  * line number the spine reports is a line number in the source the author
  * wrote.
  */
-export function stripIrHeader(source) {
+function irHeaderScan(source) {
   if (typeof source !== "string")
     fail("WRL_MALFORMED_ARTIFACT", "a world source must be a string");
-
-  W.validateProfileHeader(source);   /* the profile is first, and says so */
 
   const raws = source.split("\n");
   const codeLines = [];
@@ -1350,6 +1348,39 @@ export function stripIrHeader(source) {
     if (line === "ir" || line.startsWith("ir ") || line.startsWith("ir\t"))
       hits.push([i + 1, line]);
   });
+  return { raws, codeLines, hits };
+}
+
+/**
+ * Does this text DECLARE an encoding at all? §D8.17.
+ *
+ * A question about the text, answered before anything is parsed, and the only
+ * question an admission is allowed to ask before it chooses a parser. It says
+ * nothing about whether the declaration is well formed, in the right place, or
+ * a version anything supports -- those are `stripIrHeader`'s four refusals, and
+ * they belong to the V2 parser rather than to the choice of parser.
+ *
+ * The distinction is the whole point. "Declared badly" and "not declared" are
+ * different facts, and a dispatcher that conflated them would hand a source
+ * carrying a broken `ir` line to the V1 parser -- which is precisely the
+ * fallback §D8.17 forbids, arriving as a helpful-looking error path.
+ *
+ * It shares `stripIrHeader`'s scan rather than re-testing for `ir`, because two
+ * copies of "what an encoding declaration looks like" is exactly the kind of
+ * private duplicate §D8.10 refuses; and it deliberately runs BEFORE
+ * `validateProfileHeader`, since a source with no profile still has to be
+ * routed somewhere, and the routing must not depend on a fault the chosen
+ * parser is about to report anyway.
+ */
+export function declaresEncoding(source) {
+  return irHeaderScan(source).hits.length > 0;
+}
+
+export function stripIrHeader(source) {
+  /* scanned first because the scan is what refuses a non-string, and pure
+   * either way; the PROFILE still gets to fault before any header rule does */
+  const { raws, codeLines, hits } = irHeaderScan(source);
+  W.validateProfileHeader(source);   /* the profile is first, and says so */
 
   if (!hits.length)
     fail("WRL_MISSING_IR_HEADER",
@@ -1708,6 +1739,109 @@ export function formatNamedWorld(v2artifact) {
 export function runnableV1Artifact(v2artifact,
                                    irVersion = R.V1_IR_VERSIONS[0]) {
   return downgradeV2ToV1(v2artifact, irVersion);
+}
+
+/* ================================================ C.1: admission, §D8.17 */
+/*
+ * ONE ENTRY POINT, TWO PARSERS, AND NOTHING THAT GUESSES
+ * -----------------------------------------------------
+ * Everything above this line is a library: a caller who already knows which
+ * encoding they hold calls `sealWorld` or `parseNamedWorld` and is right. A
+ * TOOL does not know. It holds a textarea, and the person typing into it may
+ * be writing either encoding, may paste one over the other, and is not going
+ * to announce which.
+ *
+ * That is a real question and it has exactly one honest answer: ASK THE
+ * SOURCE. §D8.15 exists so the source can be asked -- the whole argument for
+ * the `ir` line was that a world whose id depends on who opened it has no id
+ * -- and an admission is that argument used rather than restated.
+ *
+ * WHAT THIS MAY NOT DO, AND WHY IT IS TEMPTING
+ * --------------------------------------------
+ *   1. It may not dispatch on anything but the source. Not a dropdown, not a
+ *      file extension, not the last button pressed. A UI may put starter TEXT
+ *      in an editor -- text is the input -- but a UI that decides how EXISTING
+ *      text is read has made the id of a world a function of the interface,
+ *      which is the defect §D8.15 was written against with a different guess
+ *      in the blank.
+ *
+ *   2. It may not fall back. A source that declares `ir 3.0`, or `ir`, or
+ *      declares it twice, is a source someone MEANT as V2 and got wrong.
+ *      Handing it to V1 would be the most helpful-looking bug available here:
+ *      most such sources are perfectly good V1 worlds, so the fallback would
+ *      SEAL, print a real `sem-`, and the author would be looking at the id of
+ *      a world in an encoding they did not write. The refusal has to be the
+ *      end of the road, and this is why `declaresEncoding` answers a question
+ *      about DECLARING rather than about parsing.
+ *
+ *   3. It may not seal twice. A V2 admission runs the V1 spine exactly once,
+ *      inside `parseNamedWorld`, over the DE-NAMED text; the projection below
+ *      is derived from the artifact afterwards. Two seals of two texts is two
+ *      worlds, and a tool that showed both would be showing the reader an id
+ *      nothing in the editor produces.
+ */
+
+/** The two families a source can be admitted under. The discriminator. */
+export const ADMISSION_FAMILIES = deepFreeze(["v1", "v2"]);
+
+/**
+ * Admit a world source under the encoding IT declares. §D8.17.
+ *
+ * Returns a discriminated result, and the discriminator is `family`:
+ *
+ *   { ok: true,  family: "v1", declared: false, ...<sealWorld's own result> }
+ *   { ok: true,  family: "v2", declared: true, irVersion, artifact, bytes,
+ *                semanticWorldId, source, denamed, names, denamedV1Artifact }
+ *   { ok: false, family, declared, code, message, line?, ... }
+ *
+ * The V1 arm is `sealWorld`'s result with two fields added and nothing removed
+ * or renamed -- same `semanticId`, same `graph`, same `bytes`, same codes, same
+ * lines. An admission that reshaped V1's verdict would be a second public
+ * surface for a frozen one, and every existing consumer of a sealed world would
+ * have to learn which of the two it was holding.
+ *
+ * `denamedV1Artifact` is the V1 artifact `parseNamedWorld` sealed on the way in
+ * -- the frozen spine's own reading of the same world with the names taken off.
+ * It is NOT the execution projection, which is `runnableV1Artifact` computed
+ * from the V2 artifact. That the two are byte-identical is a fact worth
+ * checking rather than assuming, and it is the fact a consumer means by "the
+ * projection is exact"; C.3's envelope is where it stops being a coincidence
+ * two callers can each rediscover.
+ */
+export async function admitWorldSource(source) {
+  let declared;
+  try {
+    declared = declaresEncoding(source);
+  } catch (e) {
+    if (e instanceof W.WrlError)
+      return { ok: false, family: null, declared: null, ...W.mapDiagnostic(e) };
+    throw e;
+  }
+
+  if (!declared) {
+    const sealed = await W.sealWorld(source);
+    return { ...sealed, family: "v1", declared: false };
+  }
+
+  const parsed = await parseNamedWorld(source);
+  if (!parsed.ok) return { ...parsed, family: "v2", declared: true };
+
+  let semanticWorldId, bytes;
+  try {
+    bytes = serializeV2Artifact(parsed.artifact);
+    semanticWorldId = await v2WorldIdOfArtifact(parsed.artifact);
+  } catch (e) {
+    if (e instanceof W.WrlError)
+      return { ok: false, family: "v2", declared: true, ...W.mapDiagnostic(e) };
+    throw e;
+  }
+
+  return { ok: true, family: "v2", declared: true, irVersion: parsed.irVersion,
+           source, denamed: parsed.denamed, names: parsed.names,
+           artifact: parsed.artifact, semanticWorldId, bytes,
+           /* the seal `parseNamedWorld` already ran, carried rather than
+            * repeated -- see note 3 above */
+           denamedV1Artifact: parsed.v1 };
 }
 
 /* -------------------------------------------------------------- internals */

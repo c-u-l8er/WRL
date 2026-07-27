@@ -147,8 +147,12 @@ export const RELATION_CODES = deepFreeze({
     "a terminal is not the { object_id, port } record §D8 endpoints are made of",
   WRL_SEMANTIC_ID_MISMATCH:
     "a claimed world id is not the id the supplied artifact hashes to",
+  /* family-neutral on purpose. This code is raised by the V1 adapter about an
+   * ARTIFACT and by the V2 header reader about a SOURCE, and a gloss that
+   * named V1 read as a contradiction the moment the playground showed it
+   * under a V2 message. A code two readers share has to be true of both. */
   WRL_UNSUPPORTED_IR_VERSION:
-    "an artifact's ir_version is outside the V1 family this adapter reads",
+    "an ir_version is outside the family the reader that met it accepts",
   WRL_UNSUPPORTED_PROFILE:
     "an artifact's profile is not the one its ir_version's source family names",
   WRL_UNSUPPORTED_RULEPACK:

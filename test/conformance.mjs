@@ -1478,15 +1478,23 @@ for (const [id, entries] of futurePairs) {
      `only ${checked} internal links found; the sweep probably matched nothing`);
 }
 
-/* The playground's ten examples are the only sources on this site that a reader
+/* The playground's examples are the only sources on this site that a reader
  * actually EXECUTES, and each one is a claim: the button says "An illegal
  * rewire", so that source had better be rejected, and rejected for that reason.
  * A demo that quietly seals is worse than no demo, because the reader concludes
  * the language does not check the thing the button just promised it checks.
  * These live in a JS object literal rather than a `<pre>`, so the block sweep
- * above cannot see them; they get their own pass. */
+ * above cannot see them; they get their own pass.
+ *
+ * Every example goes through `admitWorldSource`, which is THE PAGE'S OWN
+ * DISPATCH (§D8.17) rather than a second copy of it. That matters twice over:
+ * the V2 examples could not be checked by `sealWorld` at all, and — more to
+ * the point — a sweep that chose the parser itself could not catch the page
+ * choosing a different one. The expectation table says only what each button
+ * promises; which parser reads it is the module's answer, checked here. */
 {
   const text = readFileSync(join(ROOT, "playground.html"), "utf8");
+  const v2pg = await import("../relation-v2.js");
   const open = text.indexOf("const EXAMPLES = {");
   ok("playground/examples-found", open !== -1,
      "could not locate the EXAMPLES table in playground.html");
@@ -1498,21 +1506,29 @@ for (const [id, entries] of futurePairs) {
        own exported fixtures rather than inline text */
     const EX = new Function("W", "return " + literal)(W);
 
-    /* what each button PROMISES. An example with no entry here fails: adding a
-       demo to the page is adding a claim to the page. */
+    /* what each button PROMISES, and which family the SOURCE puts it in. An
+       example with no entry here fails: adding a demo to the page is adding a
+       claim to the page. */
     const expected = {
-      starter:  { seal: W.STARTER_WORLD_SEMANTIC_ID },
-      demo:     { seal: W.DEMO_WORLD_SEMANTIC_ID },
+      starter:  { family: "v1", seal: W.STARTER_WORLD_SEMANTIC_ID },
+      demo:     { family: "v1", seal: W.DEMO_WORLD_SEMANTIC_ID },
       /* the twin and the shuffle are the whole argument for canonical bytes:
          different spellings, one id, and it is the pinned fixture's id */
-      twin:     { seal: W.DEMO_WORLD_SEMANTIC_ID },
-      shuffled: { seal: W.DEMO_WORLD_SEMANTIC_ID },
-      repl:     { seal: "sem-769b11b7e47db6485dd49b4da03dc3cf996aecb23a3ce53bd72a2b6c0f00cbe5" },
-      empty:    { seal: "sem-b5bdc908d2ce549a46fc8ae95d39c34e1deb245e282075730e5436097433fae6" },
-      conflict: { reject: "WRL_CONTROLLER_CONFLICT" },
-      scenario: { reject: "WRL_WORLD_SOURCE_HAS_SCENARIO" },
-      typo:     { reject: "WRL_SUGAR_MALFORMED" },
-      remap:    { reject: "WRL_DUPLICATE_ID" },
+      twin:     { family: "v1", seal: W.DEMO_WORLD_SEMANTIC_ID },
+      shuffled: { family: "v1", seal: W.DEMO_WORLD_SEMANTIC_ID },
+      repl:     { family: "v1", seal: "sem-769b11b7e47db6485dd49b4da03dc3cf996aecb23a3ce53bd72a2b6c0f00cbe5" },
+      empty:    { family: "v1", seal: "sem-b5bdc908d2ce549a46fc8ae95d39c34e1deb245e282075730e5436097433fae6" },
+      conflict: { family: "v1", reject: "WRL_CONTROLLER_CONFLICT" },
+      scenario: { family: "v1", reject: "WRL_WORLD_SOURCE_HAS_SCENARIO" },
+      typo:     { family: "v1", reject: "WRL_SUGAR_MALFORMED" },
+      remap:    { family: "v1", reject: "WRL_DUPLICATE_ID" },
+      /* IR 2.0. `badir` is the one that matters most: it is a fine V1 world
+         with one broken declaration, so a page that fell back would seal it
+         and print an id. The family assertion is what says it did not. */
+      named:    { family: "v2",
+                  seal: "sem-9a491fe3a718d8c7262458812c9c220c0bf4157fc2155616f99bcde44263b019" },
+      unnamed:  { family: "v2", reject: "WRL_MISSING_RELATION_NAME" },
+      badir:    { family: "v2", reject: "WRL_UNSUPPORTED_IR_VERSION" },
     };
 
     for (const [name, source] of Object.entries(EX)) {
@@ -1523,12 +1539,23 @@ for (const [id, entries] of futurePairs) {
         continue;
       }
       const src = source.endsWith("\n") ? source : source + "\n";
+      const r = await v2pg.admitWorldSource(src);
+      if (!ok(`playground/${name}-family`, r.family === want.family,
+              `admitted as ${r.family}, want ${want.family}` +
+              (r.ok ? "" : ` (${r.code})`))) continue;
+      const got = r.ok ? (r.family === "v2" ? r.semanticWorldId : r.semanticId)
+                       : null;
       if (want.seal) {
-        if (await expectSeal(`playground/${name}`, src, want.seal)) {
+        if (!r.ok) { ok(`playground/${name}`, false,
+                        `rejected ${r.code}: ${r.message}`); continue; }
+        if (ok(`playground/${name}`, got === want.seal,
+               `got  ${got}\n      want ${want.seal}`))
           verified.set(want.seal, `playground example '${name}'`);
-        }
       } else {
-        await expectReject(`playground/${name}`, src, want.reject);
+        if (r.ok) { ok(`playground/${name}`, false,
+                       `sealed ${got}; expected ${want.reject}`); continue; }
+        ok(`playground/${name}`, r.code === want.reject,
+           `got ${r.code} ("${r.message}"); want ${want.reject}`);
       }
     }
 
@@ -1536,6 +1563,15 @@ for (const [id, entries] of futurePairs) {
       ok(`playground/${name}-exists`, name in EX,
          `an outcome is stated for '${name}' but the page no longer offers it`);
     }
+
+    /* the page must not grow a control that decides the encoding. A selector
+       may put starter TEXT in the editor; one that reinterprets text already
+       there makes a world's id a function of the interface. */
+    ok("playground/no-encoding-switch",
+       !/data-(ir|encoding|family)\s*=/.test(text) &&
+       !/<select\b/.test(text),
+       "playground.html has grown a control that looks like an encoding " +
+       "selector; §D8.17 says the source decides, and only the source");
   }
 }
 
@@ -4926,7 +4962,161 @@ ir 2.0
 
   }
 
+  /* ============================================== 21h. admission, C.1
+   *
+   * Every check above calls the parser it means. A TOOL cannot: it holds a
+   * textarea and does not know which encoding the person typing is in. §D8.17
+   * is the rule that lets it find out without guessing, and these are the two
+   * ways of getting that wrong -- deciding from outside the source, and being
+   * helpful about a source that got its declaration wrong. */
+  if (parsed.ok) {
+
+  const admitted = await v2.admitWorldSource(NAMED_DEMO);
+  const plain = await v2.admitWorldSource(W.DEMO_WORLD);
+
+  /* -- the source decides, and it is the only thing that does.
+   *
+   * One function, two encodings, and the discriminator comes out of the text.
+   * The strong form is available here because both worlds are PINNED: the V1
+   * bytes admit to the frozen demo id, the V2 bytes admit to the V2 world id
+   * the encoding checks above already fixed, and no argument, flag or mode was
+   * passed to either call. */
+  {
+    const v2id = await v2.v2WorldIdOfArtifact(parsed.artifact);
+
+    ok("relation/v2/admission/the-source-decides-which-parser-reads-it",
+       plain.ok === true && plain.family === "v1" &&
+       plain.declared === false && plain.semanticId === demo.semanticId &&
+       admitted.ok === true && admitted.family === "v2" &&
+       admitted.declared === true && admitted.irVersion === "2.0" &&
+       admitted.semanticWorldId === v2id && v2id !== demo.semanticId,
+       `undeclared bytes admit as ${plain.family} to ` +
+       `${String(plain.semanticId).slice(0, 16)}…; the same world with ` +
+       `'ir 2.0' and names admits as ${admitted.family} to ` +
+       `${String(admitted.semanticWorldId).slice(0, 16)}…. Two encodings, two ` +
+       `worlds, one entry point, and nothing outside the text was consulted`);
   }
+
+  /* -- the V1 arm is the frozen verdict, not a reshaping of it.
+   *
+   * `sealWorld`'s result is a published shape with consumers. An admission
+   * that renamed `semanticId`, or dropped `graph`, or wrapped the whole thing
+   * one level down, would force every existing reader to learn which of two
+   * things it was holding -- for worlds where NOTHING changed. So the V1 arm
+   * is that object with two keys added, and this compares it key by key
+   * against a direct seal rather than spot-checking the id. */
+  {
+    const direct = await W.sealWorld(W.DEMO_WORLD);
+    const extra = new Set(["family", "declared"]);
+    const missing = Object.keys(direct).filter((k) => !(k in plain));
+    const added = Object.keys(plain).filter(
+      (k) => !(k in direct) && !extra.has(k));
+    const differs = Object.keys(direct).filter(
+      (k) => W.serializeArtifact(fmt(direct[k])) !==
+             W.serializeArtifact(fmt(plain[k])));
+
+    /* and a REFUSED V1 source stays a refused V1 source: same code, same line */
+    const broken = "profile forge.world.core.v1\n\n[orb:ob]{pose}\n" +
+                   "[orb:ob]{pose}\n";
+    const viaAdmission = await v2.admitWorldSource(broken);
+    const viaSeal = await W.sealWorld(broken);
+
+    ok("relation/v2/admission/the-v1-arm-is-the-frozen-verdict-unchanged",
+       missing.length === 0 && added.length === 0 && differs.length === 0 &&
+       viaAdmission.ok === false && viaAdmission.family === "v1" &&
+       viaAdmission.code === viaSeal.code &&
+       viaAdmission.line === viaSeal.line,
+       `keys missing: [${missing.join(", ")}], keys added beyond ` +
+       `family/declared: [${added.join(", ")}], values differing: ` +
+       `[${differs.join(", ")}]; a refused world reports ` +
+       `${viaAdmission.code}@${viaAdmission.line} through admission and ` +
+       `${viaSeal.code}@${viaSeal.line} through the seal`);
+  }
+
+  /* -- a declared encoding is never retried under the other one.
+   *
+   * The tempting bug, and the reason it is tempting: a source whose `ir` line
+   * is wrong is usually a perfectly good world otherwise, so a fallback would
+   * have plenty to seal. What it would print is the id of a world in an
+   * encoding its author did not write.
+   *
+   * The second half is what makes the refusal necessary rather than merely
+   * tidy. The frozen parser has no `ir` rule, so it answers a broken
+   * declaration with `WRL_UNSUPPORTED_FEATURE` pointed at the declaration --
+   * a diagnostic that tells an author to delete the one line in the file that
+   * was doing its job. Admission has to refuse in the V2 vocabulary, and it
+   * does: four malformed declarations, four V2 header codes, and V1 never
+   * consulted. */
+  {
+    const hdr = (h) => `profile forge.world.core.v1\n${h}\n\n[orb:ob]{pose}\n`;
+    const cases = [["ir", "WRL_MALFORMED_IR_HEADER"],
+                   ["ir 2.0 2.0", "WRL_MALFORMED_IR_HEADER"],
+                   ["ir 3.0", "WRL_UNSUPPORTED_IR_VERSION"],
+                   ["ir 2.0\nir 2.0", "WRL_DUPLICATE_IR_HEADER"]];
+    const got = [];
+    for (const [h] of cases) {
+      const r = await v2.admitWorldSource(hdr(h));
+      got.push(r.ok ? "ACCEPTED" : `${r.family}:${r.code}`);
+    }
+    /* the misplaced one is its own case: the declaration is present, so it is
+     * a V2 question, and it is answered by the V2 parser */
+    const late = await v2.admitWorldSource(
+      "profile forge.world.core.v1\n\n[orb:ob]{pose}\nir 2.0\n");
+    /* what V1 says about every one of them, if anyone let it speak */
+    const v1says = await W.sealWorld(hdr("ir 3.0"));
+
+    ok("relation/v2/admission/a-declared-encoding-never-falls-back",
+       got.join("|") === cases.map(([, c]) => `v2:${c}`).join("|") &&
+       late.ok === false && late.family === "v2" &&
+       v1says.ok === false && v1says.code === "WRL_UNSUPPORTED_FEATURE",
+       `${got.join(", ")}; misplaced: ${late.family}:${late.code}. None ` +
+       `sealed, and none was handed to V1 -- which would have called the ` +
+       `encoding declaration itself ${v1says.code}`);
+  }
+
+  /* -- the world id and the execution view id are two different things.
+   *
+   * The display law, checked as arithmetic. A V2 world has its own `sem-`,
+   * derived from V2 bytes; its V1 execution projection has another, derived
+   * from V1 bytes; and a page that showed one of them under the other's label
+   * would be telling a reader that the identity scope of their world is the
+   * projection someone runs.
+   *
+   * The projection is exact, and `denamedV1Artifact` is what "exact" is
+   * measured against -- the frozen spine's own reading of the same text with
+   * the names taken off. Both facts land on the pinned demo id, which is the
+   * sharpest available end for this chain: the V2 world is a NEW world, and
+   * the thing it runs as is the world that has not moved in six slices. */
+  {
+    const projection = v2.runnableV1Artifact(admitted.artifact);
+    const exact = W.serializeArtifact(projection) ===
+                  W.serializeArtifact(admitted.denamedV1Artifact);
+    const executionViewId = await s.worldIdOfArtifact(projection);
+
+    ok("relation/v2/admission/the-world-id-is-not-the-execution-view-id",
+       exact && executionViewId === demo.semanticId &&
+       admitted.semanticWorldId !== executionViewId,
+       `the projection is byte-exact against the seal the spine already ` +
+       `performed: ${exact}; it seals to ${executionViewId.slice(0, 16)}… ` +
+       `-- the pinned demo world -- while the V2 world this text names is ` +
+       `${String(admitted.semanticWorldId).slice(0, 16)}…. Two ids, two ` +
+       `meanings; the second is proof of an execution view, not the scope ` +
+       `any relation in this world is allocated in`);
+  }
+
+  }
+
+  }
+}
+
+/* values off a sealed world include a `WrlGraph` and a `Map`, neither of which
+ * the canonical serializer takes; compared through a stable rendering instead,
+ * since the point is that admission passed the SAME object through */
+function fmt(v) {
+  if (v instanceof Map) return [...v.entries()].map(([k, x]) => [String(k), fmt(x)]);
+  if (v && typeof v === "object") return String(JSON.stringify(v, (k, x) =>
+    typeof x === "bigint" ? x.toString() : x));
+  return typeof v === "bigint" ? v.toString() : v ?? null;
 }
 
 /* ======================================= 21b. the part boundary wears a badge

@@ -26,13 +26,25 @@
        overflow-x:auto;white-space:pre-wrap;word-break:break-all;margin:0;
        background:var(--machine);color:#9FB8AE;flex:1;min-height:120px}
   .idbar{font-family:var(--mono);font-size:13px;padding:14px 16px;border-radius:9px;
-    border:1px solid var(--paper-2);background:#fff;display:flex;gap:14px;
-    align-items:center;flex-wrap:wrap;margin-top:18px}
+    border:1px solid var(--paper-2);background:#fff;margin-top:18px}
+  .idrow{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap;padding:4px 0}
+  .idrow+.idrow{border-top:1px solid var(--rule);margin-top:5px;padding-top:9px}
   .idbar .tag{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
-    color:var(--ink-faint);font-weight:600}
+    color:var(--ink-faint);font-weight:600;min-width:22ch}
   .idbar .val{color:var(--wire);font-weight:600;word-break:break-all}
+  /* the execution view id is deliberately subordinate: same font, quieter
+     ink. It is not this world's identity, and two ids set identically in one
+     box is how a reader comes to treat them as interchangeable. */
+  #idrow-exec .val{color:var(--ink-soft)}
+  .idbar .idnote{display:block;font-size:10.5px;letter-spacing:.04em;
+    text-transform:uppercase;color:var(--ink-faint);font-weight:600;
+    margin-top:10px;line-height:1.6}
   .idbar.err{border-color:var(--rust)}
   .idbar.err .val{color:var(--rust)}
+  .exact{font-weight:600}
+  .exact.yes{color:var(--wire)}
+  .exact.no{color:var(--rust)}
+  [hidden]{display:none !important}
   .minibtn{font-family:var(--mono);font-size:11px;letter-spacing:.04em;cursor:pointer;
     background:var(--paper-2);border:0;border-radius:5px;padding:5px 11px;
     color:var(--ink-soft);font-weight:600}
@@ -88,6 +100,14 @@
   conformance fixture seals here to the exact id every Forge battery folds
   against. Nothing is sent anywhere.</p>
 
+  <p style="color:var(--ink-soft);max-width:74ch">Two encodings are read here,
+  and there is <b>no switch</b> to choose between them. A source that declares
+  <code class="inline">ir 2.0</code> on the line after its profile is read as
+  Semantic IR 2.0, where every route carries a name; anything else is read by
+  the frozen IR 1.0 spine. The source decides — never a dropdown, never the
+  last button pressed. A world whose id depended on the interface would not
+  have an id.</p>
+
   <p id="selfcheck">self-check: running…</p>
 
   <div class="exrow">
@@ -101,6 +121,13 @@
     <button class="minibtn" data-ex="typo">A silently-ignored typo</button>
     <button class="minibtn" data-ex="remap">A fault inside an expansion</button>
     <button class="minibtn" data-ex="empty">Empty world</button>
+  </div>
+
+  <div class="exrow">
+    <span class="derivednote" style="align-self:center">IR 2.0 · draft ·</span>
+    <button class="minibtn" data-ex="named">A world with named relations</button>
+    <button class="minibtn" data-ex="unnamed">An unnamed route</button>
+    <button class="minibtn" data-ex="badir">A declaration that does not parse</button>
   </div>
 
   <div class="pgrid">
@@ -122,10 +149,16 @@
 
     <div class="stack">
       <div class="panel">
-        <header>Canonical artifact bytes
+        <header><span id="bytes-title">Canonical artifact bytes</span>
           <span class="sp"><button class="minibtn" id="btn-copy">Copy</button></span>
         </header>
         <pre class="out" id="out-bytes"></pre>
+      </div>
+      <div class="panel" id="panel-seeds" hidden>
+        <header>Named relation seeds
+          <span class="sp derivednote">canonical · IN the bytes</span>
+        </header>
+        <div class="out rel" id="out-seeds"></div>
       </div>
       <div class="panel">
         <header>Desugared source <span class="sp" id="sugar-note"></span></header>
@@ -137,6 +170,12 @@
         </header>
         <div class="out rel" id="out-relations"></div>
       </div>
+      <div class="panel" id="panel-projection" hidden>
+        <header>V1 execution projection
+          <span class="sp derivednote">derived · not the world's identity</span>
+        </header>
+        <pre class="out" id="out-projection"></pre>
+      </div>
       <div class="panel">
         <header>Correspondence with the pinned fixture
           <span class="sp derivednote">§D8.5 · a migration claim, computed</span>
@@ -146,9 +185,22 @@
     </div>
   </div>
 
+  <!-- Two ids, and they are two different claims. The upper one is what this
+       world IS; the lower one identifies only the V1 bytes it would be RUN as.
+       They are shown apart, and labelled apart, because a single row reading
+       "SemanticArtifactID" over whichever of the two happened to be handy is
+       exactly how a consumer ends up scoping a grant to an execution view. -->
   <div class="idbar" id="idbar">
-    <span class="tag">SemanticArtifactID</span>
-    <span class="val" id="semid">—</span>
+    <div class="idrow">
+      <span class="tag" id="tag-world">SemanticArtifactID</span>
+      <span class="val" id="semid">—</span>
+    </div>
+    <div class="idrow" id="idrow-exec" hidden>
+      <span class="tag">V1 execution view id</span>
+      <span class="val" id="execid">—</span>
+      <span class="exact" id="exactnote"></span>
+    </div>
+    <span class="idnote" id="idnote"></span>
   </div>
 
   <div id="diag"></div>
@@ -236,6 +288,42 @@
     <b>line 8, the line you typed</b>, not at the generated line the collision
     actually landed on.</li>
   </ul>
+
+  <h3>And in IR 2.0 (draft)</h3>
+  <ul>
+    <li>Load <i>a world with named relations</i>. Two ids appear, labelled
+    apart. The upper one is what the world <b>is</b>; the lower one identifies
+    only the V1 bytes it would be <b>run</b> as. Nothing scoped to a world —
+    a grant, a revision, a ledger event — may be scoped to the lower one.</li>
+    <li>Delete the <code class="inline">ir 2.0</code> line and leave the rest.
+    <code class="inline">WRL_UNSUPPORTED_FEATURE</code> at the route — the V1
+    spine has never heard of a name prefix. Now delete
+    <code class="inline">[clock_feed]:</code> as well. It seals, to a
+    <b>different id</b> than the V2 world above — and that id is exactly the
+    one the second row was showing you. The lower row was never this world's
+    identity; it was the identity of the V1 world you just finished typing
+    out by hand.</li>
+    <li>Rename <code class="inline">clock_feed</code> to anything else. The
+    world id moves and the <code class="inline">rel-</code> moves with it —
+    the name is the relation's whole preimage. The
+    <code class="inline">rev-</code> does <b>not</b> move: a revision is
+    standalone, and renaming changes what a relation is called, not what it
+    connects.</li>
+    <li>Change <code class="inline">ir 2.0</code> to
+    <code class="inline">ir 3.0</code>, or to bare <code class="inline">ir</code>,
+    or declare it twice. Four distinct refusals, and <b>none of them falls back
+    to V1</b> — every one of those sources is a perfectly good V1 world, which
+    is exactly why a fallback would be the most convincing wrong answer
+    available: it would seal, print a real <code class="inline">sem-</code>,
+    and hand you the id of a world in an encoding you did not write.</li>
+    <li>Load <i>an unnamed route</i>. <code class="inline">WRL_MISSING_RELATION_NAME</code>
+    — and never a name derived from the two ends, which would make renaming an
+    object silently re-mint the relation.</li>
+    <li>Watch the correspondence panel. A named world pairs with <b>nothing</b>
+    in the pinned V1 fixture, because the fixture's relations are keyed by
+    their endpoints and this one's are keyed by the names you wrote. That is
+    the answer, not a gap.</li>
+  </ul>
 </main>
 
 <footer class="site">
@@ -247,7 +335,7 @@
     <div><strong>Tools</strong>
       <a href="playground.html">Browser playground</a><br>
       <a href="https://github.com/c-u-l8er/WRL">Source on GitHub</a></div>
-    <div><strong>Status</strong>Core 0.1.2 — frozen<br>Semantic IR v1 — frozen<br>Sugar — sugar.v2</div>
+    <div><strong>Status</strong>Core 0.1.2 — frozen<br>Semantic IR v1 — frozen<br>Semantic IR 2.0 — draft<br>Sugar — sugar.v2</div>
   </div>
 </footer>
 
@@ -259,9 +347,20 @@ import * as W from "./wrl.js";
    sharper diagnostic for a doubled edge, and adopting it here would quietly
    change V1's frozen error surface. */
 import * as R from "./relation-identity.js";
+/* Semantic IR 2.0 (§D8, draft). This page does NOT hold a V1/V2 switch, and
+   the absence is the design: `admitWorldSource` reads the encoding off the
+   source's own `ir` line (§D8.17), so the id shown is a function of the text
+   and never of which button was last pressed. The buttons below supply
+   starter TEXT; text is the input. */
+import * as V2 from "./relation-v2.js";
 
 const $ = (id) => document.getElementById(id);
 const src = $("src");
+
+/* the V2 fixture the self-check re-seals, pinned here for the same reason the
+   V1 fixtures are pinned in the module: an id nothing checks is decoration */
+const NAMED_WORLD_SEMANTIC_ID =
+  "sem-9a491fe3a718d8c7262458812c9c220c0bf4157fc2155616f99bcde44263b019";
 
 const EXAMPLES = {
   starter: W.STARTER_WORLD,
@@ -376,6 +475,56 @@ periods 7
 ; and it still has an identity. delete the profile
 ; line, though, and there is no world at all.
 `,
+
+  /* ------------------------------------------------- Semantic IR 2.0, draft */
+
+  named: `profile forge.world.core.v1
+ir 2.0
+
+; \`ir 2.0\` is what makes this a V2 world. Nothing else does —
+; not a dropdown, not the file it came from. Delete that line
+; and the last one loses its meaning; delete the \`[clock_feed]:\`
+; prefix too and the SAME topology seals as a DIFFERENT world,
+; because the encoding is in the bytes.
+;
+; \`[name]:\` gives a route an identity of its own. The name is
+; the whole preimage of the relation's id, which is why it may
+; never be derived from the endpoints: renaming an object
+; would silently re-mint the relation.
+
+[pulser:p0](every 2){sig_out}
+[relay:r0]{sig_in, sig_out}
+
+[clock_feed]: [pulser:p0] --sig--> [relay:r0]
+`,
+
+  unnamed: `profile forge.world.core.v1
+ir 2.0
+
+; under IR 2.0 a route without a name is a rejection, and
+; never a name invented from the two ends it happens to join.
+; the world is otherwise perfectly good — as V1.
+
+[pulser:p0](every 2){sig_out}
+[relay:r0]{sig_in, sig_out}
+
+[pulser:p0] --sig--> [relay:r0]
+`,
+
+  badir: `profile forge.world.core.v1
+ir 3.0
+
+; this is a fine V1 world with one broken line, and that is
+; exactly why nothing falls back to V1 here. A fallback would
+; SEAL, print a real sem-, and hand you the id of a world in
+; an encoding you did not write. Declared badly is not the
+; same fact as not declared.
+
+[pulser:p0](every 2){sig_out}
+[relay:r0]{sig_in, sig_out}
+
+[clock_feed]: [pulser:p0] --sig--> [relay:r0]
+`,
 };
 
 /* ------------------------------------------------------------- rendering */
@@ -405,8 +554,24 @@ function renderGraph(g) {
   return lines.join("\n");
 }
 
+/* A V1 or V2 artifact, in the shape `renderGraph` reads. The V2 side of the
+   page never renders a graph of its own: it renders the graph of the V1
+   artifact the spine validated on the way in, because V2 changes how topology
+   is WRITTEN and not what a world is. */
+function graphOfArtifact(a) {
+  return {
+    profile: a.profile_id,
+    nodes: a.objects.map((o) => [o.role, o.object_id, o.static_config]),
+    edges: a.edges.map((e) => [e.kind, e.src, e.dst]),
+  };
+}
+
 function renderDiag(r) {
-  const hint = W.CODES[r.code] ? `\n${W.CODES[r.code]}` : "";
+  /* three code tables, because there are three layers and each owns its own
+     error surface — the frozen spine's is not a derived module's to extend */
+  const said = W.CODES[r.code] ?? V2.RELATION_V2_CODES[r.code] ??
+               R.RELATION_CODES[r.code];
+  const hint = said ? `\n${said}` : "";
   const where = r.line ? ` · line ${r.line}` : "";
   const loc = r.locator ? ` · ${r.locator}` : "";
   const path = r.fieldPath ? ` · ${r.fieldPath}` : "";
@@ -431,16 +596,43 @@ function escapeHtml(s) {
    direction from array order has learned something the model does not say. */
 function renderRelations(rel) {
   if (!rel.relations.length)
-    return `<div class="none">no relations — this world has no edges</div>`;
+    return `<div class="none">no relations — this world has no routes</div>`;
   return rel.relations.map((r) => {
     const eps = r.revision.endpoints.map((e) =>
       `<span class="role">${escapeHtml(e.role)}</span> ` +
       `<span class="ep">${escapeHtml(R.formatTerminal(e.terminal))}</span>`)
       .join("  ·  ");
-    return `<div class="rrow"><div class="rid">${escapeHtml(r.relation_id)}</div>` +
+    /* V2 only. A V1 relation has no name to print — the projection invents
+       its record from an edge — and printing one would be the page telling a
+       reader that V1 relations are named. */
+    const named = r.identity_seed && r.identity_seed.variant === "named-initial"
+      ? `<div><span class="role">name</span> <span class="ep">` +
+        `${escapeHtml(r.identity_seed.relation_name)}</span></div>`
+      : "";
+    return `<div class="rrow">${named}` +
+           `<div class="rid">${escapeHtml(r.relation_id)}</div>` +
            `<div class="ep">${escapeHtml(r.revision_id)}</div>` +
            `<div>${escapeHtml(r.revision.kind)} · ` +
            `${escapeHtml(r.revision.orientation)}</div><div>${eps}</div></div>`;
+  }).join("");
+}
+
+/* The seeds, shown APART from the ids they produce, because in V2 they are
+   two different kinds of thing and only one of them is in the bytes. A seed
+   is canonical artifact content; a `rel-` is a function of that seed and the
+   world it sits in, and is stored nowhere. Putting them in one panel under
+   one heading is how a reader comes to believe a world carries its relation
+   ids around, which is the thing `DERIVED_NEVER_STORED` refuses. */
+function renderSeeds(view) {
+  if (!view.relations.length)
+    return `<div class="none">no relations — nothing to name</div>`;
+  return view.relations.map(({ identity_seed: s }) => {
+    const fields = Object.keys(s).filter((k) => k !== "variant").sort()
+      .map((k) => `${k}=${showVal(s[k])}`).join("   ");
+    return `<div class="rrow"><div class="rid">` +
+      `${escapeHtml(s.relation_name ?? s.variant)}</div>` +
+      `<div><span class="role">${escapeHtml(s.variant)}</span> ` +
+      `<span class="ep">${escapeHtml(fields)}</span></div></div>`;
   }).join("");
 }
 
@@ -465,59 +657,150 @@ let PINNED = null;
 
 async function renderCorrespondence(r) {
   if (!PINNED) PINNED = await W.sealWorld(W.DEMO_WORLD);
-  const c = await R.deriveLegacyEdgeCorrespondence(PINNED, r);
+  /* Two families, two joins, and neither is the other's fallback. The V1 side
+     pairs on `{ kind, src, dst }` because that key IS a V1 relation's whole
+     preimage; the V2 side pairs on the migrated seed, which preserved that
+     key. A NAMED relation has no such key at all — see below. */
+  const c = r.family === "v2"
+    ? await V2.migrationCorrespondence(
+        PINNED, { artifact: r.artifact, semanticId: r.semanticWorldId })
+    : await R.deriveLegacyEdgeCorrespondence(PINNED, r);
   const same = c.from_world === c.to_world;
+  const why = same
+    ? "the same sealed world, so the correspondence is the identity map"
+    : r.family === "v2" && c.pairs.length === 0
+      ? "nothing pairs, and that is the answer rather than a gap: the " +
+        "fixture's relations are keyed by { kind, src, dst }, and this " +
+        "world's are keyed by the names you wrote. Matching them up on " +
+        "endpoints would be the page inventing the claim a migration has to " +
+        "make. Import the fixture as V2 and the seeds pair on sight."
+      : "a different sealed world — every paired relation is two relations, " +
+        "and this map is what a migration would have to carry";
   return `<div class="rrow"><div class="ep">` +
     `${c.pairs.length} paired · ${c.dropped.length} dropped · ` +
     `${c.added.length} added</div>` +
     `<div><span class="role">ids preserved</span> ` +
     `<span class="rid">${c.identityPreserved ? "yes" : "no"}</span></div>` +
-    `<div class="none">${same
-      ? "the same sealed world, so the correspondence is the identity map"
-      : "a different sealed world — every paired relation is two relations, " +
-        "and this map is what a migration would have to carry"}</div></div>`;
+    `<div class="none">${why}</div></div>`;
+}
+
+/* ------------------------------------------------------------- admission */
+/* §D8.17. The page holds a textarea and does not know which encoding is in
+   it; the SOURCE knows, and this is where it is asked. There is deliberately
+   no V1/V2 control anywhere on this page: an id that depended on a dropdown
+   would be an id that depended on the interface, which is the defect the `ir`
+   line exists to prevent with a different guess in the blank. */
+
+const IDNOTE = {
+  v1: "IR 1.0 · the encoding is not declared, so the frozen V1 spine reads " +
+      "this text · a V1 world runs as itself, so its world id and its " +
+      "execution view id are one id wearing both hats",
+  v2: "IR 2.0 · declared in the source · TWO IDS, TWO CLAIMS — the upper one " +
+      "names this world and is what a grant, a revision or a ledger event is " +
+      "scoped to; the lower one identifies only the V1 bytes this world would " +
+      "be run as, and nothing may be scoped to it",
+};
+
+function setFamily(r) {
+  const v2 = r.ok && r.family === "v2";
+  $("panel-seeds").hidden = !v2;
+  $("panel-projection").hidden = !v2;
+  $("idrow-exec").hidden = !v2;
+  $("tag-world").textContent = v2 ? "Semantic V2 world id" : "SemanticArtifactID";
+  $("bytes-title").textContent =
+    v2 ? "Canonical V2 artifact bytes" : "Canonical artifact bytes";
+  $("idnote").textContent = r.ok ? IDNOTE[r.family] ?? "" : "";
+}
+
+function derivationFailed(e) {
+  /* a derived view that fails on a world the spine accepted is a fact about
+     the derivation, and saying so is the point of shipping it. */
+  return `<div class="none">derivation failed: ` +
+    `${escapeHtml(e.code || "")} ${escapeHtml(e.message || String(e))}</div>`;
 }
 
 let last = null;
 
 async function run() {
   const text = src.value;
-  const r = await W.sealWorld(text);
+  const r = await V2.admitWorldSource(text);
   last = r;
-  if (r.ok) {
-    $("idbar").classList.remove("err");
-    $("semid").textContent = r.semanticId;
-    $("out-bytes").textContent = r.bytes;
-    $("out-graph").textContent = renderGraph(r.graph);
-    $("out-desugar").textContent = r.desugared;
-    $("sugar-note").textContent = r.sugared ? "sugar expanded" : "no sugar";
-    $("diag").innerHTML = "";
-    try {
-      $("out-relations").innerHTML =
-        renderRelations(await R.deriveRelations(r.artifact, r.semanticId));
-      $("out-corr").innerHTML = await renderCorrespondence(r);
-    } catch (e) {
-      /* a derived view that fails on a world the spine accepted is a fact
-         about the derivation, and saying so is the point of shipping it. */
-      const said = `<div class="none">derivation failed: ` +
-        `${escapeHtml(e.code || "")} ${escapeHtml(e.message || String(e))}</div>`;
-      $("out-relations").innerHTML = said;
-      $("out-corr").innerHTML = said;
-    }
-  } else {
-    $("out-relations").innerHTML = "";
-    $("out-corr").innerHTML = "";
-    $("idbar").classList.add("err");
-    $("semid").textContent = r.code;
-    $("out-bytes").textContent = "";
-    $("out-graph").textContent = "";
-    /* the desugared text may still exist even when the parse failed */
-    try {
-      $("out-desugar").textContent = W.desugarCore(text);
-      $("sugar-note").textContent = "";
-    } catch { $("out-desugar").textContent = ""; }
-    $("diag").innerHTML = renderDiag(r);
+  setFamily(r);
+  if (!r.ok) return renderRefusal(r, text);
+  return r.family === "v2" ? renderV2(r) : renderV1(r);
+}
+
+async function renderV1(r) {
+  $("idbar").classList.remove("err");
+  $("semid").textContent = r.semanticId;
+  $("out-bytes").textContent = r.bytes;
+  $("out-graph").textContent = renderGraph(r.graph);
+  $("out-desugar").textContent = r.desugared;
+  $("sugar-note").textContent = r.sugared ? "sugar expanded" : "no sugar";
+  $("diag").innerHTML = "";
+  try {
+    $("out-relations").innerHTML =
+      renderRelations(await R.deriveRelations(r.artifact, r.semanticId));
+    $("out-corr").innerHTML = await renderCorrespondence(r);
+  } catch (e) {
+    $("out-relations").innerHTML = $("out-corr").innerHTML = derivationFailed(e);
   }
+}
+
+async function renderV2(r) {
+  $("idbar").classList.remove("err");
+  $("semid").textContent = r.semanticWorldId;
+  $("out-bytes").textContent = r.bytes;
+  /* the graph of the V1 artifact the spine validated on the way in: V2
+     changes how topology is written, not what a world is */
+  $("out-graph").textContent = renderGraph(graphOfArtifact(r.denamedV1Artifact));
+  $("sugar-note").textContent = "names stripped";
+  try { $("out-desugar").textContent = W.desugarCore(r.denamed); }
+  catch { $("out-desugar").textContent = ""; }
+  $("diag").innerHTML = "";
+
+  try {
+    /* The projection is computed from the V2 ARTIFACT, and then checked
+       against the artifact the spine independently sealed from the de-named
+       text. That they agree byte for byte is what "the projection is exact"
+       means, and it is worth computing rather than asserting. */
+    const projection = V2.runnableV1Artifact(r.artifact);
+    const pbytes = W.serializeArtifact(projection);
+    const exact = pbytes === W.serializeArtifact(r.denamedV1Artifact);
+    $("out-projection").textContent = pbytes;
+    $("execid").textContent = await R.worldIdOfArtifact(projection);
+    $("exactnote").className = "exact " + (exact ? "yes" : "no");
+    $("exactnote").textContent = exact
+      ? "byte-exact against the spine's own reading"
+      : "DIVERGES from the spine's own reading";
+
+    const view = await V2.deriveV2Relations(r.artifact, r.semanticWorldId);
+    $("out-seeds").innerHTML = renderSeeds(view);
+    $("out-relations").innerHTML = renderRelations(view);
+    $("out-corr").innerHTML = await renderCorrespondence(r);
+  } catch (e) {
+    $("out-seeds").innerHTML = $("out-relations").innerHTML =
+      $("out-corr").innerHTML = derivationFailed(e);
+    $("out-projection").textContent = "";
+    $("execid").textContent = "—";
+    $("exactnote").textContent = "";
+  }
+}
+
+function renderRefusal(r, text) {
+  $("out-seeds").innerHTML = "";
+  $("out-relations").innerHTML = "";
+  $("out-corr").innerHTML = "";
+  $("idbar").classList.add("err");
+  $("semid").textContent = r.code;
+  $("out-bytes").textContent = "";
+  $("out-graph").textContent = "";
+  /* the desugared text may still exist even when the parse failed */
+  try {
+    $("out-desugar").textContent = W.desugarCore(text);
+    $("sugar-note").textContent = "";
+  } catch { $("out-desugar").textContent = ""; }
+  $("diag").innerHTML = renderDiag(r);
 }
 
 let timer = null;
@@ -530,8 +813,17 @@ for (const b of document.querySelectorAll("[data-ex]")) {
   b.addEventListener("click", () => { src.value = EXAMPLES[b.dataset.ex]; run(); });
 }
 
+/* Formatting writes the world back out in the encoding it was admitted under,
+   and never in the other one. A "Format" that quietly downgraded a V2 world to
+   V1 text would move its id while claiming to normalize it. */
 $("btn-format").addEventListener("click", () => {
-  if (last && last.ok) { src.value = W.formatCore(last.graph); run(); }
+  if (!last || !last.ok) return;
+  try {
+    src.value = last.family === "v2"
+      ? V2.formatNamedWorld(last.artifact)
+      : W.formatCore(last.graph);
+  } catch { return; /* an unwritable world stays as the author left it */ }
+  run();
 });
 
 $("btn-desugar").addEventListener("click", () => {
@@ -548,18 +840,29 @@ $("btn-copy").addEventListener("click", async () => {
 /* the self-check: re-seal BOTH pinned fixtures and confirm each reproduces its
    own frozen id. If this ever goes red, the port has drifted from the spine.
    (A one-fixture check was green while the docs printed the starter world
-   wearing the fixture's id — nothing ever sealed the starter world.) */
+   wearing the fixture's id — nothing ever sealed the starter world.)
+
+   The V2 fixture is checked HERE rather than in `wrl.js`, because `wrl.js` is
+   frozen and knows nothing about IR 2.0. Same reasoning, one layer up: the
+   page prints a V2 id, so the page re-derives it. */
 (async () => {
   const sc = await W.selfCheck();
+  const v2 = await V2.admitWorldSource(EXAMPLES.named);
+  const v2ok = v2.ok && v2.family === "v2" &&
+               v2.semanticWorldId === NAMED_WORLD_SEMANTIC_ID;
   const el = $("selfcheck");
-  el.className = sc.ok ? "good" : "bad";
-  if (sc.ok) {
+  el.className = sc.ok && v2ok ? "good" : "bad";
+  if (sc.ok && v2ok) {
     el.textContent =
       `self-check ok — starter ${sc.fixtures.starter.expected} · ` +
-      `pinned fixture ${sc.fixtures.demo.expected}`;
+      `pinned fixture ${sc.fixtures.demo.expected} · ` +
+      `ir 2.0 ${NAMED_WORLD_SEMANTIC_ID}`;
   } else {
     const bad = Object.entries(sc.fixtures).filter(([, f]) => !f.ok)
       .map(([n, f]) => `${n}: got ${f.semanticId || f.error.code}, expected ${f.expected}`);
+    if (!v2ok)
+      bad.push(`ir 2.0: got ${v2.semanticWorldId || v2.code}, ` +
+               `expected ${NAMED_WORLD_SEMANTIC_ID}`);
     el.textContent = `self-check FAILED — ${bad.join(" · ")}`;
   }
 })();
