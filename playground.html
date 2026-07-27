@@ -68,6 +68,17 @@
   .rel .none{color:var(--ink-faint)}
   .derivednote{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;
     color:var(--ink-faint);text-transform:uppercase;font-weight:600}
+  /* the migration workspace is a FORM, and that is the honest shape for it:
+     "someone supplies the names" is the whole of §D8.16, and a form is what
+     someone supplying something looks like. */
+  .mact{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:10px}
+  .rel .nrow{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;
+    padding:5px 0}
+  .rel .nrow .ep{min-width:30ch}
+  .rel input{font-family:var(--mono);font-size:11.5px;padding:4px 9px;
+    border:1px solid var(--paper-2);border-radius:5px;background:#fff;
+    color:var(--machine);min-width:15ch}
+  .rel .bad{color:var(--rust);font-weight:600}
   @media (max-width:940px){.pgrid{grid-template-columns:minmax(0,1fr)}}
 </style>
 </head>
@@ -144,6 +155,18 @@
       <div class="panel">
         <header>Canonical graph</header>
         <pre class="out" id="out-graph"></pre>
+      </div>
+      <!-- The two operations of ruling 1, and the word that carries the ruling
+           is OPERATIONS. Neither runs because the text changed. A migration
+           that fired on every keystroke would mint a sealed world per
+           keystroke, and each of those is a real `sem-` that can be stored,
+           cited and corresponded against — a page cannot un-mint them by
+           deciding it did not mean it. -->
+      <div class="panel" id="panel-migrate">
+        <header>Migration &amp; adoption
+          <span class="sp derivednote" id="migrate-stage">§D8.16</span>
+        </header>
+        <div class="out rel" id="out-migrate"></div>
       </div>
     </div>
 
@@ -323,6 +346,45 @@
     in the pinned V1 fixture, because the fixture's relations are keyed by
     their endpoints and this one's are keyed by the names you wrote. That is
     the answer, not a gap.</li>
+  </ul>
+
+  <h3>Crossing between the two encodings</h3>
+  <p style="color:var(--ink-soft);max-width:74ch">Two buttons, in the
+  <b>Migration &amp; adoption</b> panel, and they are the only two things on
+  this page that mint an id you did not ask for. Neither runs because you
+  typed.</p>
+  <ul class="try">
+    <li>Load <i>the pinned fixture</i> and press <b>Import V1 as V2</b>. A new
+    <code class="inline">sem-</code> appears, every relation pairs, and
+    <b>ids preserved</b> says no — the topology did not move an inch, and it is
+    still a different world, because a different byte string is a different
+    world.</li>
+    <li>Read what the panel says next. It asked the formatter to write the
+    world it had just made, and printed the answer:
+    <code class="inline">WRL_UNWRITABLE_SEED</code>. A V1 artifact stores
+    <code class="inline">{kind, src, dst}</code> per edge and no field a name
+    could have come from, so a migrated relation has <i>never been named</i> —
+    which is a fact about its history, not a blank to be filled in quietly.
+    A migration without adoption is a one-way door out of the language.</li>
+    <li>Fill in three of the four names and press <b>Adopt these names</b>.
+    <code class="inline">WRL_INCOMPLETE_ADOPTION</code>, and the names you did
+    type are still there. The button is never disabled: a disabled button is a
+    second copy of that rule, living in an interface state where nothing can
+    test it.</li>
+    <li>Fill in the fourth and adopt. The formatter writes the world into the
+    editor, the spine above re-seals it, and the panel reports that the text it
+    produced re-admits to the very world it was written from. <b>Every
+    <code class="inline">rev-</code> recurs and every
+    <code class="inline">rel-</code> is new</b> — including the ones you did not
+    rename.</li>
+    <li>Now look at the second id. Three world identities later — V1, migrated,
+    adopted — the <b>V1 execution view</b> is
+    <code class="inline">sem-8ae91fe9…</code>, the pinned fixture you started
+    from, unmoved. What this world <i>is</i> changed three times. What it
+    <i>runs as</i> never changed at all.</li>
+    <li>Import a world, then edit one character of the source. The pending
+    migration is discarded and says so. It was an operation on a world, and
+    that world is no longer the one in the box.</li>
   </ul>
 </main>
 
@@ -721,13 +783,57 @@ function derivationFailed(e) {
 
 let last = null;
 
+/* ------------------------------------------------- C.2: the two operations */
+/*
+ * §D8.16, reachable. `Import V1 as V2` and `Adopt these names` are the two
+ * explicit operations, and everything about how they are wired here is a
+ * consequence of one sentence: NEITHER IS AUTOMATIC ON EDITOR CHANGE.
+ *
+ * The reason is not tidiness. Both operations SEAL. An import mints a world
+ * `sem-` and with it every `rel-` in that world; an adoption mints another
+ * set. Run either on keystroke and a two-second edit mints a dozen real
+ * sealed worlds, each of them a legitimate id that something downstream may
+ * already have written down. A page cannot un-mint them by deciding it did
+ * not mean it.
+ *
+ * So they are click handlers, and the panel below is the only place either
+ * one is called.
+ */
+
+/* The selector adoption accepts, DERIVED from the constant adoption gates on
+   rather than restated: an assignment is a selector plus the one field the
+   assignment supplies, so the selector is the assignment minus that field. A
+   page holding its own list of `{kind, src, dst}` is a page that keeps working
+   for a while after the library's list changes, and then stops. */
+const SELECTOR_FIELDS =
+  V2.LEGACY_EDGE_ADOPTION_FIELDS.filter((k) => k !== "relation_name");
+
+const selectorOf = (seed) =>
+  Object.fromEntries(SELECTOR_FIELDS.map((k) => [k, seed[k]]));
+
+/* The pending operation, and the id of the world it is an operation ON.
+   A migration is of a WORLD, so it stays live exactly as long as the editor
+   still holds that world -- which is a derived rule, not bookkeeping: no
+   listener has to remember to invalidate anything, because `run()` already
+   knows which world is in the box. Formatting a world keeps the workspace
+   (same id); changing one rotor lane discards it (different world). */
+let WORK = null;
+let MSIG = null;   /* what the panel currently shows, so that a keystroke in
+                      the SOURCE does not wipe half-typed names */
+
 async function run() {
   const text = src.value;
   const r = await V2.admitWorldSource(text);
   last = r;
   setFamily(r);
-  if (!r.ok) return renderRefusal(r, text);
-  return r.family === "v2" ? renderV2(r) : renderV1(r);
+  const held = !r.ok ? null
+    : r.family === "v2" ? r.semanticWorldId : r.semanticId;
+  if (WORK && WORK.pinnedTo !== held) WORK = { stage: "discarded" };
+  const out = r.ok
+    ? (r.family === "v2" ? renderV2(r) : renderV1(r))
+    : renderRefusal(r, text);
+  await out;
+  return renderMigrate(r, held);
 }
 
 async function renderV1(r) {
@@ -802,6 +908,228 @@ function renderRefusal(r, text) {
   } catch { $("out-desugar").textContent = ""; }
   $("diag").innerHTML = renderDiag(r);
 }
+
+/* ------------------------------------------- the migration panel, rendered */
+
+const NONE = (s) => `<div class="none">${s}</div>`;
+const ACT = (id, label, note) =>
+  `<div class="mact"><button class="minibtn" id="${id}">${label}</button>` +
+  `<span class="derivednote">${note}</span></div>`;
+
+function corrLine(c) {
+  return `<div class="ep">${c.pairs.length} paired · ` +
+    `${c.dropped ? c.dropped.length + " dropped · " : ""}` +
+    `${c.added ? c.added.length + " added · " : ""}` +
+    /* not red. "ids preserved: no" is the law working, not a fault — §D8.5
+       says a relation id is world-scoped, and a re-encoding is a new world. */
+    `ids preserved <span class="rid">` +
+    `${c.identityPreserved ? "yes" : "no"}</span></div>`;
+}
+
+function refusalLine(e) {
+  const code = e && e.code ? e.code : "";
+  return `<div><span class="role">and written back as text</span> ` +
+    `<span class="bad">${escapeHtml(code)}</span></div>` +
+    NONE(escapeHtml((e && e.message) || String(e)));
+}
+
+function migrateSignature(r, held) {
+  return [WORK && WORK.stage, WORK && WORK.worldId,
+          WORK && WORK.error && WORK.error.code,
+          r.ok, r.family, held].join("|");
+}
+
+function renderMigrate(r, held) {
+  const sig = migrateSignature(r, held);
+  if (sig === MSIG) return;          /* nothing to redraw, and redrawing would
+                                        clear the fields somebody is typing in */
+  MSIG = sig;
+  const box = $("out-migrate"), stage = $("migrate-stage");
+
+  if (WORK && WORK.stage === "adopted") {
+    stage.textContent = "§D8.16 · adopted";
+    box.innerHTML =
+      `<div class="rrow"><div><span class="role">adopted world</span></div>` +
+      `<div class="rid">${escapeHtml(WORK.worldId)}</div>` +
+      corrLine(WORK.corr) +
+      `<div><span class="role">every revision recurs</span> ` +
+      `<span class="exact ${WORK.corr.revisionsPreserved ? "yes" : "no"}">` +
+      `${WORK.corr.revisionsPreserved ? "yes" : "no"}</span></div>` +
+      `<div><span class="role">the source above re-seals to it</span> ` +
+      `<span class="exact ${WORK.reseals ? "yes" : "no"}">` +
+      `${WORK.reseals ? "yes" : "DIVERGES"}</span></div>` +
+      NONE("naming a relation changes what it is called, not what it " +
+           "connects — so every <code>rev-</code> recurs and every " +
+           "<code>rel-</code> is new, including the ones you did not rename. " +
+           "The formatter wrote this world into the box above; it is ordinary " +
+           "IR 2.0 source now, and the spine above sealed it like any other.") +
+      `</div>`;
+    return;
+  }
+
+  if (WORK && WORK.stage === "migrated") {
+    stage.textContent = "§D8.16 · migrated · unadopted";
+    const err = WORK.error
+      ? `<div class="rrow"><div><span class="role">refused</span> ` +
+        `<span class="bad">${escapeHtml(WORK.error.code || "")}</span></div>` +
+        NONE(escapeHtml(WORK.error.message || String(WORK.error))) + `</div>`
+      : "";
+    /* nothing to adopt is a real outcome, not an empty form: a world with no
+       routes migrates to a world with no unnamed relations, and the formatter
+       takes it as it stands. */
+    const body = WORK.legacy.length === 0
+      ? NONE("this world has no routes, so the migration left nothing " +
+             "unnamed and the formatter can already write it. Adoption is " +
+             "for relations, and there are none.")
+      : refusalLine(WORK.refusal) +
+        NONE("that refusal is the point of the operation below, and it is " +
+             "computed rather than claimed: the page asked the formatter to " +
+             "write the world it had just made. A V1 artifact records " +
+             "{ kind, src, dst } per edge and no field a name could come " +
+             "from, so a migrated relation has never been named — which is a " +
+             "fact about its history, not a blank to fill in silently.") +
+        `</div><div class="rrow">` +
+        `<div><span class="role">supply a name for every relation</span></div>` +
+        WORK.legacy.map((seed, i) =>
+          `<div class="nrow"><span class="ep">` +
+          `${escapeHtml(seed.src)} --${escapeHtml(seed.kind)}--> ` +
+          `${escapeHtml(seed.dst)}</span>` +
+          /* the names survive a refusal. The library's own advice is to
+             collect them as editor state and adopt once, and a panel that
+             cleared the form on `WRL_INCOMPLETE_ADOPTION` would be throwing
+             away exactly the state it just told you to keep. */
+          `<input id="adopt-name-${i}" spellcheck="false" ` +
+          `value="${escapeHtml(WORK.names[i] || "")}" ` +
+          `aria-label="name for ${escapeHtml(seed.src)} to ` +
+          `${escapeHtml(seed.dst)}" placeholder="relation_name"></div>`).join("") +
+        ACT("btn-adopt", "Adopt these names",
+            "one act · leave one blank and see what happens");
+
+    box.innerHTML =
+      `<div class="rrow"><div><span class="role">migrated world</span></div>` +
+      `<div class="rid">${escapeHtml(WORK.worldId)}</div>` +
+      corrLine(WORK.corr) +
+      NONE("a different byte string is a different world, so this is a new " +
+           "<code>sem-</code> and every relation id under it is new. The " +
+           "pairing is total because the topology did not move.") +
+      `</div><div class="rrow">` + body + `</div>` + err;
+    return;
+  }
+
+  if (!r.ok) {
+    stage.textContent = "§D8.16 · nothing sealed";
+    box.innerHTML = NONE("this source does not seal, so there is no world to " +
+      "import. A migration is of a world, never of text.");
+    return;
+  }
+
+  const discarded = WORK && WORK.stage === "discarded"
+    ? NONE("the source changed, so the pending migration was discarded. It " +
+           "was an operation on a world, and that world is no longer the one " +
+           "in the box.")
+    : "";
+
+  if (r.family === "v2") {
+    stage.textContent = "§D8.16 · already IR 2.0";
+    box.innerHTML = discarded + NONE(
+      "this world is already IR 2.0 and its relations are named, so there is " +
+      "nothing to import and nothing to adopt. Note that a migrated world " +
+      "can never arrive here as text — it has none until it is adopted, " +
+      "which is why adoption is reached from the import above and not from " +
+      "the editor.");
+    return;
+  }
+
+  stage.textContent = "§D8.16 · IR 1.0 · importable";
+  box.innerHTML = discarded +
+    `<div class="rrow">` + NONE(
+      "this world is IR 1.0. Importing re-encodes it as IR 2.0 — the same " +
+      "topology, a different byte string, and therefore a different world " +
+      "with a different <code>sem-</code>. What comes out cannot be written " +
+      "as source until its relations are named, and the panel will show you " +
+      "the formatter saying so.") +
+    ACT("btn-import", "Import V1 as V2", "explicit · never on edit") +
+    `</div>`;
+}
+
+/* ------------------------------------------------------ the operations */
+
+async function doImport() {
+  if (!last || !last.ok || last.family !== "v1") return;
+  try {
+    const artifact = V2.migrateV1ToV2(last.artifact);
+    const worldId = await V2.v2WorldIdOfArtifact(artifact);
+    const corr = await V2.migrationCorrespondence(
+      { artifact: last.artifact, semanticId: last.semanticId },
+      { artifact, semanticId: worldId });
+    /* The refusal is COMPUTED. The page asks the formatter to write the world
+       it has just made and prints whatever comes back, rather than printing a
+       sentence about what would happen. */
+    let refusal = null;
+    try { V2.formatNamedWorld(artifact); } catch (e) { refusal = e; }
+    const legacy = artifact.relations
+      .map((rel) => rel.identity_seed)
+      .filter((s) => s.variant === "legacy-edge");
+    WORK = { stage: "migrated", pinnedTo: last.semanticId,
+             artifact, worldId, corr, refusal, legacy, error: null,
+             names: legacy.map(() => "") };
+  } catch (e) {
+    WORK = { stage: "discarded" };
+    $("out-migrate").innerHTML = derivationFailed(e);
+    MSIG = null;
+    return;
+  }
+  MSIG = null;
+  renderMigrate(last, last.semanticId);
+}
+
+async function doAdopt() {
+  if (!WORK || WORK.stage !== "migrated") return;
+  /* Every field, blanks included — which is to say, blanks EXCLUDED from the
+     assignment and left for the library to notice. The page does not check
+     whether the form is complete, and the Adopt button is never disabled,
+     because a disabled button is a second copy of `WRL_INCOMPLETE_ADOPTION`
+     living in an interface state where nothing can test it. Leave one blank
+     and the library says why, in the same words it would say them to any
+     other caller. */
+  const assignments = [];
+  const names = WORK.legacy.map((seed, i) => {
+    const el = $(`adopt-name-${i}`);
+    const v = el ? el.value.trim() : "";
+    if (v) assignments.push({ ...selectorOf(seed), relation_name: v });
+    return v;
+  });
+  WORK = { ...WORK, names };
+
+  try {
+    const { artifact, correspondence } =
+      await V2.adoptLegacyRelations(WORK.artifact, assignments);
+    const worldId = await V2.v2WorldIdOfArtifact(artifact);
+    const text = V2.formatNamedWorld(artifact);
+    /* the closing law of the workflow, verified before the editor is touched:
+       the world the formatter wrote is the world the admission reads back. */
+    const back = await V2.admitWorldSource(text);
+    const reseals = back.ok && back.family === "v2" &&
+                    back.semanticWorldId === worldId;
+    WORK = { stage: "adopted", pinnedTo: worldId, artifact, worldId,
+             corr: correspondence, reseals, error: null };
+    MSIG = null;
+    src.value = text;   /* programmatic, so no `input` event and no debounce */
+    await run();
+  } catch (e) {
+    WORK = { ...WORK, error: e };
+    MSIG = null;
+    renderMigrate(last, last.semanticId);
+  }
+}
+
+/* One listener, two ids. The panel is rebuilt as text, so the buttons are
+   found by delegation rather than re-bound — and there is exactly one place
+   in this file where either operation is called. */
+$("panel-migrate").addEventListener("click", (e) => {
+  if (e.target.id === "btn-import") doImport();
+  else if (e.target.id === "btn-adopt") doAdopt();
+});
 
 let timer = null;
 src.addEventListener("input", () => {

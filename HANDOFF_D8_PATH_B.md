@@ -1,20 +1,22 @@
-# Handoff — Path B, Semantic IR V2 (slices B.1 – B.6, plus C.0 and C.1)
+# Handoff — Path B, Semantic IR V2 (slices B.1 – B.6, plus C.0, C.1 and C.2)
 
 **Status: your B.6 ruling is discharged and accepted, your B.7 errata is landed,
-and Path C is open — C.0 and C.1 are both closed. The battery is green at
-865/865, the register is at 106 rows — 94 executable, 12 awaiting, model debt
+and Path C is open — C.0, C.1 and C.2 are all closed. The battery is green at
+868/868, the register is at 108 rows — 96 executable, 12 awaiting, model debt
 0 — both pinned `sem-` ids are unmoved, and `wrl.js` is byte-identical.**
 
 Per your instruction — *"push after B.6, not before"* — the closure was a third
 commit on top of `12b12e0` and `738d94a`. C.0 is a fourth (`f87de38`); C.1 is a
-fifth.
+fifth (`d30aabd`); C.2 is a sixth.
 
 This memo is the Path B counterpart to `HANDOFF_D8_PATH_A.md`. §1 records what
 each item of your nine-item closing ruling turned into, §2 records what happened
 to the five decisions I took on my own and you then ruled on, §3 records the B.6
 closure itself, §4 is the file map, §5 is what is left, **§6 is C.0** — the B.7
-errata, which corrects two things this memo itself got wrong — and **§7 is
-C.1**, ruling 1 landed: V2 reaches the playground, dispatched on the source.
+errata, which corrects two things this memo itself got wrong — **§7 is
+C.1**, ruling 1 landed: V2 reaches the playground, dispatched on the source —
+and **§8 is C.2**, the other half of ruling 1: the two explicit operations,
+*import* and *adopt*, neither of them automatic on editor change.
 
 ---
 
@@ -22,11 +24,11 @@ C.1**, ruling 1 landed: V2 reaches the playground, dispatched on the source.
 
 ```
 node test/conformance.mjs
-  865 passed, 0 failed  (70 annotated doc blocks of 115 swept, 26/26 capabilities cited)
+  868 passed, 0 failed  (70 annotated doc blocks of 115 swept, 26/26 capabilities cited)
 ```
 
 (835 at B.6, as you reproduced; 840 after C.0's five, §6; 865 after C.1's
-twenty-five, §7.)
+twenty-five, §7; 868 after C.2's three, §8.)
 
 | | |
 |---|---|
@@ -51,13 +53,17 @@ because a world id names a sealed world and V1 and V2 are two encodings of one.
 Register, live in the browser:
 
 ```
-106 rows · 91 model · executable · model debt 0
+108 rows · 91 model · executable · model debt 0
 ```
 
-The 15 non-model rows are, after C.1, 3 `surface · executable`, 1
-`surface · awaiting`, 7 `runtime · awaiting`, 4 `film · awaiting` — 94
-executable in all. Fifty-six of the 865 checks are namespaced `relation/v2/…`,
-and 41 are `playground/…`.
+The 17 non-model rows are, after C.2, 5 `surface · executable`, 1
+`surface · awaiting`, 7 `runtime · awaiting`, 4 `film · awaiting` — 96
+executable in all. Fifty-six of the 868 checks are namespaced `relation/v2/…`,
+and 44 are `playground/…`.
+
+Model debt is still 0 and stays 0 through the whole of Path C by construction:
+C.2 added no model law, only two `surface` rows, because the rules it obeys were
+already stated and already tested — the surface's job was to *call* them.
 
 ---
 
@@ -374,9 +380,9 @@ widened (`git diff --stat wrl.js` is empty).
 | `relation-v2.js` | ~77 KB — B.1 schema + canonical bytes, B.2 validation + identity derivation, B.3 V1↔V2 migration, B.4 named-relation surface, B.5 formatter + consumer, **B.6 world gate + `ir` header + adoption**. Zero new runtime constructs; every hashing path, every sort key, and now every profile question delegates to `relation-identity.js` and `wrl.js` |
 | `relation-identity.js` | 0.1.2; B.6 widened `AUTHORABLE_VARIANTS` and added `V1_AUTHORABLE_SEED_VARIANTS`; C.1 reworded one shared code gloss (§7c) |
 | `wrl.js` | **frozen**, untouched — byte-identical across all of Path A and Path B |
-| `test/conformance.mjs` | **865 checks**, 0 failed; 56 `relation/v2/…`, 41 `playground/…` |
-| `spec.html` | §D8.9 – §D8.17 under `#d8-v2` (`#d8-v2-seed`, `#d8-v2-profile`, `#d8-v2-boundary`, `#d8-v2-derive`, `#d8-v2-migrate`, `#d8-v2-surface`, `#d8-v2-write`, **`#d8-v2-world`, `#d8-v2-header`, `#d8-adoption`, `#d8-admission`**), register 47 → 106 rows, model debt 0, `#d8-owes` item 2 struck |
-| `playground.html` | **C.1** — dispatches through `admitWorldSource`, holds no encoding control, shows two labelled ids, three new published examples (§7) |
+| `test/conformance.mjs` | **868 checks**, 0 failed; 56 `relation/v2/…`, 44 `playground/…` |
+| `spec.html` | §D8.9 – §D8.17 under `#d8-v2` (`#d8-v2-seed`, `#d8-v2-profile`, `#d8-v2-boundary`, `#d8-v2-derive`, `#d8-v2-migrate`, `#d8-v2-surface`, `#d8-v2-write`, **`#d8-v2-world`, `#d8-v2-header`, `#d8-adoption`, `#d8-admission`**), register 47 → 108 rows, model debt 0, `#d8-owes` item 2 struck; C.2 added §D8.16 clause 6 and two `surface` rows (§8) |
+| `playground.html` | **C.1** — dispatches through `admitWorldSource`, holds no encoding control, shows two labelled ids, three new published examples (§7). **C.2** — a *Migration & adoption* panel with the two operations of ruling 1, staleness derived from the admitted world id, and no library function added (§8) |
 | `WRL.zip` | rebuilt |
 
 Fifteen typed codes in `RELATION_V2_CODES` — nine from B.1–B.5:
@@ -433,7 +439,7 @@ The three open questions this section ended on are all answered. V2 goes to both
 ```
 C.0  B.7 register/prose errata and atomic adoption        ← landed, §6
 C.1  unified V1/V2 playground admission                   ← landed, §7
-C.2  migration and adoption playground workflow
+C.2  migration and adoption playground workflow           ← landed, §8
 C.3  derived runtime-projection envelope
 C.4  TRVM Forge static-runtime admission
 C.5  cross-repository conformance and consumer checks
@@ -620,9 +626,9 @@ laws, and when it lands the page should call it rather than keep a second way of
 getting there. The projection shown today is a display of the downgrade, and it
 is labelled as derived everywhere it appears.
 
-*Import V1 as V2* and *Adopt legacy relations* are **not** on the page yet; they
-are C.2, and your "neither automatic on editor change" is the constraint they
-land under. `migrationCorrespondence` is already wired into the correspondence
+*Import V1 as V2* and *Adopt legacy relations* were **not** on the page at C.1;
+they are C.2, and your "neither automatic on editor change" is the constraint
+they landed under — see §8. `migrationCorrespondence` is already wired into the correspondence
 panel for a V2 world, where it correctly reports that nothing pairs — and the
 panel says so in words, because *nothing pairs* is an answer here rather than a
 gap.
@@ -659,3 +665,208 @@ desugar safe on V2; console clean.
 
 Constraints held: `git diff --stat wrl.js` empty, both V1 pinned ids unmoved,
 model debt 0.
+
+---
+
+## 8. C.2 — the other half of ruling 1: two operations, neither a consequence
+
+> *"Expose two explicit operations: **Import V1 as V2** and **Adopt legacy
+> relations**; neither automatic on editor change."*
+
+C.2 is that sentence and nothing else. It added **no library function**. Every
+call it makes — `migrateV1ToV2`, `v2WorldIdOfArtifact`, `migrationCorrespondence`,
+`formatNamedWorld`, `adoptLegacyRelations`, `admitWorldSource` — already existed
+and was already tested at B.3, B.5 and B.6/C.0. What was missing was a place for
+a person to stand while the two acts happen, and that is a **panel**, not a
+pipeline.
+
+The panel is `#panel-migrate`, headed *Migration & adoption*, sitting under
+Canonical graph in the left stack, badged `§D8.16`.
+
+### 8a. Why the word is *operations*
+
+The rest of the playground is a consequence of the editor: you type, the page
+re-admits, everything downstream re-derives. That is right for everything that
+is a *view* of what you wrote. It is exactly wrong for these two, because both of
+them **seal a world you did not write**, and mint a `sem-` for it.
+
+So the two buttons are the only two things on the page that mint an id nobody
+asked for, and the shape of the code says so:
+
+```js
+$("panel-migrate").addEventListener("click", (e) => {
+  if (e.target.id === "btn-import") doImport();
+  else if (e.target.id === "btn-adopt") doAdopt();
+});
+```
+
+One delegated listener, two button ids, and the `input` listener on the editor
+does not mention either operation. That is not a comment, it is a check:
+
+```
+playground/migration/operations-are-not-consequences
+```
+
+which asserts that `migrateV1ToV2` and `adoptLegacyRelations` each appear
+**exactly once** in the file, that neither appears anywhere inside the body of
+the `input` listener, and that a `click` handler carrying both button ids exists.
+A future refactor that re-fires migration from the debounce breaks it.
+
+### 8b. Staleness is derived, not bookkept
+
+The obvious way to keep a pending migration honest is to invalidate it from
+every listener that could dirty it. That is a list, and lists rot. Instead the
+workspace records the world id it was made from, and `run()` — which already
+knows the id the editor currently seals to — compares:
+
+```js
+const held = !r.ok ? null
+  : r.family === "v2" ? r.semanticWorldId : r.semanticId;
+if (WORK && WORK.pinnedTo !== held) WORK = { stage: "discarded" };
+```
+
+Nothing has to remember to invalidate anything, and the behaviour falls out
+correctly in both directions without a special case: pressing **Format**
+re-writes the source and keeps the workspace, because a formatted world is the
+same world; changing `every 2` to `every 3` discards it and says so in words,
+because it isn't. Verified live in both directions.
+
+This is the same move as §D8.5's — the correspondence is *computed* from the two
+worlds rather than *claimed* by the thing that made them.
+
+### 8c. The refusal is computed, not printed
+
+After `doImport` builds the migrated artifact it asks the formatter to write it,
+and prints whatever comes back:
+
+```js
+let refusal = null;
+try { V2.formatNamedWorld(artifact); } catch (e) { refusal = e; }
+```
+
+So the panel's `WRL_UNWRITABLE_SEED` block is the library's own message, arriving
+because the library refused, not because the page knows in advance that it will.
+If B.5's writability rule ever changed, the panel would change with it and the
+prose around it would be the only thing left to fix.
+
+### 8d. The selector is derived from the constant the gate uses
+
+`adoptLegacyRelations` matches an assignment to a relation by every adoption
+field except the name. The panel needs that same key to build its form. It does
+not restate it:
+
+```js
+const SELECTOR_FIELDS =
+  V2.LEGACY_EDGE_ADOPTION_FIELDS.filter((k) => k !== "relation_name");
+const selectorOf = (seed) =>
+  Object.fromEntries(SELECTOR_FIELDS.map((k) => [k, seed[k]]));
+```
+
+and the non-restatement is itself a check —
+`playground/migration/the-selector-is-not-restated` — because a surface holding
+its own copy of a matching key is a surface that will silently disagree with the
+library the day the key grows a field.
+
+### 8e. The button is never disabled
+
+Leaving a name blank and pressing **Adopt these names** submits the incomplete
+form and gets `WRL_INCOMPLETE_ADOPTION` back, in the library's own words.
+
+Disabling the button until every field is filled would have been the obvious UI,
+and it would have been a **second copy of clause 5 of §D8.16** — living in an
+interface state that no test can reach, since a disabled button has no failure to
+assert on. The rule stays in one place, and the surface calls it. §D8.16 gained a
+sixth clause saying exactly this (§8g).
+
+**One bug found live and fixed.** The first version wiped the names you had
+already typed when the refusal came back, because `renderMigrate` rebuilds the
+form. The library's own message says *"Collect the names as editor state, then
+adopt once"* — so the panel was throwing away the state the refusal had just
+told it to keep. `WORK.names` now survives the refusal; re-verified live, the
+fields read `["a","b","c",""]` after a partial adoption is refused.
+
+### 8f. What the round trip proves
+
+`playground/migration/import-adopt-round-trip` walks the whole path in one
+check and asserts six things at once:
+
+| | |
+|---|---|
+| the migrated world is a different world | `migratedId !== held.semanticId` |
+| and cannot be written | `WRL_UNWRITABLE_SEED` |
+| a partial adoption is refused | `WRL_INCOMPLETE_ADOPTION` |
+| adoption moves identity again | `adoptedId !== migratedId` |
+| and the formatter's text seals back to it | `back.family === "v2"`, `back.semanticWorldId === adoptedId` |
+| **and the V1 execution view never moved** | `exec === W.DEMO_WORLD_SEMANTIC_ID` |
+
+The last row is the point, and it is the sharpest thing in Path C so far. Take
+the pinned fixture, import it, name its four relations, adopt. Three world
+identities have now existed —
+
+```
+V1        sem-8ae91fe9…      what you loaded
+migrated  sem-3e42fcb7…      re-encoded, unwritable
+adopted   sem-1ce17289…      named, and ordinary IR 2.0 source
+```
+
+— and the **V1 execution projection is still `sem-8ae91fe9…`**, the fixture you
+started from, unmoved. What this world *is* changed three times. What it *runs
+as* never changed at all. That is §D8.6 and ruling 2 in one observation, and it
+is visible on the page as two labelled ids sitting next to each other.
+
+### 8g. Spec
+
+§D8.16 gained clause 6:
+
+> **Migration and adoption are *operations*, never consequences.** A surface
+> exposes them as two acts a person performs — *import this V1 world as V2*,
+> then *adopt these names* — and neither may run because the editor changed.
+> Both of them **seal**. A surface also holds no copy of clause 5: the
+> completeness gate is the library's, so an incomplete form is *submitted* and
+> refused, rather than made unsubmittable by an interface state nothing can
+> test.
+
+and the register gained two `surface · executable` rows, taking it to 108:
+
+```
+migration-and-adoption-are-operations-not-consequences
+  → playground/migration/operations-are-not-consequences
+a-migrated-world-takes-exactly-one-adoption-to-become-writable
+  → playground/migration/import-adopt-round-trip
+```
+
+Model debt is still 0, because C.2 stated no new model law — clause 6 is a
+constraint on *surfaces*, and it is `surface · executable` for that reason.
+
+### 8h. Decisions I took on my own in C.2
+
+1. **Staleness is derived from the admitted world id** (§8b) rather than from an
+   invalidation list. The consequence you should look at: **Format** preserves a
+   pending migration, because it is the same world. I think that is right; it is
+   a decision either way.
+2. **The Adopt button is never disabled** (§8e).
+3. **A migrated-but-unadopted world never reaches the editor as text**, because
+   it has none — it lives only in the panel. The only text the page ever writes
+   into the editor is an *adopted* world, and it is written programmatically, so
+   no `input` event fires and the debounce never sees it; `run()` is called
+   directly instead.
+4. **§D8.16's sixth clause** is mine, not yours (§8g).
+5. **The empty world offers no adoption.** A migrated world with no routes has
+   no legacy relations, so it is already writable and there is nothing to adopt;
+   the panel shows the migration and stops. This is a real case in the published
+   examples, and it means "migrated" and "needs adoption" are not the same state.
+
+### 8i. Verified live
+
+`agent-browser` against `http://localhost:8902/playground.html`, the pinned
+fixture: import → `sem-3e42fcb7…`, `4 paired · 0 dropped · 0 added`,
+`WRL_UNWRITABLE_SEED` from the formatter; adopt three of four → refused
+`WRL_INCOMPLETE_ADOPTION` with `["a","b","c",""]` still in the fields; adopt four
+→ `sem-1ce17289…`, `every revision recurs yes`, `the source above re-seals to it
+yes`, and the formatter's IR 2.0 text (`[a]: [sp] --socket--> [ob]`, …) in the
+editor; the second id reading `sem-8ae91fe9…` throughout; a one-character edit
+discarding the pending migration with a sentence saying why; the empty world
+offering no Adopt button. Console clean.
+
+Constraints held: `git diff --stat wrl.js` empty, both V1 pinned ids unmoved,
+model debt 0, no new library function.

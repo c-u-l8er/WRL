@@ -1572,6 +1572,107 @@ for (const [id, entries] of futurePairs) {
        !/<select\b/.test(text),
        "playground.html has grown a control that looks like an encoding " +
        "selector; §D8.17 says the source decides, and only the source");
+
+    /* -- C.2. The two operations are OPERATIONS.
+     *
+     * Both of them seal. An import mints a world `sem-` and with it every
+     * `rel-` under that world; an adoption mints another set. Run either one
+     * on keystroke and a two-second edit mints a dozen real sealed worlds,
+     * every one of them a legitimate id that something downstream may already
+     * have written down -- and a page cannot un-mint an id by deciding it did
+     * not mean it. So each is called from exactly one place, and the listener
+     * that DOES fire without user intent calls neither.
+     *
+     * This is a textual guard on the published page, like
+     * `no-encoding-switch`, and it is stated that way rather than dressed up:
+     * what it can prove is that no automatic path reaches the operations, and
+     * that is the half of the ruling that is about wiring. The half about
+     * arithmetic is the round trip below. */
+    {
+      const mig = text.split("V2.migrateV1ToV2(").length - 1;
+      const ado = text.split("V2.adoptLegacyRelations(").length - 1;
+      const at = text.indexOf('src.addEventListener("input"');
+      const body = at === -1 ? "" : text.slice(at, text.indexOf("\n});", at));
+      const clicked = /addEventListener\("click"/.test(text) &&
+        /id === "btn-import"/.test(text) && /id === "btn-adopt"/.test(text);
+      ok("playground/migration/operations-are-not-consequences",
+         mig === 1 && ado === 1 && at !== -1 &&
+         !/migrateV1ToV2|adoptLegacyRelations/.test(body) && clicked,
+         `migrateV1ToV2 is called ${mig} time(s), adoptLegacyRelations ` +
+         `${ado} time(s), the input listener ` +
+         `${/migrateV1ToV2|adoptLegacyRelations/.test(body) ? "REACHES ONE" :
+            "reaches neither"}, and both are dispatched from a click: ` +
+         `${clicked}. Ruling 1 says neither operation is automatic on editor ` +
+         `change, and both of them mint sealed ids`);
+
+      /* and the page holds no copy of the selector shape. `{kind, src, dst}`
+         written out here is a list that keeps working for a while after the
+         library's changes and then stops. */
+      ok("playground/migration/the-selector-is-not-restated",
+         /LEGACY_EDGE_ADOPTION_FIELDS\s*\n?\s*\.filter/.test(text),
+         "the playground should derive its adoption selector from " +
+         "LEGACY_EDGE_ADOPTION_FIELDS rather than restating the field list");
+    }
+
+    /* -- C.2. And the workflow itself, computed the way the page computes it.
+     *
+     * This is the closing law of the migration path and nothing else states
+     * it: a migrated world is unwritable, ONE adoption makes it writable, and
+     * the text the formatter then produces re-admits to the very world it was
+     * written from. Without the last step the page could show an id that
+     * nothing could get back to.
+     *
+     * The example swept is the page's own `demo`, which is the pinned
+     * fixture -- so the last assertion is the sharpest one available: after
+     * import, adoption, formatting and re-admission, the V1 EXECUTION VIEW of
+     * the resulting V2 world is the pinned fixture's id, unmoved. The world
+     * changed identity three times and what it runs as never moved once. */
+    {
+      const Rk = await import("../relation-identity.js");
+      const held = await v2pg.admitWorldSource(
+        EX.demo.endsWith("\n") ? EX.demo : EX.demo + "\n");
+      const migrated = v2pg.migrateV1ToV2(held.artifact);
+      const migratedId = await v2pg.v2WorldIdOfArtifact(migrated);
+
+      const codeOf = async (f) => {
+        try { await f(); return null; } catch (e) { return e.code || "?"; }
+      };
+      const unwritable = await codeOf(() => v2pg.formatNamedWorld(migrated));
+
+      /* the selector, built the way the page builds it: from the constant */
+      const fields = v2pg.LEGACY_EDGE_ADOPTION_FIELDS
+        .filter((k) => k !== "relation_name");
+      const assign = migrated.relations.map((rel, i) => {
+        const a = { relation_name: `r${i}` };
+        for (const k of fields) a[k] = rel.identity_seed[k];
+        return a;
+      });
+
+      const partial = await codeOf(
+        () => v2pg.adoptLegacyRelations(migrated, assign.slice(1)));
+      const { artifact: adopted } =
+        await v2pg.adoptLegacyRelations(migrated, assign);
+      const adoptedId = await v2pg.v2WorldIdOfArtifact(adopted);
+      const written = v2pg.formatNamedWorld(adopted);
+      const back = await v2pg.admitWorldSource(written);
+      const exec = await Rk.worldIdOfArtifact(v2pg.runnableV1Artifact(adopted));
+
+      ok("playground/migration/import-adopt-round-trip",
+         migratedId !== held.semanticId &&
+         unwritable === "WRL_UNWRITABLE_SEED" &&
+         partial === "WRL_INCOMPLETE_ADOPTION" &&
+         adoptedId !== migratedId &&
+         back.ok === true && back.family === "v2" &&
+         back.semanticWorldId === adoptedId &&
+         exec === W.DEMO_WORLD_SEMANTIC_ID,
+         `import moves the id (${migratedId !== held.semanticId}), the ` +
+         `migrated world will not write (${unwritable}), a short assignment ` +
+         `is refused (${partial}), adoption moves it again ` +
+         `(${adoptedId !== migratedId}), and the text the formatter produced ` +
+         `re-admits to ${back.ok ? back.semanticWorldId : back.code} — want ` +
+         `${adoptedId}. Its V1 execution view is ${exec}, and the fixture ` +
+         `this all started from is ${W.DEMO_WORLD_SEMANTIC_ID}`);
+    }
   }
 }
 
