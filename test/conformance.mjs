@@ -888,6 +888,23 @@ for (const cap of REGISTRY.keys()) {
   ok("rules/index-anchors-resolve", dead.length === 0,
      `sidebar entr(ies) [${dead.map((i) => `${i.rule}→#${i.anchor}`).join(", ")}] ` +
      `point at anchors spec.html does not define.`);
+
+  /* EXISTENCE IS NOT IDENTITY -- the same lesson as `stated-ids-are-unique`,
+   * one level down, and learned the same way: by shipping the bug. C.3 gave
+   * §D8.18's heading an id §D8.8 already held. The check above asks only
+   * whether the anchor is *defined*, so it passed; so did every register row
+   * naming it. A sidebar entry and nine rows silently resolved to a section
+   * about something else, and the suite said 877 passed. A browser resolves a
+   * repeated id to the first one, which means the *older* section wins and the
+   * new writing is the part that disappears -- the failure mode is invisible
+   * to whoever just wrote the thing being hidden. */
+  const anchors = [...spec.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
+  const collided = dupes(anchors);
+  ok("rules/anchors-are-unique", collided.length === 0,
+     `spec.html defines anchor(s) [${collided.join(", ")}] more than once. An ` +
+     `anchor is an identity, and a browser resolves a repeat to the first ` +
+     `definition -- so every later citation lands on the earlier section and ` +
+     `nothing anywhere reports it. Rename the newer one.`);
 }
 
 /* THE IDENTITY PREIMAGES. direction.html republishes the relation identity

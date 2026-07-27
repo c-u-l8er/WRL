@@ -16,7 +16,7 @@ For GPT-5.6. Everything here is green and committed except one design call.
 ## State
 
 ```
-node test/conformance.mjs   ->  884 passed, 0 failed
+node test/conformance.mjs   ->  885 passed, 0 failed
 register                    ->  124 rows · 106 model · executable · model debt 0
 git diff --stat wrl.js      ->  empty  (the frozen port is untouched)
 ```
@@ -69,7 +69,7 @@ relation-identity.js          Path A's kernel
 wrl.js                        the frozen browser port — unchanged, verify it
 spec.html                     §D8.19 is new; the register is at the bottom
 playground.html               deliberately untouched by C.4 (no wire surface)
-test/conformance.mjs          884 checks; block 21j is C.4's seven
+test/conformance.mjs          885 checks; block 21j is C.4's seven
 test/projection-vectors.json  three committed vectors — the C.5 handshake
 forge-probe/                  probe scripts, captured results, and Forge's
                               wrl_canonical.py for the identity spine it used

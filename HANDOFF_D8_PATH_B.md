@@ -3,7 +3,7 @@
 **Status: your B.6 ruling is discharged and accepted, your B.7 errata is landed,
 and Path C is open — C.0 through C.3 are closed, and **C.4 is closed on the WRL
 side and halted on the Forge side pending one ruling from you (§10f).** The
-battery is green at 884/884, the register is at 124 rows — 112 executable, 12
+battery is green at 885/885, the register is at 124 rows — 112 executable, 12
 awaiting, model debt 0 — both pinned `sem-` ids are unmoved, and `wrl.js` is
 byte-identical.**
 
@@ -30,12 +30,12 @@ every id on it, and stops on one question you need to answer.
 
 ```
 node test/conformance.mjs
-  884 passed, 0 failed  (70 annotated doc blocks of 115 swept, 26/26 capabilities cited)
+  885 passed, 0 failed  (70 annotated doc blocks of 115 swept, 26/26 capabilities cited)
 ```
 
 (835 at B.6, as you reproduced; 840 after C.0's five, §6; 865 after C.1's
 twenty-five, §7; 868 after C.2's three, §8; 877 after C.3's nine, §9; 884 after
-C.4's seven, §10.)
+C.4's seven, §10; 885 with the anchor check C.3 should have had, §10h.)
 
 | | |
 |---|---|
@@ -65,7 +65,7 @@ Register, live in the browser:
 
 The 18 non-model rows are, after C.4, 6 `surface · executable`, 1
 `surface · awaiting`, 7 `runtime · awaiting`, 4 `film · awaiting` — 112
-executable in all. Seventy-one of the 884 checks are namespaced `relation/v2/…`,
+executable in all. Seventy-one of the 885 checks are namespaced `relation/v2/…`,
 and 45 are `playground/…`.
 
 Model debt is still 0. It very nearly was not: C.3 states a new model rule
@@ -1233,6 +1233,34 @@ C.3 gave §D8.18 the anchor `id="d8-projection"`, which **already existed** on a
 §D8.8 heading further up the page (*"Elision is necessary and not sufficient"*).
 Duplicate id: the sidebar link for D8.18 was silently resolving to the wrong
 section, as were all nine of its register rows. §D8.18 is now `#d8-runtime-projection`
-and the three genuine §D8.8 references are untouched. The conformance suite did
-not catch this, and I have not added a duplicate-anchor check — flagging it
-rather than fixing it quietly, since a meta-check for it is a register row too.
+and the three genuine §D8.8 references are untouched.
+
+The conformance suite did not catch this. My first instinct was to flag it and
+leave the check unwritten, on the grounds that a meta-check for it would need a
+register row of its own — **and that was wrong.** The register governs *identity
+rules*; the `rules/…` family (`stated-ids-are-unique`, `index-is-in-number-order`,
+`index-anchors-resolve`) are document-integrity checks and carry no rows. A
+duplicate-anchor check is plainly one of those. So it is now written:
+`rules/anchors-are-unique`, sitting directly beneath `index-anchors-resolve`.
+
+It belongs there for a reason worth stating. The comment above that block already
+records this lesson one level up:
+
+> *"Set membership is not identity, and every check above was a set check."*
+
+`index-anchors-resolve` asks `spec.includes('id="…"')` — a **set check**. It is
+true when the anchor exists twice. The very bug the file had already described
+in prose about rule *numbers* then recurred in the mechanism about rule
+*anchors*, and the file's own commentary was the diagnosis sitting there
+unread.
+
+Worth naming precisely, because it decides who can notice: a browser resolves a
+repeated id to the **first** definition. So the **older** section wins and the
+**newly written** one is what disappears — the failure is invisible to exactly
+the person who just wrote the thing being hidden, and visible to no one else
+either, since every link still resolves and nothing 404s.
+
+Verified the way a check like this has to be: I put the collision back
+(`#d8-runtime-projection` → `#d8-projection`) and the suite went to **882 passed,
+3 failed** with `FAIL rules/anchors-are-unique` named; restoring gives **885
+passed, 0 failed**. It would have caught C.3 on the commit that introduced it.
