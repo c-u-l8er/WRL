@@ -5443,6 +5443,216 @@ ir 2.0
          `carries the edge, and why the rule says so in the same breath as ` +
          `it says the bindings are positional against the SEMANTIC artifact`);
     }
+
+    /* ======================================= 21j. the projection crosses, C.4
+     *
+     * Everything above holds inside one process, where the envelope is an
+     * object a caller received from a function it called. A runtime is on the
+     * far side of something, and over there every field is equally a claim --
+     * including the flags that say DERIVED and NOT CANONICAL, which a sender
+     * could set either way and which prove nothing about the bytes they
+     * travelled with.
+     *
+     * So the wire record carries no flags and no prose, and the receiver
+     * ESTABLISHES what the envelope merely asserted. */
+    {
+      const wire2 = v2.serializeRuntimeProjection(pv2);
+      const wire1 = v2.serializeRuntimeProjection(pv1);
+      const back2 = await v2.verifyRuntimeProjection(wire2);
+      const back1 = await v2.verifyRuntimeProjection(wire1);
+
+      /* The round trip returns the envelope, rebuilt on this side. `derived`
+       * and the rest are back not because they were transmitted but because
+       * this side derived them. */
+      ok("relation/v2/projection/a-transmitted-projection-round-trips",
+         back2.semantic_world_id === pv2.semantic_world_id &&
+         back2.execution_view_id === pv2.execution_view_id &&
+         back1.semantic_world_id === pv1.semantic_world_id &&
+         back1.coincident === true && back2.coincident === false &&
+         W.serializeArtifact(back2.relation_bindings) ===
+           W.serializeArtifact(pv2.relation_bindings) &&
+         W.serializeArtifact(back2.execution_artifact) ===
+           W.serializeArtifact(pv2.execution_artifact) &&
+         back2.derived === true && back2.canonical === false &&
+         back2.inArtifactBytes === false,
+         `both encodings serialise, cross, and come back as the same ` +
+         `envelope -- with the execution artifact and the coincidence REBUILT ` +
+         `rather than transmitted, so what a receiver ends up holding is what ` +
+         `it derived and never what it was told`);
+
+      /* The record is exactly five fields, and the two that would have made a
+       * receiver's job easier are the two that are missing. */
+      const rec2 = JSON.parse(wire2);
+      ok("relation/v2/projection/the-wire-record-carries-no-unverifiable-field",
+         W.serializeArtifact(Object.keys(rec2).sort()) ===
+           W.serializeArtifact([...v2.RUNTIME_PROJECTION_FIELDS].sort()) &&
+         !("execution_artifact" in rec2) && !("coincident" in rec2) &&
+         !("derived" in rec2) && !("canonical" in rec2) &&
+         !("inArtifactBytes" in rec2) && !("note" in rec2),
+         `the wire record is exactly ${v2.RUNTIME_PROJECTION_FIELDS.join(", ")}. ` +
+         `The flags are gone because on a wire they are two bytes a sender ` +
+         `chooses; the prose is gone for the same reason; and the execution ` +
+         `artifact is gone because carrying it would let one message pair one ` +
+         `world's semantics with another world's bytes to run, which omitting ` +
+         `it makes unrepresentable rather than merely detectable`);
+
+      /* A sender that projected a different world claims a view id that does
+       * not recompute. This is the message the omission above forces a liar
+       * to send instead.
+       *
+       * The value put in the field is this world's OWN world id, because that
+       * is not a hypothetical corruption -- it is precisely the mute
+       * downgrade's mistake, written down. A sender that sealed the bytes it
+       * was about to run and filed the answer as the world would emit exactly
+       * this record, with two real ids in it and the wrong one in each field.
+       *
+       * (The first draft here used the pinned V1 demo's view id, and the
+       * check failed by not refusing: in this fixture the V2 world's
+       * execution view IS the pinned demo, so the swap was a no-op. Worth
+       * keeping in the record -- a negative test whose two values coincide
+       * passes by asserting nothing.) */
+      const swapped = JSON.parse(wire2);
+      swapped.execution_view_id = pv2.semantic_world_id;
+      const badView = await refuseAsync(
+        () => v2.verifyRuntimeProjection(JSON.stringify(swapped)));
+
+      const bentBindings = JSON.parse(wire2);
+      bentBindings.relation_bindings = [...bentBindings.relation_bindings].reverse();
+      const badBind = await refuseAsync(
+        () => v2.verifyRuntimeProjection(JSON.stringify(bentBindings)));
+
+      const lyingWorld = JSON.parse(wire2);
+      lyingWorld.semantic_world_id = "sem-" + "0".repeat(64);
+      const badWorld = await refuseAsync(
+        () => v2.verifyRuntimeProjection(JSON.stringify(lyingWorld)));
+
+      ok("relation/v2/projection/a-claim-that-does-not-recompute-is-refused",
+         badView === "WRL_PROJECTION_MISMATCH" &&
+         badBind === "WRL_PROJECTION_MISMATCH" &&
+         badWorld === "WRL_SEMANTIC_ID_MISMATCH",
+         `[${badView} / ${badBind} / ${badWorld}] ` +
+         `a swapped view id and a reordered binding list are each ` +
+         `WRL_PROJECTION_MISMATCH, and a lying world id is the DERIVER's own ` +
+         `WRL_SEMANTIC_ID_MISMATCH rather than a second implementation of the ` +
+         `same comparison. The reordering matters most: it is the tamper that ` +
+         `changes no id anywhere and is caught only because the order of the ` +
+         `bindings is itself derived`);
+
+      /* Shape, before any of that. An unknown key is refused rather than
+       * ignored, because a field this side cannot check is a field the far
+       * side may be relying on. */
+      const extra = JSON.parse(wire2);
+      extra.execution_artifact = pv2.execution_artifact;
+      const dropped = JSON.parse(wire2);
+      delete dropped.relation_bindings;
+      const oldVersion = JSON.parse(wire2);
+      oldVersion.projection_version = "wrl.projection.0";
+
+      /* `extra` goes over as an OBJECT rather than as bytes, and not to dodge
+       * anything: a V1 artifact can hold a BigInt, `JSON.stringify` refuses
+       * those outright, and the spine's own serializer is the only thing here
+       * that renders one. So the execution artifact is a value that cannot be
+       * expressed in the message at all without going through the very
+       * serializer this record was built to avoid needing -- which is a
+       * sharper version of the reason it is omitted than the one I wrote. */
+      const codes = [
+        await refuseAsync(() => v2.verifyRuntimeProjection(extra)),
+        await refuseAsync(() => v2.verifyRuntimeProjection(JSON.stringify(dropped))),
+        await refuseAsync(() => v2.verifyRuntimeProjection(JSON.stringify(oldVersion))),
+        await refuseAsync(() => v2.verifyRuntimeProjection("{not json")),
+        await refuseAsync(() => v2.verifyRuntimeProjection("[]")),
+      ];
+      ok("relation/v2/projection/a-malformed-projection-is-refused-as-one",
+         codes.every((c) => c === "WRL_BAD_PROJECTION"),
+         `an extra key, a missing key, an unknown version, unparseable bytes ` +
+         `and an array are all WRL_BAD_PROJECTION (${codes.join(", ")}). The ` +
+         `extra key is the interesting one: it is the execution artifact, ` +
+         `offered back as a convenience, and refusing it is what keeps the ` +
+         `omission a rule rather than a default`);
+
+      /* Two senders holding the same world transmit the same bytes. Without
+       * this a receiver could not compare two messages at all, and C.5's
+       * cross-implementation comparison would have nothing to compare. */
+      const again = v2.serializeRuntimeProjection(
+        await v2.deriveRuntimeProjection(parsed.artifact));
+      ok("relation/v2/projection/the-wire-form-is-canonical",
+         again === wire2 && wire2 === W.serializeArtifact(JSON.parse(wire2)),
+         `the same world serialises to the same bytes twice, and those bytes ` +
+         `are already canonical under the spine's own serializer -- so a ` +
+         `transmitted projection can be compared, hashed and diffed by a ` +
+         `party that cannot parse WRL at all`);
+
+      /* -- The committed vectors.
+       *
+       * Everything above proves this implementation agrees with itself. A
+       * second implementation, in another language, in another repository,
+       * cannot run any of it -- and the whole reason D8.19 ships claims that
+       * recompute is so that two implementations can be made to disagree out
+       * loud. That needs bytes, sitting in a file, that both can be held to.
+       *
+       * `test/projection-vectors.json` is that file. Each vector is a SOURCE
+       * and the canonical wire bytes its projection serialises to. No vector
+       * states its encoding, and that is not an omission: D8.17 says the
+       * source decides, so an implementation that needed to be told the
+       * family here would already be failing a different rule.
+       *
+       * This check is what stops the file going stale. It is a golden file,
+       * so it is exactly as useful as it is untrue-able: the moment the wire
+       * form moves, this goes red, and a downstream consumer pinned to these
+       * bytes finds out here rather than in production. */
+      {
+        const vpath = join(ROOT, "test", "projection-vectors.json");
+        let vdoc = null, vecOk = false, detail = "the file is missing";
+        if (existsSync(vpath)) {
+          vdoc = JSON.parse(readFileSync(vpath, "utf8"));
+          const results = [];
+          for (const vec of vdoc.vectors) {
+            /* A stale vector must be a NAMED red, never a stack trace -- the
+             * same rule this battery already learned about a broken module.
+             * `verifyRuntimeProjection` REFUSES a vector that no longer
+             * recomputes, which is it working, and an uncaught refusal here
+             * would take the whole suite down instead of reporting one file. */
+            try {
+              const a = await v2.admitWorldSource(vec.source);
+              if (!a.ok) { results.push(`${vec.name}: refused ${a.code}`); continue; }
+              const id = a.family === "v2" ? a.semanticWorldId : a.semanticId;
+              const wire = v2.serializeRuntimeProjection(
+                await v2.deriveRuntimeProjection(a.artifact, id));
+              if (wire !== vec.wire) results.push(`${vec.name}: bytes moved`);
+              /* and the vector is round-trippable by a receiver, not just
+               * reproducible by a sender */
+              const back = await v2.verifyRuntimeProjection(vec.wire);
+              if (back.semantic_world_id !== id)
+                results.push(`${vec.name}: does not verify to its own world`);
+            } catch (e) {
+              results.push(`${vec.name}: ${e.code || e.message}`);
+            }
+          }
+          vecOk = vdoc.vector_version === "wrl.projection-vectors.1" &&
+                  vdoc.vectors.length >= 3 && results.length === 0 &&
+                  vdoc.vectors.some((v) => /^ir 2\.0$/m.test(v.source)) &&
+                  vdoc.vectors.some((v) => !/^ir /m.test(v.source));
+          detail = results.length ? results.join("; ")
+                                  : `${vdoc.vectors.length} vectors reproduce`;
+        }
+        ok("relation/v2/projection/the-committed-vectors-still-reproduce",
+           vecOk,
+           `${detail}. The vector file is the only artifact in this repository ` +
+           `an implementation that cannot run JavaScript can be held to, and ` +
+           `it covers both encodings because a receiver that only ever saw V2 ` +
+           `would never exercise the coincident case`);
+      }
+
+      /* The serializer takes an envelope and not an artifact, so there is one
+       * route to the wire and it runs through the deriver. */
+      const notEnvelope = await refuseAsync(
+        () => v2.serializeRuntimeProjection(parsed.artifact));
+      ok("relation/v2/projection/only-a-derived-envelope-reaches-the-wire",
+         notEnvelope === "WRL_BAD_PROJECTION",
+         `handing the serializer a bare artifact is refused. If it derived ` +
+         `the projection itself it would be a second route to the wire, and ` +
+         `the two routes could disagree about a world while both looked right`);
+    }
   }
 
   }

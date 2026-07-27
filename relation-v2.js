@@ -156,6 +156,10 @@ export const RELATION_V2_CODES = deepFreeze({
     "one relation is adopted twice, under two names",
   WRL_INCOMPLETE_ADOPTION:
     "an adoption leaves a legacy relation unnamed, and would seal it that way",
+  WRL_BAD_PROJECTION:
+    "a transmitted runtime projection does not have the shape of one",
+  WRL_PROJECTION_MISMATCH:
+    "a transmitted runtime projection claims a value its own world does not derive",
 });
 
 /* -------------------------------------------------- the V2 source family */
@@ -1977,6 +1981,172 @@ export async function deriveRuntimeProjection(artifact,
           "birth key, revision or ledger event may be scoped to it. Every " +
           "relation_id above is minted under semantic_world_id.",
   };
+}
+
+/* ---------------------------------------- the projection on the wire, C.4
+ *
+ * The envelope above is a JS object, and a runtime in another process, another
+ * language or another repository cannot be handed one. Something has to cross,
+ * and what crosses is where the argument of D8.18 either survives or quietly
+ * stops being true -- because on the far side of a socket every field is
+ * equally a claim, and the flags that say DERIVED / NOT CANONICAL are just two
+ * more bytes a sender could have set either way.
+ *
+ * So the wire record carries no flags and no prose. It carries the SEMANTIC
+ * ARTIFACT, which is the only thing on it that is not derivable from something
+ * else on it, plus the sender's claims about what that artifact derives to.
+ * `verifyRuntimeProjection` then recomputes every claim and refuses on any
+ * disagreement. DERIVED stops being an assertion the receiver is asked to
+ * believe and becomes a fact it establishes.
+ *
+ * TWO OMISSIONS, BOTH DELIBERATE.
+ *
+ * `execution_artifact` is not on the wire. It is a function of the semantic
+ * artifact, so putting it there would let a sender transmit one world's
+ * semantics with another world's bytes to run, and leave the receiver holding
+ * two artifacts and a choice about which one is real. Omitting it makes that
+ * message unrepresentable rather than detectable. `execution_view_id` IS on
+ * the wire, and it is the checkable proxy for those bytes: if the sender
+ * projected anything else, the id it claims will not be the id that recomputes.
+ *
+ * `coincident` is not on the wire either, for the same reason in miniature: it
+ * is an equality between two fields that are both present.
+ *
+ * WHY SHIP THE CLAIMS AT ALL, GIVEN ALL OF THEM RECOMPUTE. Because a record
+ * carrying only `semantic_artifact` would be unfalsifiable. The receiver would
+ * derive everything, find no disagreement possible, and learn nothing about
+ * whether the SENDER held the same beliefs. Shipping a claim you can check is
+ * what turns a divergence between two implementations of D8.18 -- which is
+ * exactly what C.5 goes looking for -- from silence into a refusal.
+ */
+
+/** The wire record's version token. Not an `ir_version`: this is not a world. */
+export const RUNTIME_PROJECTION_VERSION = "wrl.projection.1";
+
+/** The fields of a transmitted projection, exactly. §D8.18. */
+export const RUNTIME_PROJECTION_FIELDS = deepFreeze([
+  "projection_version",
+  "semantic_world_id",
+  "semantic_artifact",
+  "execution_view_id",
+  "relation_bindings",
+]);
+
+/**
+ * Serialise a projection envelope to canonical bytes for transmission.
+ *
+ * Canonical through `W.serializeArtifact`, the same ordering the spine uses on
+ * everything else, so two senders holding the same world transmit the same
+ * bytes -- which is what makes a transmitted projection comparable at all.
+ *
+ * It takes an ENVELOPE rather than an artifact so that the thing transmitted
+ * is provably the thing derived. Deriving here instead would give a caller a
+ * second way to reach the wire, and the two ways could drift.
+ */
+export function serializeRuntimeProjection(projection) {
+  if (!projection || typeof projection !== "object" ||
+      typeof projection.semantic_world_id !== "string" ||
+      typeof projection.execution_view_id !== "string" ||
+      !Array.isArray(projection.relation_bindings) ||
+      !projection.semantic_artifact)
+    fail("WRL_BAD_PROJECTION",
+         `serializeRuntimeProjection takes an envelope from ` +
+         `deriveRuntimeProjection, and was given something else`,
+         { fieldPath: "projection" });
+
+  return W.serializeArtifact({
+    projection_version: RUNTIME_PROJECTION_VERSION,
+    semantic_world_id: projection.semantic_world_id,
+    semantic_artifact: projection.semantic_artifact,
+    execution_view_id: projection.execution_view_id,
+    relation_bindings: projection.relation_bindings,
+  });
+}
+
+/**
+ * Receive a transmitted projection and establish it, or refuse it. §D8.18.
+ *
+ * Accepts canonical bytes or the parsed record. Returns the full envelope --
+ * `execution_artifact` and `coincident` included -- rebuilt from the semantic
+ * artifact rather than from the message, so what the caller ends up holding is
+ * what this side derived and never what the far side said.
+ *
+ * It refuses rather than repairs. A projection whose claims do not recompute
+ * is not a projection with a stale field in it; it is evidence that the two
+ * ends disagree about what a world derives, and continuing past that would
+ * mean picking a winner silently. `WRL_PROJECTION_MISMATCH` names the first
+ * field that disagreed, because a receiver that only learns THAT it disagreed
+ * cannot tell an encoding bug from a tampered message.
+ *
+ * The world id is checked by HANDING IT to `deriveRuntimeProjection` as a
+ * claim, so that refusal is the deriver's own `WRL_SEMANTIC_ID_MISMATCH` and
+ * not a second implementation of the same comparison.
+ */
+export async function verifyRuntimeProjection(message) {
+  let record = message;
+  if (typeof message === "string") {
+    try {
+      record = JSON.parse(message);
+    } catch {
+      fail("WRL_BAD_PROJECTION",
+           `a transmitted projection is not parseable as JSON`,
+           { fieldPath: "projection" });
+    }
+  }
+
+  if (!record || typeof record !== "object" || Array.isArray(record))
+    fail("WRL_BAD_PROJECTION",
+         `a transmitted projection is not an object`,
+         { fieldPath: "projection" });
+
+  /* Exact key set, both directions. An extra key is refused rather than
+   * ignored: the whole record is claims, so a field this side does not know
+   * how to check is a field the far side may be relying on. */
+  const got = Object.keys(record).sort();
+  const want = [...RUNTIME_PROJECTION_FIELDS].sort();
+  if (W.serializeArtifact(got) !== W.serializeArtifact(want))
+    fail("WRL_BAD_PROJECTION",
+         `a transmitted projection carries the keys ${got.join(", ")}, and ` +
+         `a projection is exactly ${want.join(", ")}`,
+         { fieldPath: "projection" });
+
+  if (record.projection_version !== RUNTIME_PROJECTION_VERSION)
+    fail("WRL_BAD_PROJECTION",
+         `a transmitted projection declares version ` +
+         `${JSON.stringify(record.projection_version)}, and this reader ` +
+         `speaks ${RUNTIME_PROJECTION_VERSION}`,
+         { fieldPath: "projection_version" });
+
+  if (typeof record.semantic_world_id !== "string")
+    fail("WRL_BAD_PROJECTION",
+         `a transmitted projection states no semantic_world_id`,
+         { fieldPath: "semantic_world_id" });
+
+  /* Everything below recomputes. The claimed world id goes IN, so a lying
+   * world id is refused by the deriver before this function inspects
+   * anything else -- and refused in the vocabulary the rest of §D8.18 uses. */
+  const mine = await deriveRuntimeProjection(record.semantic_artifact,
+                                             record.semantic_world_id);
+
+  if (record.execution_view_id !== mine.execution_view_id)
+    fail("WRL_PROJECTION_MISMATCH",
+         `a transmitted projection claims execution_view_id ` +
+         `${record.execution_view_id}, and this world projects to ` +
+         `${mine.execution_view_id}. The bytes a world runs as are a ` +
+         `function of the world, so this is a disagreement about ` +
+         `projection and not a stale field`,
+         { fieldPath: "execution_view_id" });
+
+  if (W.serializeArtifact(record.relation_bindings) !==
+      W.serializeArtifact(mine.relation_bindings))
+    fail("WRL_PROJECTION_MISMATCH",
+         `a transmitted projection's relation_bindings are not the ones ` +
+         `this world derives. Every binding is recomputable from the ` +
+         `semantic artifact alone, so a binding that does not recompute was ` +
+         `never derived from the world it travelled with`,
+         { fieldPath: "relation_bindings" });
+
+  return mine;
 }
 
 /* -------------------------------------------------------------- internals */

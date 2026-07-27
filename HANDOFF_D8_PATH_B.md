@@ -1,13 +1,15 @@
-# Handoff — Path B, Semantic IR V2 (slices B.1 – B.6, plus C.0 – C.3)
+# Handoff — Path B, Semantic IR V2 (slices B.1 – B.6, plus C.0 – C.4)
 
 **Status: your B.6 ruling is discharged and accepted, your B.7 errata is landed,
-and Path C is open — C.0, C.1, C.2 and C.3 are all closed. The battery is green
-at 877/877, the register is at 117 rows — 105 executable, 12 awaiting, model
-debt 0 — both pinned `sem-` ids are unmoved, and `wrl.js` is byte-identical.**
+and Path C is open — C.0 through C.3 are closed, and **C.4 is closed on the WRL
+side and halted on the Forge side pending one ruling from you (§10f).** The
+battery is green at 884/884, the register is at 124 rows — 112 executable, 12
+awaiting, model debt 0 — both pinned `sem-` ids are unmoved, and `wrl.js` is
+byte-identical.**
 
 Per your instruction — *"push after B.6, not before"* — the closure was a third
 commit on top of `12b12e0` and `738d94a`. C.0 is a fourth (`f87de38`); C.1 is a
-fifth (`d30aabd`); C.2 is a sixth (`b399cd2`); C.3 is a seventh.
+fifth (`d30aabd`); C.2 is a sixth (`b399cd2`); C.3 is a seventh (`8583180`); C.4 is an eighth.
 
 This memo is the Path B counterpart to `HANDOFF_D8_PATH_A.md`. §1 records what
 each item of your nine-item closing ruling turned into, §2 records what happened
@@ -18,7 +20,9 @@ C.1**, ruling 1 landed: V2 reaches the playground, dispatched on the source —
 **§8 is C.2**, the other half of ruling 1: the two explicit operations,
 *import* and *adopt*, neither of them automatic on editor change — and **§9 is
 C.3**, ruling 2 landed: `deriveRuntimeProjection` and its seven laws, the
-envelope a runtime is handed instead of a raw downgrade.
+envelope a runtime is handed instead of a raw downgrade — and **§10 is C.4**,
+which gets that envelope onto a wire, finds that TRVM Forge already reproduces
+every id on it, and stops on one question you need to answer.
 
 ---
 
@@ -26,11 +30,12 @@ envelope a runtime is handed instead of a raw downgrade.
 
 ```
 node test/conformance.mjs
-  877 passed, 0 failed  (70 annotated doc blocks of 115 swept, 26/26 capabilities cited)
+  884 passed, 0 failed  (70 annotated doc blocks of 115 swept, 26/26 capabilities cited)
 ```
 
 (835 at B.6, as you reproduced; 840 after C.0's five, §6; 865 after C.1's
-twenty-five, §7; 868 after C.2's three, §8; 877 after C.3's nine, §9.)
+twenty-five, §7; 868 after C.2's three, §8; 877 after C.3's nine, §9; 884 after
+C.4's seven, §10.)
 
 | | |
 |---|---|
@@ -55,12 +60,12 @@ because a world id names a sealed world and V1 and V2 are two encodings of one.
 Register, live in the browser:
 
 ```
-117 rows · 99 model · executable · model debt 0
+124 rows · 106 model · executable · model debt 0
 ```
 
-The 18 non-model rows are, after C.3, 6 `surface · executable`, 1
-`surface · awaiting`, 7 `runtime · awaiting`, 4 `film · awaiting` — 105
-executable in all. Sixty-four of the 877 checks are namespaced `relation/v2/…`,
+The 18 non-model rows are, after C.4, 6 `surface · executable`, 1
+`surface · awaiting`, 7 `runtime · awaiting`, 4 `film · awaiting` — 112
+executable in all. Seventy-one of the 884 checks are namespaced `relation/v2/…`,
 and 45 are `playground/…`.
 
 Model debt is still 0. It very nearly was not: C.3 states a new model rule
@@ -388,7 +393,7 @@ widened (`git diff --stat wrl.js` is empty).
 | `relation-identity.js` | 0.1.2; B.6 widened `AUTHORABLE_VARIANTS` and added `V1_AUTHORABLE_SEED_VARIANTS`; C.1 reworded one shared code gloss (§7c) |
 | `wrl.js` | **frozen**, untouched — byte-identical across all of Path A and Path B |
 | `test/conformance.mjs` | **877 checks**, 0 failed; 64 `relation/v2/…`, 45 `playground/…` |
-| `spec.html` | §D8.9 – §D8.18 under `#d8-v2` (`#d8-v2-seed`, `#d8-v2-profile`, `#d8-v2-boundary`, `#d8-v2-derive`, `#d8-v2-migrate`, `#d8-v2-surface`, `#d8-v2-write`, **`#d8-v2-world`, `#d8-v2-header`, `#d8-adoption`, `#d8-admission`, `#d8-projection`**), register 47 → 117 rows, model debt 0, `#d8-owes` item 2 struck; C.2 added §D8.16 clause 6 and two `surface` rows (§8); C.3 added **§D8.18** and nine rows (§9) |
+| `spec.html` | §D8.9 – §D8.18 under `#d8-v2` (`#d8-v2-seed`, `#d8-v2-profile`, `#d8-v2-boundary`, `#d8-v2-derive`, `#d8-v2-migrate`, `#d8-v2-surface`, `#d8-v2-write`, **`#d8-v2-world`, `#d8-v2-header`, `#d8-adoption`, `#d8-admission`, `#d8-runtime-projection`**), register 47 → 117 rows, model debt 0, `#d8-owes` item 2 struck; C.2 added §D8.16 clause 6 and two `surface` rows (§8); C.3 added **§D8.18** and nine rows (§9) |
 | `playground.html` | **C.1** — dispatches through `admitWorldSource`, holds no encoding control, shows two labelled ids, three new published examples (§7). **C.2** — a *Migration & adoption* panel with the two operations of ruling 1, staleness derived from the admitted world id, and no library function added (§8). **C.3** — both render arms cross the runtime boundary through `deriveRuntimeProjection`; the page holds no downgrade of its own (§9) |
 | `WRL.zip` | rebuilt |
 
@@ -448,7 +453,7 @@ C.0  B.7 register/prose errata and atomic adoption        ← landed, §6
 C.1  unified V1/V2 playground admission                   ← landed, §7
 C.2  migration and adoption playground workflow           ← landed, §8
 C.3  derived runtime-projection envelope                   ← landed, §9
-C.4  TRVM Forge static-runtime admission
+C.4  TRVM Forge static-runtime admission                   ← WRL side landed, §10
 C.5  cross-repository conformance and consumer checks
 ```
 
@@ -890,7 +895,7 @@ the shape: `deriveRuntimeProjection(v2Artifact)` returning `semantic_world_id`,
 `relation_bindings: [{relation_id, revision_id, legacy_edge}]`, derived, not
 canonical, not in the world bytes, under seven laws. That is what landed:
 `relation-v2.js` gains one exported function and one frozen field list
-(`RUNTIME_BINDING_FIELDS`), `spec.html` gains **§D8.18** (`#d8-projection`) with
+(`RUNTIME_BINDING_FIELDS`), `spec.html` gains **§D8.18** (`#d8-runtime-projection`) with
 your seven clauses plus one consequence, and the suite gains a `21i` block of
 eight `relation/v2/projection/…` checks and one playground sweep check.
 
@@ -1023,3 +1028,211 @@ model debt 0, no new runtime construct.
 The seven runtime rows stay `awaiting`, per your *"first runtime integration is
 static-world admission"*. C.3 built the envelope and its laws; **C.4** hands it
 to TRVM Forge. No grant, no dynamic attachment, no parallel profile.
+
+---
+
+## 10. C.4 — the projection on a wire, and where Forge actually is
+
+**This section ends in a question.** §10a – §10e are landed and green; §10f is
+the one thing I stopped on, and it is a design call rather than a gap.
+
+C.4 is *TRVM Forge static-runtime admission*. It has two halves: getting the
+envelope into a form that can leave this repository, and having Forge accept
+one. The first half landed. The second half turned out to depend on a decision
+I do not think is mine, and the evidence for why is in §10e — which is also the
+most useful thing in this memo, because I ran it and the answer was better than
+I expected.
+
+### 10a. §D8.19 — what survives a boundary
+
+Everything in §D8.18 holds inside one process, where an envelope is an object a
+caller watched a function compute, and *derived* / *not canonical* are true
+because of where the object came from. A runtime is on the far side of
+something. Over there those two words are two more bytes in a message, set by
+whoever wrote it, and a receiver asked to trust them is in exactly the position
+ruling 2 was written to get out of.
+
+So a transmitted projection carries **no flags and no prose**:
+
+```
+projection_version, semantic_world_id, semantic_artifact,
+execution_view_id, relation_bindings
+```
+
+The semantic artifact is the only value on the record not derivable from
+another value on it. Everything else is the sender's *claim*, and
+`verifyRuntimeProjection` recomputes each one and refuses on disagreement.
+Derived stops being an assertion the receiver is asked to believe and becomes a
+fact it establishes.
+
+The world id is checked by **handing it to `deriveRuntimeProjection` as a
+claim**, so a lying world id is refused by the deriver's own
+`WRL_SEMANTIC_ID_MISMATCH` rather than by a second implementation of the same
+comparison living in the verifier.
+
+### 10b. The two omissions, one of which is now in question
+
+`execution_artifact` is **not** on the wire. It is a function of the semantic
+artifact, so carrying it would let one message pair one world's semantics with
+another world's bytes to run, and leave the receiver holding two artifacts and
+a silent choice about which is real. Omitting it makes that message
+*unrepresentable* rather than merely detectable.
+
+`coincident` is not on the wire either — it is an equality between two fields
+that are both present.
+
+It is fair to ask why the claims are shipped at all, given every one of them
+recomputes. A record carrying only the artifact would be **unfalsifiable**: the
+receiver derives everything, finds no disagreement possible, and learns nothing
+about whether the *sender* believed the same things. Shipping a claim you can
+check is what turns a divergence between two implementations from silence into
+a refusal — which is the entire purpose of C.5.
+
+**§10f is about whether the first omission survives contact with ruling 2.**
+
+### 10c. The tamper that changes no identifier
+
+Of the refusals, one is worth calling out: **reorder the bindings**. Every id in
+that message stays real and stays correct. It is still refused, because the
+order of the bindings is itself derived, and a list in the wrong order is a
+different claim about which relation runs as which edge.
+
+Two smaller notes from writing the checks:
+
+- The first draft of the swapped-view-id case put the *pinned demo's* view id
+  in the field, and the check failed by **not refusing** — in this fixture the
+  V2 world's execution view **is** the pinned demo, so the swap was a no-op. A
+  negative test whose two values coincide passes by asserting nothing. It now
+  puts the world's own `semantic_world_id` in the view id field, which is
+  strictly better: that is not a hypothetical corruption, it is *the mute
+  downgrade's mistake written down* — two real ids, each in the other's field.
+- The extra-key case cannot be sent as JSON at all: a V1 artifact may hold a
+  `BigInt`, and `JSON.stringify` refuses those outright. The execution
+  artifact's absence from the wire turns out to be enforced twice, once by the
+  key gate and once by arithmetic.
+
+### 10d. The committed vectors
+
+`test/projection-vectors.json` — three vectors, each a **source** and the
+canonical wire bytes its projection serialises to. Two V1, one V2, so a reader
+that only ever saw V2 still exercises the coincident case.
+
+**No vector states its encoding.** §D8.17 says the source decides, so an
+implementation that needed to be told the family here would already be failing
+a different rule.
+
+`relation/v2/projection/the-committed-vectors-still-reproduce` re-admits,
+re-derives, re-serialises and re-receives every vector. Mutation-tested: bending
+one binding list in the file turns it red. It first turned red as an **uncaught
+refusal that took the suite down** — `verifyRuntimeProjection` working exactly
+as designed — so the loop now catches and reports, per the rule this battery
+already learned once: a stale fixture must be a named red, never a stack trace.
+
+### 10e. What Forge already does — I checked, on a copy
+
+This is the part I would not have predicted, and it changes what C.4's second
+half has to be.
+
+I copied `TRVM/forge/wrl_*.py` to a scratch directory (never importing from the
+live tree — another session is mid-sweep in there with 86 dirty files) and ran
+the committed vectors through Forge's **Python** identity spine.
+
+| vector | encoding | what Forge's Python spine says |
+|---|---|---|
+| `pinned-fixture` | V1 | `semantic_world_id` reproduced **byte-exact** |
+| `starter-world` | V1 | `semantic_world_id` reproduced **byte-exact** |
+| `named-relations` | V2 | **refused**, `WRL_UNKNOWN_ARTIFACT_FIELD` |
+
+Then the same spine against each vector's **execution artifact**:
+
+| vector | `execution_view_id` reproduced? |
+|---|---|
+| `pinned-fixture` | **yes** |
+| `starter-world` | **yes** |
+| `named-relations` | **yes** — `sem-8ae91fe9…`, the pinned demo |
+
+Two things fall out.
+
+**First, cross-implementation agreement is already real.** A Python
+implementation in another repository, written independently, reproduces every
+V1 `sem-` on the wire and reproduces the execution view id of the V2 world too.
+That is the C.5 result arriving early, and it means the vector file is doing its
+job before anything was built to consume it.
+
+**Second, Forge refuses a V2 semantic artifact rather than mis-reading it.**
+`WRL_UNKNOWN_ARTIFACT_FIELD` is the right failure: the frozen gate does not know
+`relations`, and it says so instead of ignoring the key and hashing a world with
+a field silently dropped. Nothing had to be added to get that; it is the strict
+gate already being strict.
+
+### 10f. The question I stopped on
+
+Ruling 2's clause 3 says **a runtime executes `execution_artifact`**. §D8.19
+does not put `execution_artifact` on the wire. Both of those are defensible and
+together they force a requirement I do not think I should choose unilaterally:
+
+> **A conforming receiver must be able to derive the V1 execution artifact from
+> the V2 semantic artifact itself — that is, implement `runnableV1Artifact` —
+> or it cannot run anything it is sent.**
+
+§10e says exactly how far Forge is from that. It can *seal* an execution
+artifact perfectly (all three vectors match). What it cannot do is **produce**
+one from a V2 record, because that is a V2 operation and its gate refuses V2
+records outright.
+
+The transform itself is small and purely structural — drop the relation
+identity, keep the topology, restore `ir_version` — and involves no hashing and
+no seed expansion. So the ask is much lighter than "port V2 to Python". But it
+is still a real answer to *what must a runtime speak*, and there are two
+coherent readings:
+
+**(A) The record stays as it is.** A conforming receiver implements the V2→V1
+projection. It is structural, cheap, and keeps the mismatched-pair message
+unrepresentable. Verifying `semantic_world_id` and the bindings stays a second,
+optional tier that needs V2 identity.
+
+**(B) The record carries `execution_artifact`.** A V1-only runtime can then run
+without knowing V2 at all. The guard against a mismatched pair becomes *the
+receiver re-derives and refuses on difference* — which is checkable, so my
+"unrepresentable rather than detectable" argument was over-strong. But a
+receiver that cannot derive it also cannot check it, and is back to trusting
+bytes, which is the mute problem wearing a different hat.
+
+I lean **(A)**, because (B)'s protection evaporates for precisely the receivers
+it exists to serve. But (A) means "static-runtime admission" implies a small V2
+capability in Forge, and that is a scope statement about ruling 2 rather than a
+consequence of it.
+
+**Also relevant to timing:** `TRVM/forge/` is currently a live working tree with
+86 modified or untracked files from a concurrent effort, including every
+`wrl_*.py` module C.4's second half would touch. I did all of §10e on a copy for
+that reason. Whichever way you rule, the Forge edit wants a quiet tree.
+
+### 10g. Decisions I took on my own in C.4
+
+1. **The wire record omits `execution_artifact` and `coincident`** (§10b) —
+   this is the one §10f puts back in front of you.
+2. **The claims are shipped even though they all recompute**, because a record
+   that cannot be disagreed with cannot expose a divergence (§10b).
+3. **Two new codes**, `WRL_BAD_PROJECTION` (shape, version, parse) and
+   `WRL_PROJECTION_MISMATCH` (a claim that does not recompute). The world id
+   deliberately reuses the deriver's `WRL_SEMANTIC_ID_MISMATCH`.
+4. **The serializer takes an envelope, not an artifact**, so there is one route
+   to the wire and it runs through the deriver.
+5. **A committed vector file rather than only in-suite fixtures** (§10d), and
+   the vectors carry no family field.
+6. **§D8.19 is a new draft rule rather than more clauses on §D8.18** —
+   transmission is a different concern from derivation, and folding it in would
+   have put a rule about wires inside a rule about runtimes.
+7. **No playground surface for the wire form.** It would want a register row and
+   a panel, and C.4's weight belongs on the Forge side. Deliberate, not missed.
+
+### 10h. One repair, unrelated but found here
+
+C.3 gave §D8.18 the anchor `id="d8-projection"`, which **already existed** on a
+§D8.8 heading further up the page (*"Elision is necessary and not sufficient"*).
+Duplicate id: the sidebar link for D8.18 was silently resolving to the wrong
+section, as were all nine of its register rows. §D8.18 is now `#d8-runtime-projection`
+and the three genuine §D8.8 references are untouched. The conformance suite did
+not catch this, and I have not added a duplicate-anchor check — flagging it
+rather than fixing it quietly, since a meta-check for it is a register row too.
