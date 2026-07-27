@@ -1367,13 +1367,41 @@ with a large constant — measured on this machine, everything else held fixed:
 | 24 | 5.7s | 20,890,304 chars |
 | 32 | 17.3s | 39,122,450 chars |
 | 40 | 47.6s | 61,842,093 chars |
+| **64** | **482.3s** | **154,713,682 chars** (peak RSS 2.5 GB) |
 
-which puts `w=64` near **1.6 × 10⁸ characters** of term. A cost cliff, not a
-hang, and not a defect in anything C.4 built — but it means the domain admits
-worlds that are cheaply **verifiable** and impractically **executable**.
-`probe5` states that budget and prints the skip with its reason rather than
-quietly passing four checks instead of five. I do not think this needs a rule;
-I do think it should be written down before someone discovers it as a hang.
+The `w=64` row is **measured**. The first version of this section stopped at
+`w=40` and called `w=64` "a cost cliff, not a hang" on the strength of the fit —
+but the run it described had been killed at five minutes without ever
+returning, so *not a hang* was an inference wearing the clothes of an
+observation. In a section whose whole subject is that a plausible derived
+number is the thing to distrust, that was the wrong sentence to leave standing.
+Run to completion it does terminate, and the fit was good: predicted ~1.6e8,
+actual 1.547e8.
+
+So it is a cost cliff, and not a defect in anything C.4 built — but it means the
+domain admits worlds that are cheaply **verifiable** and expensively
+**executable**, and those are not the same property.
+
+**And the cliff was worth paying once**, because the headline claim is stronger
+on the far side of it. Both `w=64` legs were built — `bigint-rotor` (V1) in
+482.3s, `bigint-rotor-named` (V2) in 573.2s — and they agree:
+
+```
+sem-4f927defd2e60b03f3511670b0aead801c09e67facaf283a3bb9cf3857bd65d2
+bcnt-3f3aa11da1a0c6ff4c92133a1b7fa59fb4956ed4008ac8549ae37d5ffa6feff2
+```
+
+The same seal and the same backend term from **both encodings**, at a magnitude
+where the wire's own exact-integer reader is the only reason the number survived
+the trip. That is C.4.1 and C.4.3 checked against each other: had
+`parseExactJson` rounded the lane, this term would differ and nothing else in
+the probe would have noticed.
+
+`probe5` keeps the default run fast by stopping before the compiler on those
+two vectors, states the budget, and prints the skip with its reason.
+`probe5.py --full` lifts the budget (~18 minutes) and **asserts** the recorded
+seal and term rather than quoting them — a number that is only ever reported is
+a number nothing can falsify.
 
 **A broken fixture, for the third time.** `probe4`'s duplicate-key case
 replaced `{"projection_version"` — but the keys on this wire are sorted, so the
@@ -1385,23 +1413,91 @@ me twice before. Byte-level tampers in `probe4` now refuse to be no-ops and
 report a broken fixture as a named red — verified by reintroducing the
 mismatch.
 
-### 11e. State
+### 11e. C.5.3 / C.5.4 — one corpus, two implementations
+
+The last two items of the ruled order were the vectors as *shared, committed*
+artifacts rather than probe-local ones. C.5.3 was already substantially done —
+`test/projection-vectors.json` holds the positive V1/V2/BigInt matrix and both
+sides read it. C.5.4 was not: the fifteen tampers lived as Python lambdas on the
+Forge branch, where the JS suite could not see them.
+
+That is a weaker position than it looks. Two implementations each constructing
+their own tampered record and each refusing it is the shape of agreement that
+can be true of two implementations that have **both** drifted. The claim worth
+having is about *the same bytes*.
+
+`test/projection-negative-vectors.json` now holds all fifteen, and two decisions
+went into it, both about not repeating a mistake this corpus already made:
+
+- **Each vector stores final bytes, not an edit recipe.** A recipe is a program,
+  and a recipe that silently matches nothing is the broken fixture that has cost
+  this work three times. Bytes cannot fail to apply.
+- **A stored literal can still equal its base**, so every vector names its base
+  and *both* consumers check `wire !== base` **before** the verdict. The
+  generator refuses to emit a no-op at all. I verified the JS gate by
+  reintroducing one: it reports `reordered-relation-bindings: BROKEN FIXTURE,
+  equals its base` as a named red rather than a stack trace.
+
+`probe4` was rewritten to read the committed file instead of rebuilding the
+tampers. One asymmetry is worth stating rather than glossing: that file was
+generated *by* the Python verifier, so **`probe4` is now a golden-file check,
+not an independent one.** It goes red when `wrl_projection.py` later drifts from
+pinned bytes; it is not evidence the corpus is right. The independent check is
+the JS side, which has never run any of that code.
+
+**And that check settles the one question I had been meaning to ask you** —
+whether a negative vector should commit the refusal *code* or only the refusal.
+It answers it better than I could have argued it.
+Both verifiers refuse all fifteen — and they agree on the *name* of every
+refusal, **15/15**, across two languages, two repositories, and two independently
+written implementations:
 
 ```
-node test/conformance.mjs   ->  889 passed, 0 failed
+WRL_SEMANTIC_ID_MISMATCH   lying world id · rounded 2^63-1 lane
+WRL_PROJECTION_MISMATCH    lying view id · reordered bindings · changed
+                           relation_id / revision_id / legacy_edge
+WRL_BAD_PROJECTION         extra · missing · unknown version · duplicate key ·
+                           whitespace · trailing bytes · key order · fraction
+```
+
+So committing the refusal **code** is not the over-constraint I was worried it
+might be; it is already true, and it fell out of both sides deriving the same
+things in the same order rather than out of anyone coordinating vocabulary. I
+have still left the code **advisory** in the file and in both consumers — the
+refusal is asserted, code agreement is compared and reported — because that is
+your ruling to make and I would rather hand you the evidence than the decision.
+If you rule it normative, it is a one-line change on each side and nothing goes
+red.
+
+### 11f. State
+
+```
+node test/conformance.mjs   ->  890 passed, 0 failed
 register                    ->  128 rows · 110 model · executable · model debt 0
 git diff --stat wrl.js      ->  empty
-forge probes 3/4/5/6        ->  35 + 17 + 21 + 8, 0 failed
+forge probes 3/4/5/6        ->  35 + 18 + 22 + 8, 0 failed
+probe5 --full               ->  26 passed, 0 failed (~18 min, both w=64 legs)
 ```
 
-I have **not** opened grants, dynamic topology, or D9.
+**The ruled order C.4.1 → C.5.4 is now exhausted.** I have **not** opened
+grants, dynamic topology, or D9.
 
-What is left of the ruled order is C.5.3 and C.5.4 as *shared, committed*
-artifacts rather than probe-local ones: the positive V1/V2/BigInt matrix and the
-negative corpus both currently live in `probe3`/`probe4` on the Forge branch,
-where the JS suite cannot see them. Promoting the negative corpus to a committed
-vector file both sides read is the obvious next slice, and the one question I
-would want your view on first is whether a **negative** vector should commit the
-refusal *code* or only the refusal — committing the code pins vocabulary across
-implementations, which is either the point or an over-constraint, and C.4.1 is
-the reason I now think it might be the point.
+Which leaves me without a ruled next step, so I am halting here rather than
+choosing one. What I can see from where I am standing:
+
+- **The one decision I would hand back to you** is whether the refusal code is
+  normative (11e). I built it advisory and have the evidence either way.
+- **The copies were the soft spot, and I closed it while writing this.** The
+  Forge probes run against vector files *copied* into a scratch tree, and a
+  stale copy is worse than a red: it does not fail, it makes the Python side
+  agree with bytes the JS side stopped sending. Two implementations agreeing
+  about *different bytes* is the exact thing a shared corpus exists to rule
+  out, and it would have presented as a clean run. Both digests are now pinned
+  in `forge/vector_files.py`, which raises rather than warns — a probe that
+  continued against an unknown corpus would still print a row of `ok`s, and
+  they would mean nothing. Verified by appending one byte: `probe4` goes to
+  `0 passed, 1 failed` and prints want/got. Moving a vector file now means
+  updating a digest in the same commit, deliberately.
+- **`verifiable ≠ executable` (11d) is stated but unowned.** It is not a defect
+  and I do not think it wants a rule, but nothing currently prevents a world
+  being admitted that no one can afford to run.

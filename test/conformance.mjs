@@ -5665,6 +5665,83 @@ ir 2.0
            `would never exercise the coincident case`);
       }
 
+      /* -- The committed NEGATIVE corpus (C.5.4).
+       *
+       * The positive vectors prove two implementations can AGREE. They cannot
+       * prove either one is checking: a verifier that returned its input
+       * unread would reproduce every vector above. That takes bytes which must
+       * be REFUSED, and it takes them in a file, for the same reason -- these
+       * cases were previously fifteen Python lambdas on a Forge branch, which
+       * made "Forge refuses a reordered binding" and "the browser refuses a
+       * reordered binding" two similar claims about two records instead of one
+       * claim about one record.
+       *
+       * Each vector is a complete tampered record stored as FINAL BYTES rather
+       * than as an edit recipe. That is deliberate: a recipe that silently
+       * matches nothing is the broken fixture that has cost this work three
+       * times, most recently a duplicate-key tamper that searched for
+       * `{"projection_version"` on a wire whose keys are sorted. Bytes cannot
+       * fail to apply -- but a stored literal can still equal its base, so the
+       * first thing checked here is that every vector actually differs from
+       * the honest record it was made from. A negative test that passes while
+       * asserting nothing is the failure mode this whole block exists against.
+       *
+       * On the refusal CODE: the file records what the reference verifier
+       * produced. Whether a code is normative -- whether an implementation
+       * that refuses correctly but names it differently is conformant -- is
+       * open, so the REFUSAL is asserted and code agreement is only reported.
+       * That way this block yields evidence for the ruling instead of
+       * presuming it. */
+      {
+        const npath = join(ROOT, "test", "projection-negative-vectors.json");
+        let negOk = false, detail = "the file is missing", agree = 0, total = 0;
+        const bpath = join(ROOT, "test", "projection-vectors.json");
+        if (existsSync(npath) && existsSync(bpath)) {
+          const ndoc = JSON.parse(readFileSync(npath, "utf8"));
+          /* The bases come from the POSITIVE file, so a tamper is checked
+           * against the honest bytes as committed rather than against a copy
+           * carried alongside it -- two copies of a base is how a corpus
+           * starts describing a record nobody sends. */
+          const bases = Object.fromEntries(
+            JSON.parse(readFileSync(bpath, "utf8"))
+              .vectors.map((v) => [v.name, v.wire]));
+          const problems = [], disagreed = [];
+          for (const vec of ndoc.vectors) {
+            total++;
+            /* THE FIXTURE GATE, before the verdict. */
+            if (bases[vec.base] === undefined) {
+              problems.push(`${vec.name}: unknown base ${vec.base}`); continue;
+            }
+            if (vec.wire === bases[vec.base]) {
+              problems.push(`${vec.name}: BROKEN FIXTURE, equals its base`);
+              continue;
+            }
+            const code = await refuseAsync(
+              () => v2.verifyRuntimeProjection(vec.wire));
+            if (code === null) { problems.push(`${vec.name}: ADMITTED`); continue; }
+            if (vec.refusal_codes.includes(code)) agree++;
+            else disagreed.push(`${vec.name}: ${code} vs ${vec.refusal_codes}`);
+          }
+          /* The corpus must reach the cases that are easy to not have: the
+           * tamper that moves no identifier, and the rounding attempt that is
+           * the C.4.1 defect turned into a test. */
+          negOk = ndoc.vector_set === "wrl.projection-negative-vectors.1" &&
+                  problems.length === 0 && total >= 12 &&
+                  ndoc.vectors.some((v) => v.name === "reordered-relation-bindings") &&
+                  ndoc.vectors.some((v) => v.name === "an-unsafe-integer-rounded");
+          detail = problems.length
+            ? problems.join("; ")
+            : `${total} tampers refused, ${agree}/${total} in the same ` +
+              `vocabulary as Forge` +
+              (disagreed.length ? ` (${disagreed.join("; ")})` : "");
+        }
+        ok("relation/v2/projection/the-negative-corpus-is-refused",
+           negOk,
+           `${detail}. A positive vector proves a verifier can agree; only a ` +
+           `refused one proves it is looking, and these are the same bytes ` +
+           `the Python verifier is held to`);
+      }
+
       /* The serializer takes an envelope and not an artifact, so there is one
        * route to the wire and it runs through the deriver. */
       const notEnvelope = await refuseAsync(
