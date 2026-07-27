@@ -1,13 +1,13 @@
-# Handoff — Path B, Semantic IR V2 (slices B.1 – B.6, plus C.0, C.1 and C.2)
+# Handoff — Path B, Semantic IR V2 (slices B.1 – B.6, plus C.0 – C.3)
 
 **Status: your B.6 ruling is discharged and accepted, your B.7 errata is landed,
-and Path C is open — C.0, C.1 and C.2 are all closed. The battery is green at
-868/868, the register is at 108 rows — 96 executable, 12 awaiting, model debt
-0 — both pinned `sem-` ids are unmoved, and `wrl.js` is byte-identical.**
+and Path C is open — C.0, C.1, C.2 and C.3 are all closed. The battery is green
+at 877/877, the register is at 117 rows — 105 executable, 12 awaiting, model
+debt 0 — both pinned `sem-` ids are unmoved, and `wrl.js` is byte-identical.**
 
 Per your instruction — *"push after B.6, not before"* — the closure was a third
 commit on top of `12b12e0` and `738d94a`. C.0 is a fourth (`f87de38`); C.1 is a
-fifth (`d30aabd`); C.2 is a sixth.
+fifth (`d30aabd`); C.2 is a sixth (`b399cd2`); C.3 is a seventh.
 
 This memo is the Path B counterpart to `HANDOFF_D8_PATH_A.md`. §1 records what
 each item of your nine-item closing ruling turned into, §2 records what happened
@@ -15,8 +15,10 @@ to the five decisions I took on my own and you then ruled on, §3 records the B.
 closure itself, §4 is the file map, §5 is what is left, **§6 is C.0** — the B.7
 errata, which corrects two things this memo itself got wrong — **§7 is
 C.1**, ruling 1 landed: V2 reaches the playground, dispatched on the source —
-and **§8 is C.2**, the other half of ruling 1: the two explicit operations,
-*import* and *adopt*, neither of them automatic on editor change.
+**§8 is C.2**, the other half of ruling 1: the two explicit operations,
+*import* and *adopt*, neither of them automatic on editor change — and **§9 is
+C.3**, ruling 2 landed: `deriveRuntimeProjection` and its seven laws, the
+envelope a runtime is handed instead of a raw downgrade.
 
 ---
 
@@ -24,11 +26,11 @@ and **§8 is C.2**, the other half of ruling 1: the two explicit operations,
 
 ```
 node test/conformance.mjs
-  868 passed, 0 failed  (70 annotated doc blocks of 115 swept, 26/26 capabilities cited)
+  877 passed, 0 failed  (70 annotated doc blocks of 115 swept, 26/26 capabilities cited)
 ```
 
 (835 at B.6, as you reproduced; 840 after C.0's five, §6; 865 after C.1's
-twenty-five, §7; 868 after C.2's three, §8.)
+twenty-five, §7; 868 after C.2's three, §8; 877 after C.3's nine, §9.)
 
 | | |
 |---|---|
@@ -53,17 +55,22 @@ because a world id names a sealed world and V1 and V2 are two encodings of one.
 Register, live in the browser:
 
 ```
-108 rows · 91 model · executable · model debt 0
+117 rows · 99 model · executable · model debt 0
 ```
 
-The 17 non-model rows are, after C.2, 5 `surface · executable`, 1
-`surface · awaiting`, 7 `runtime · awaiting`, 4 `film · awaiting` — 96
-executable in all. Fifty-six of the 868 checks are namespaced `relation/v2/…`,
-and 44 are `playground/…`.
+The 18 non-model rows are, after C.3, 6 `surface · executable`, 1
+`surface · awaiting`, 7 `runtime · awaiting`, 4 `film · awaiting` — 105
+executable in all. Sixty-four of the 877 checks are namespaced `relation/v2/…`,
+and 45 are `playground/…`.
 
-Model debt is still 0 and stays 0 through the whole of Path C by construction:
-C.2 added no model law, only two `surface` rows, because the rules it obeys were
-already stated and already tested — the surface's job was to *call* them.
+Model debt is still 0. It very nearly was not: C.3 states a new model rule
+(§D8.18), and the first run after writing it failed
+`pending/every-identity-rule-has-a-property` — a draft rule on the page with no
+register row naming it. That meta-check is the reason the debt has stayed at
+zero rather than a report that it has. **Draft rules without a falsifier are the
+ones that get reinterpreted rather than broken**, so stating a rule and shipping
+its tests are forced into the same commit. C.3's eight model rows and eight
+`relation/v2/projection/…` checks arrived together for that reason.
 
 ---
 
@@ -377,12 +384,12 @@ widened (`git diff --stat wrl.js` is empty).
 
 | file | state |
 |---|---|
-| `relation-v2.js` | ~77 KB — B.1 schema + canonical bytes, B.2 validation + identity derivation, B.3 V1↔V2 migration, B.4 named-relation surface, B.5 formatter + consumer, **B.6 world gate + `ir` header + adoption**. Zero new runtime constructs; every hashing path, every sort key, and now every profile question delegates to `relation-identity.js` and `wrl.js` |
+| `relation-v2.js` | ~77 KB — B.1 schema + canonical bytes, B.2 validation + identity derivation, B.3 V1↔V2 migration, B.4 named-relation surface, B.5 formatter + consumer, **B.6 world gate + `ir` header + adoption**, **C.3 `deriveRuntimeProjection` + `RUNTIME_BINDING_FIELDS`**. Zero new runtime constructs; every hashing path, every sort key, and now every profile question delegates to `relation-identity.js` and `wrl.js` |
 | `relation-identity.js` | 0.1.2; B.6 widened `AUTHORABLE_VARIANTS` and added `V1_AUTHORABLE_SEED_VARIANTS`; C.1 reworded one shared code gloss (§7c) |
 | `wrl.js` | **frozen**, untouched — byte-identical across all of Path A and Path B |
-| `test/conformance.mjs` | **868 checks**, 0 failed; 56 `relation/v2/…`, 44 `playground/…` |
-| `spec.html` | §D8.9 – §D8.17 under `#d8-v2` (`#d8-v2-seed`, `#d8-v2-profile`, `#d8-v2-boundary`, `#d8-v2-derive`, `#d8-v2-migrate`, `#d8-v2-surface`, `#d8-v2-write`, **`#d8-v2-world`, `#d8-v2-header`, `#d8-adoption`, `#d8-admission`**), register 47 → 108 rows, model debt 0, `#d8-owes` item 2 struck; C.2 added §D8.16 clause 6 and two `surface` rows (§8) |
-| `playground.html` | **C.1** — dispatches through `admitWorldSource`, holds no encoding control, shows two labelled ids, three new published examples (§7). **C.2** — a *Migration & adoption* panel with the two operations of ruling 1, staleness derived from the admitted world id, and no library function added (§8) |
+| `test/conformance.mjs` | **877 checks**, 0 failed; 64 `relation/v2/…`, 45 `playground/…` |
+| `spec.html` | §D8.9 – §D8.18 under `#d8-v2` (`#d8-v2-seed`, `#d8-v2-profile`, `#d8-v2-boundary`, `#d8-v2-derive`, `#d8-v2-migrate`, `#d8-v2-surface`, `#d8-v2-write`, **`#d8-v2-world`, `#d8-v2-header`, `#d8-adoption`, `#d8-admission`, `#d8-projection`**), register 47 → 117 rows, model debt 0, `#d8-owes` item 2 struck; C.2 added §D8.16 clause 6 and two `surface` rows (§8); C.3 added **§D8.18** and nine rows (§9) |
+| `playground.html` | **C.1** — dispatches through `admitWorldSource`, holds no encoding control, shows two labelled ids, three new published examples (§7). **C.2** — a *Migration & adoption* panel with the two operations of ruling 1, staleness derived from the admitted world id, and no library function added (§8). **C.3** — both render arms cross the runtime boundary through `deriveRuntimeProjection`; the page holds no downgrade of its own (§9) |
 | `WRL.zip` | rebuilt |
 
 Fifteen typed codes in `RELATION_V2_CODES` — nine from B.1–B.5:
@@ -440,7 +447,7 @@ The three open questions this section ended on are all answered. V2 goes to both
 C.0  B.7 register/prose errata and atomic adoption        ← landed, §6
 C.1  unified V1/V2 playground admission                   ← landed, §7
 C.2  migration and adoption playground workflow           ← landed, §8
-C.3  derived runtime-projection envelope
+C.3  derived runtime-projection envelope                   ← landed, §9
 C.4  TRVM Forge static-runtime admission
 C.5  cross-repository conformance and consumer checks
 ```
@@ -620,11 +627,12 @@ land on the subordinate id, never the world's own.
 
 ### 7e. What C.1 did not do
 
-`renderV2` computes the projection inline with `V2.runnableV1Artifact`. That is
+~~`renderV2` computes the projection inline with `V2.runnableV1Artifact`. That is
 not the envelope of ruling 2 — C.3 owns `deriveRuntimeProjection` and its seven
 laws, and when it lands the page should call it rather than keep a second way of
-getting there. The projection shown today is a display of the downgrade, and it
-is labelled as derived everywhere it appears.
+getting there.~~ **Discharged in C.3 (§9d).** Both arms now call the envelope,
+the page holds no downgrade of its own, and a sweep check enforces it. The
+projection is still labelled as derived everywhere it appears.
 
 *Import V1 as V2* and *Adopt legacy relations* were **not** on the page at C.1;
 they are C.2, and your "neither automatic on editor change" is the constraint
@@ -651,7 +659,8 @@ gap.
 3. **§D8.17's numbering and its new sixth clause** — the surface-calls-the-rule
    clause is mine, not yours.
 4. **The doc sweep dispatches on the source** (§6c) rather than assuming V1.
-5. **The C.1 page computes the projection inline**, pending C.3 (§7e).
+5. **The C.1 page computes the projection inline**, pending C.3 (§7e) —
+   *discharged*, §9d.
 6. **The family-neutral rewording of `WRL_UNSUPPORTED_IR_VERSION`** (§7c).
 
 ### 7g. Verified live
@@ -870,3 +879,147 @@ offering no Adopt button. Console clean.
 
 Constraints held: `git diff --stat wrl.js` empty, both V1 pinned ids unmoved,
 model debt 0, no new library function.
+
+---
+
+## 9. C.3 — the derived runtime-projection envelope (ruling 2)
+
+Ruling 2 said V2 reaches the runtime next, **not as a raw downgrade**, and named
+the shape: `deriveRuntimeProjection(v2Artifact)` returning `semantic_world_id`,
+`semantic_artifact`, `execution_view_id`, `execution_artifact` and
+`relation_bindings: [{relation_id, revision_id, legacy_edge}]`, derived, not
+canonical, not in the world bytes, under seven laws. That is what landed:
+`relation-v2.js` gains one exported function and one frozen field list
+(`RUNTIME_BINDING_FIELDS`), `spec.html` gains **§D8.18** (`#d8-projection`) with
+your seven clauses plus one consequence, and the suite gains a `21i` block of
+eight `relation/v2/projection/…` checks and one playground sweep check.
+
+No new runtime construct, no new identity kind, no change to `wrl.js`, and both
+pinned V1 ids unmoved.
+
+### 9a. Why a raw downgrade is not merely inelegant
+
+Worth stating plainly, because it is the argument the whole slice rests on and
+it is not the usual one.
+
+A runtime handed a bare V1 artifact will seal it, get a `sem-`, and use that id
+as the world. It is *right to*. A V1 `sem-` **is** a world id; that is the entire
+point of the V1 spine and nothing about the bytes it was handed says otherwise.
+So the failure is silent in the worst available way: every id is real, every
+hash is correct, every derivation checks out, and the world's relations end up
+allocated in a scope that is not the world.
+
+A raw downgrade is not *wrong*. It is **mute**. It produces a correct number and
+has nowhere to put the sentence *this number is not the world's identity*. The
+envelope exists to carry that sentence in-band, attached to the number, so a
+consumer cannot receive one without the other.
+
+### 9b. Totality — and why law 7 is load-bearing rather than a nicety
+
+Your law 7 says a V1-native world is the degenerate coincident case. I made the
+envelope **total over both encodings** rather than V2-only, which is a decision
+and I want it on the record as one.
+
+The reason is law 1. If the function only accepted V2, then "`semantic_world_id`
+is authoritative" would need an *unless* — unless you have a V1 world, in which
+case ask somewhere else — and every consumer would carry a branch on family
+before it knew which id was the world's. That branch is precisely the site where
+the wrong id gets used. Totality removes the branch: a consumer holding a
+projection never asks what encoding it came from.
+
+The coincident case is then a *fact the envelope states* (`coincident: true`,
+with `execution_view_id === semantic_world_id` and the two artifacts the same
+bytes) rather than a fact a reader is left to notice.
+
+### 9c. The ordering trap, which I did not expect
+
+`relation_bindings` is positional against `semantic_artifact.relations`. It is
+**not** positional against `execution_artifact.edges`, and that is not an
+oversight — the two encodings sort topology by different keys. V2 sorts
+relations by seed bytes; V1 sorts edges as edges. Neither ordering is wrong, and
+neither is derivable from the other.
+
+The pinned demo world is a world where they disagree. So a consumer that zipped
+the two lists by index would get a total, plausible, fully populated mapping in
+which every observation is attributed to the wrong relation, with no error
+anywhere. The join key is `legacy_edge`, which is why the field is in the record
+at all.
+
+This is stated as a consequence paragraph under §D8.18 and carries its own
+register row and check (`bindings-are-not-positional-against-the-edges`). I did
+not fold it into one of your seven — it is a consequence of clause 4, not a
+restatement of it, and folding it in would have hidden it inside a rule whose
+name is about observations rather than about order.
+
+### 9d. Law 5 is checked by doing the forbidden thing
+
+Clause 5 — no grant, birth key, revision or ledger event may use
+`execution_view_id` as a world scope — cannot be checked by validating anything,
+because the forbidden computation *succeeds*. So the check performs it: it
+expands the world's own seeds under `execution_view_id`, and asserts the
+resulting `rel-` ids appear in **no** binding the world holds; then expands the
+same seeds under `semantic_world_id` and gets exactly the ones it does.
+
+Both computations are arithmetically correct from real inputs. Nothing about the
+wrong one looks wrong. That is why the rule has to be a prohibition rather than
+a validation, and it is why the row's expected column says so in those words.
+
+Law 6 — every binding independently recomputable — is checked by recomputing
+each binding from `semantic_artifact` alone, in both arms, plus a field-set gate
+against `RUNTIME_BINDING_FIELDS`. The narrowness is part of the law: a record
+that shipped its own allocation preimages would be offering a check against
+itself. Three fields, no preimage, so the recomputation is genuinely
+independent.
+
+### 9e. The page crosses the boundary through the envelope
+
+§7e's outstanding debt is discharged. `renderV2` no longer calls
+`V2.runnableV1Artifact` and no longer seals an execution artifact of its own;
+both `renderV1` and `renderV2` call `V2.deriveRuntimeProjection(artifact, id)`,
+passing the id the page already admitted — so the envelope's mismatch guard also
+serves as the page's own self-check.
+
+The V1 arm now shows the second id row too, reading *coincident — this world
+runs as itself*. That is law 7 on screen. The projection **bytes** panel stays
+V2-only, because for a V1 world it would be a second copy of the canonical-bytes
+panel sitting directly above it, which teaches nothing.
+
+`playground/the-projection-comes-from-the-envelope` sweeps the published page
+for exactly two `deriveRuntimeProjection` calls — one per arm — and for the
+absence of any second route to the same number. A surface that computed the view
+id itself would be free to label it anything, which is the failure §D8.18 exists
+to close.
+
+### 9f. Decisions I took on my own in C.3
+
+1. **The envelope is total over both encodings**, not V2-only (§9b). Your law 7
+   describes the V1 case; making the function accept it is my reading of what
+   that law is for.
+2. **The binding record is exactly three fields**, no allocation preimage, so
+   law 6 is a real independent recomputation rather than a re-read (§9d).
+3. **The ordering trap is a consequence paragraph plus its own row**, not an
+   eighth clause of yours (§9c).
+4. **The V1 arm shows the second id row; the projection bytes panel stays
+   V2-only** (§9e).
+5. **`inArtifactBytes` reuses the sibling `deriveRelations` flag name** for your
+   "NOT IN THE WORLD BYTES", rather than introducing a second spelling of the
+   same claim. The envelope ships `derived: true, canonical: false,
+   inArtifactBytes: false` together.
+
+### 9g. Verified live
+
+`agent-browser` against `http://localhost:8911/playground.html`. The starter
+world: one id, the second row present and reading *coincident — this world runs
+as itself*, projection-bytes panel hidden. *A world with named relations*
+(`ir 2.0`): two different ids — `sem-9a491fe3…` the world,
+`sem-90b3d0eb…` the execution view — projection panel visible, byte-exact
+against the spine's own reading. Console clean.
+
+Constraints held: `git diff --stat wrl.js` empty, both V1 pinned ids unmoved,
+model debt 0, no new runtime construct.
+
+### 9h. What C.3 deliberately did not do
+
+The seven runtime rows stay `awaiting`, per your *"first runtime integration is
+static-world admission"*. C.3 built the envelope and its laws; **C.4** hands it
+to TRVM Forge. No grant, no dynamic attachment, no parallel profile.

@@ -1844,6 +1844,141 @@ export async function admitWorldSource(source) {
            denamedV1Artifact: parsed.v1 };
 }
 
+/* ====================================== C.3: runtime projection, §D8.18 */
+/*
+ * WHAT A RUNTIME IS HANDED, AND WHAT IT IS NOT ALLOWED TO CONCLUDE FROM IT
+ * -----------------------------------------------------------------------
+ * `runnableV1Artifact` already gives a runtime something it can execute. It
+ * is not enough, and the reason is worth stating rather than assuming: a
+ * runtime handed only a V1 artifact will seal it, get a `sem-`, and use that
+ * `sem-` as the world -- because that is exactly what a V1 `sem-` is FOR, and
+ * nothing in what it was handed says this one is different.
+ *
+ * It is different. It is the id of a PROJECTION: the bytes this world runs
+ * as, not the bytes this world IS. Scope anything durable to it -- a grant, a
+ * birth key, a revision, a ledger event -- and you have scoped it to a
+ * derived value that changes the moment the encoding does, while the world
+ * itself has not moved at all.
+ *
+ * So the projection is an ENVELOPE and not a return value. It carries both
+ * ids, says which is which, and carries the bindings that let a consumer
+ * check the answer instead of believing it. A raw downgrade cannot say any of
+ * that, which is why ruling 2 refused one.
+ *
+ * DERIVED / NOT CANONICAL / NOT IN THE WORLD BYTES -- the same three flags
+ * `deriveRelations` carries, for the same reason and spelled the same way.
+ * The world bytes and the artifact bytes are one thing, so the flag keeps the
+ * sibling's name.
+ */
+
+/** The fields of one binding, exactly. §D8.18. */
+export const RUNTIME_BINDING_FIELDS =
+  deepFreeze(["relation_id", "revision_id", "legacy_edge"]);
+
+/**
+ * The runtime projection of a sealed world, in either encoding. §D8.18.
+ *
+ *   { derived, canonical, inArtifactBytes, coincident,
+ *     semantic_world_id, semantic_artifact,
+ *     execution_view_id, execution_artifact,
+ *     relation_bindings: [ { relation_id, revision_id, legacy_edge } ] }
+ *
+ * It takes an ARTIFACT and not a source, for `deriveRelations`' reason: the
+ * projection is a function of the sealed world, not of how the world was
+ * written. `claimedSemanticId` is optional and CHECKED, for the same reason
+ * again -- a projection that believed a caller's id would mint every binding
+ * under whatever it was told.
+ *
+ * IT ACCEPTS V1 TOO, AND THAT IS LAW 7 RATHER THAN A CONVENIENCE. A V1 world
+ * runs as itself, so its two ids coincide and `coincident` is true. Making
+ * the envelope total over both encodings is what lets law 1 be stated without
+ * an "unless" -- a consumer holding a projection never has to ask which
+ * family it came from before knowing which id is the world's. An envelope
+ * that existed only for V2 would leave every V1 caller passing a bare
+ * artifact around, which is the habit the envelope exists to break.
+ *
+ * `relation_bindings` is POSITIONAL against the semantic artifact's own
+ * topology list -- `relations[i]` in V2, `edges[i]` in V1, both canonically
+ * ordered. That correspondence is the whole of law 6: a consumer recomputes
+ * binding `i` from the artifact it already holds and compares, and needs
+ * nothing from this envelope to do it. Carrying the allocation preimage here
+ * would have made recomputation easier and law 6 weaker, because a consumer
+ * checking a preimage this function supplied is checking it against itself.
+ *
+ * IT IS NOT POSITIONAL AGAINST `execution_artifact.edges`, AND THAT IS NOT AN
+ * OVERSIGHT. The two encodings sort their topology by different keys -- V2 by
+ * seed bytes, V1 by edge -- so binding `i` and edge `i` are routinely
+ * different relations in the same world. A consumer joining the two lists
+ * joins on `legacy_edge`, which is why the binding carries it; joining on the
+ * index would silently mis-attribute every observation in a world whose two
+ * orders happen to disagree, which is most of them.
+ */
+export async function deriveRuntimeProjection(artifact,
+                                              claimedSemanticId = null) {
+  const v2 = artifact && typeof artifact === "object" &&
+    Object.prototype.hasOwnProperty.call(
+      V2_RELATION_SOURCE_FAMILIES, artifact.ir_version);
+
+  /* The V2 arm derives its execution view; the V1 arm IS its execution view.
+   * Both arms end holding the same four values, and everything below this
+   * point is family-blind -- which is the shape law 7 asks for. */
+  let semantic_artifact, semantic_world_id, execution_artifact, view;
+  if (v2) {
+    semantic_artifact = canonicalizeV2Artifact(artifact);
+    semantic_world_id = await v2WorldIdOfArtifact(semantic_artifact);
+    execution_artifact = runnableV1Artifact(semantic_artifact);
+    view = await deriveV2Relations(semantic_artifact, semantic_world_id);
+  } else {
+    /* `worldIdOfArtifact` validates before it hashes, so a record that is
+     * neither family is refused HERE by the frozen tuple gate rather than by
+     * a third opinion this module would have to keep in step. */
+    semantic_world_id = await R.worldIdOfArtifact(artifact);
+    semantic_artifact = artifact;
+    execution_artifact = artifact;
+    view = await R.deriveRelations(artifact, semantic_world_id);
+  }
+
+  if (claimedSemanticId !== null && claimedSemanticId !== semantic_world_id)
+    fail("WRL_SEMANTIC_ID_MISMATCH",
+         `the supplied artifact hashes to ${semantic_world_id}, and the ` +
+         `caller claims ${claimedSemanticId}. A projection is derived from ` +
+         `the seal, so the seal is recomputed rather than believed`,
+         { fieldPath: "semantic_artifact_id" });
+
+  /* Law 2: this id names the projected bytes and nothing else. It is computed
+   * from `execution_artifact` by the same function a runtime would use on it,
+   * so a consumer that seals what it was handed gets this value back -- which
+   * is the point. The danger was never that the number would be wrong; it was
+   * that it would be right and be mistaken for the world. */
+  const execution_view_id = await R.worldIdOfArtifact(execution_artifact);
+
+  const relation_bindings = view.relations.map((rel) => ({
+    relation_id: rel.relation_id,
+    revision_id: rel.revision_id,
+    /* Law 4's other half: the binding SAYS which V1 edge this relation runs
+     * as, so an observation that arrives keyed by an edge can be lifted back
+     * to the relation it belongs to without the runtime being asked to
+     * remember a mapping it was never given. */
+    legacy_edge: R.projectRelationRevisionToV1Edge(rel.revision),
+  }));
+
+  return {
+    derived: true,
+    canonical: false,
+    inArtifactBytes: false,
+    coincident: execution_view_id === semantic_world_id,
+    semantic_world_id,
+    semantic_artifact,
+    execution_view_id,
+    execution_artifact,
+    relation_bindings,
+    note: "semantic_world_id is the world. execution_view_id names the V1 " +
+          "bytes this world runs as, and is not a world scope: no grant, " +
+          "birth key, revision or ledger event may be scoped to it. Every " +
+          "relation_id above is minted under semantic_world_id.",
+  };
+}
+
 /* -------------------------------------------------------------- internals */
 
 /* Same digest the spine uses, private for the same reason it is private

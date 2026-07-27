@@ -1614,6 +1614,29 @@ for (const [id, entries] of futurePairs) {
          "LEGACY_EDGE_ADOPTION_FIELDS rather than restating the field list");
     }
 
+    /* -- C.3. The runtime boundary is crossed through the envelope.
+     *
+     * A raw downgrade is not wrong, it is MUTE: it hands over a `sem-` with
+     * nowhere to say that the id is not the world's. §D8.18 clause 1 is only
+     * worth stating if the surfaces that show a projection go through the
+     * thing that states it, so the page must call the envelope and must not
+     * keep a second way of getting there.
+     *
+     * Both arms, and the same call in each: a page that asked only for V2
+     * would be treating law 7's coincident case as a V2 feature the V1 arm
+     * happens not to need, which is exactly the habit totality removes. */
+    {
+      const env = text.split("V2.deriveRuntimeProjection(").length - 1;
+      ok("playground/the-projection-comes-from-the-envelope",
+         env === 2 && !/runnableV1Artifact/.test(text) &&
+         /R\.worldIdOfArtifact/.test(text) === false,
+         `the page calls deriveRuntimeProjection ${env} time(s) and should ` +
+         `call it twice -- once per family -- while holding no raw ` +
+         `downgrade and sealing no execution artifact of its own. A surface ` +
+         `that computed the view id itself would be free to label it ` +
+         `anything, which is the failure §D8.18 exists to close`);
+    }
+
     /* -- C.2. And the workflow itself, computed the way the page computes it.
      *
      * This is the closing law of the migration path and nothing else states
@@ -5203,6 +5226,223 @@ ir 2.0
        `${String(admitted.semanticWorldId).slice(0, 16)}…. Two ids, two ` +
        `meanings; the second is proof of an execution view, not the scope ` +
        `any relation in this world is allocated in`);
+  }
+
+  /* ============================================ 21i. the projection, C.3
+   *
+   * §D8.17 clause 5 says the two ids are different claims. §D8.18 is what a
+   * consumer is handed so that it cannot fail to notice -- and every check
+   * below is really the same check twice, in the two encodings, because the
+   * envelope being TOTAL is law 7 rather than a convenience.
+   *
+   * The danger this rule addresses is not a wrong number. Every id in play is
+   * correct. It is that the RIGHT number for the projected bytes is also a
+   * perfectly serviceable-looking world id, so a runtime handed only an
+   * artifact will scope durable things to it and never be told otherwise. */
+  {
+    const pv1 = await v2.deriveRuntimeProjection(demo.artifact);
+    const pv2 = await v2.deriveRuntimeProjection(parsed.artifact);
+    const edgeKey = (e) => W.serializeArtifact(e);
+
+    /* -- 1. the world id is the world, in both encodings and from one call
+     *
+     * No family argument is passed to either call, and neither result needs
+     * reading to find out which encoding it came from before the world's own
+     * id can be named. That is the whole of clause 1: `semantic_world_id`
+     * means the world unconditionally, so a consumer holding a projection has
+     * no branch to get wrong. And the id is RECOMPUTED, not believed -- the
+     * same defect `deriveRelations` was corrected for, arriving at a boundary
+     * where a caller is far more likely to have an id in hand. */
+    {
+      const forged = await refuseAsync(
+        () => v2.deriveRuntimeProjection(parsed.artifact, "sem-" + "0".repeat(64)));
+      ok("relation/v2/projection/the-world-id-is-authoritative-in-both-encodings",
+         pv1.semantic_world_id === demo.semanticId &&
+         pv2.semantic_world_id === admitted.semanticWorldId &&
+         pv1.derived === true && pv1.canonical === false &&
+         pv1.inArtifactBytes === false &&
+         pv2.derived === true && pv2.canonical === false &&
+         pv2.inArtifactBytes === false &&
+         forged === "WRL_SEMANTIC_ID_MISMATCH",
+         `one function, no family argument, and the world's own id in both ` +
+         `arms: V1 ${pv1.semantic_world_id.slice(0, 16)}… vs pinned ` +
+         `${demo.semanticId.slice(0, 16)}…, V2 ` +
+         `${pv2.semantic_world_id.slice(0, 16)}… vs admitted ` +
+         `${String(admitted.semanticWorldId).slice(0, 16)}…; a forged claim ` +
+         `answered ${forged}. A projection that believed a caller's id would ` +
+         `mint every binding under whatever it was told`);
+    }
+
+    /* -- 2. the execution view id names the projected bytes and nothing else
+     *
+     * It is computed by the SAME function a runtime would use on what it was
+     * handed, which is the point: a runtime that seals its input gets this
+     * value back and can tell it apart from the world's. */
+    {
+      const recomputed = await s.worldIdOfArtifact(pv2.execution_artifact);
+      ok("relation/v2/projection/the-execution-view-id-names-only-projected-bytes",
+         pv2.execution_view_id === recomputed &&
+         pv2.execution_view_id === demo.semanticId &&
+         pv2.execution_view_id !== pv2.semantic_world_id,
+         `the view id must be the frozen spine's own reading of ` +
+         `execution_artifact (${pv2.execution_view_id === recomputed}), land ` +
+         `on the pinned demo world, and differ from the world id. It is the ` +
+         `id of a VIEW; naming the world with it is the failure this rule ` +
+         `exists to make impossible to reach by accident`);
+    }
+
+    /* -- 3. a runtime executes the execution artifact
+     *
+     * The encoding stops here. What comes out is a V1 artifact in the frozen
+     * family, carrying `edges` and no `relations`, byte-equal to the spine's
+     * own reading of the same world -- so nothing downstream of this boundary
+     * learns a second encoding, which is the entire claim V2 makes about its
+     * own blast radius. */
+    {
+      const ex = pv2.execution_artifact;
+      const spineOwn = W.serializeArtifact(admitted.denamedV1Artifact) ===
+                       W.serializeArtifact(ex);
+      ok("relation/v2/projection/a-runtime-executes-the-execution-artifact",
+         s.V1_IR_VERSIONS.includes(ex.ir_version) &&
+         Array.isArray(ex.edges) && !("relations" in ex) && spineOwn &&
+         !("edges" in pv2.semantic_artifact) &&
+         Array.isArray(pv2.semantic_artifact.relations),
+         `the execution artifact is ir_version ${JSON.stringify(ex.ir_version)}, ` +
+         `edges: ${Array.isArray(ex.edges)}, relations key: ` +
+         `${"relations" in ex}, byte-equal to the spine's own reading: ` +
+         `${spineOwn}. A runtime handed V2 bytes would be a second encoding ` +
+         `crossing a boundary V2 promised not to cross`);
+    }
+
+    /* -- 4. an observation names the relation, not the edge
+     *
+     * The sharp form: run the SAME topology through both scopes. The V1
+     * projection's relations and the V2 world's relations describe the same
+     * four edges, and they share every `rev-` -- structure did not move. Not
+     * one `rel-` is shared, because identity did. A runtime reporting against
+     * an edge therefore cannot name a relation by re-deriving one from what
+     * it ran; it has to be told, and `legacy_edge` is the telling. */
+    {
+      const viewRels = await s.deriveRelations(pv2.execution_artifact,
+                                               pv2.execution_view_id);
+      const byEdge = new Map(viewRels.relations.map(
+        (r) => [edgeKey(s.projectRelationRevisionToV1Edge(r.revision)), r]));
+      const ids = new Set(viewRels.relations.map((r) => r.relation_id));
+
+      const joins = pv2.relation_bindings.every(
+        (b) => byEdge.has(edgeKey(b.legacy_edge)));
+      const revsRecur = pv2.relation_bindings.every(
+        (b) => byEdge.get(edgeKey(b.legacy_edge)).revision_id === b.revision_id);
+      const idsDiffer = pv2.relation_bindings.every(
+        (b) => !ids.has(b.relation_id));
+
+      ok("relation/v2/projection/an-observation-names-the-relation-not-the-edge",
+         pv2.relation_bindings.length === viewRels.relations.length &&
+         joins && revsRecur && idsDiffer,
+         `every binding joins to the projected world by its legacy edge ` +
+         `(${joins}), shares that edge's revision id (${revsRecur}), and ` +
+         `shares NONE of its relation ids (${idsDiffer}). Structure is the ` +
+         `same world; identity is not. An observation keyed by an edge lifts ` +
+         `back through legacy_edge, and re-deriving a relation from the ` +
+         `edge alone would name one that belongs to the view`);
+    }
+
+    /* -- 5. the execution view id is not a world scope
+     *
+     * Stated as a prohibition in §D8.18 clause 5, and the way to check a
+     * prohibition is to do the forbidden thing and show the result is
+     * elsewhere. Every seed in this world, expanded under the VIEW id, mints
+     * an id that appears in no binding -- so a consumer that scoped an
+     * allocation to the view would produce relation ids belonging to nothing
+     * the world knows about, silently and with correct arithmetic. */
+    {
+      const wrong = [];
+      for (const rel of pv2.semantic_artifact.relations)
+        wrong.push(await s.relationIdFromAllocation(
+          v2.expandSeed(pv2.execution_view_id, rel.identity_seed)));
+      const held = new Set(pv2.relation_bindings.map((b) => b.relation_id));
+      const right = [];
+      for (const rel of pv2.semantic_artifact.relations)
+        right.push(await s.relationIdFromAllocation(
+          v2.expandSeed(pv2.semantic_world_id, rel.identity_seed)));
+
+      ok("relation/v2/projection/the-execution-view-id-is-not-a-world-scope",
+         wrong.length > 0 && wrong.every((id) => !held.has(id)) &&
+         right.every((id) => held.has(id)) &&
+         /execution_view_id/.test(pv2.note) && /grant/.test(pv2.note),
+         `expanding this world's own seeds under the view id mints ` +
+         `${wrong.length} relation id(s), none of which this world holds; ` +
+         `under the world id it mints exactly the ones it does. Both ` +
+         `computations are correct, which is why the rule has to be a ` +
+         `prohibition rather than a validation -- nothing about the wrong ` +
+         `one looks wrong`);
+    }
+
+    /* -- 6. every binding is independently recomputable
+     *
+     * From the semantic artifact ALONE, in both encodings, positionally
+     * against that artifact's own topology list. And the binding carries
+     * exactly three fields: a projection that shipped its own preimages
+     * would be offering a check against itself, so the narrowness of the
+     * record is part of the law rather than a tidiness preference. */
+    {
+      const own2 = await v2.deriveV2Relations(pv2.semantic_artifact);
+      const own1 = await s.deriveRelations(pv1.semantic_artifact);
+      const same = (bindings, rels) =>
+        bindings.length === rels.length &&
+        bindings.every((b, i) => b.relation_id === rels[i].relation_id &&
+                                 b.revision_id === rels[i].revision_id);
+      const fields = pv2.relation_bindings.every(
+        (b) => W.serializeArtifact(Object.keys(b).sort()) ===
+               W.serializeArtifact([...v2.RUNTIME_BINDING_FIELDS].sort()));
+
+      ok("relation/v2/projection/every-binding-is-independently-recomputable",
+         same(pv2.relation_bindings, own2.relations) &&
+         same(pv1.relation_bindings, own1.relations) && fields,
+         `a consumer recomputing from the semantic artifact alone must get ` +
+         `the envelope's own answer, in both encodings, and the binding must ` +
+         `carry no preimage to check itself against (${fields}). Fields ` +
+         `seen: ${Object.keys(pv2.relation_bindings[0] || {}).join(", ")}`);
+    }
+
+    /* -- 7. a V1-native world is the degenerate coincident case */
+    {
+      ok("relation/v2/projection/a-v1-native-world-is-the-coincident-case",
+         pv1.coincident === true &&
+         pv1.execution_view_id === pv1.semantic_world_id &&
+         pv1.execution_view_id === demo.semanticId &&
+         W.serializeArtifact(pv1.execution_artifact) ===
+           W.serializeArtifact(pv1.semantic_artifact) &&
+         pv2.coincident === false,
+         `a V1 world runs as itself, so its two ids coincide and the ` +
+         `envelope says so (${pv1.coincident}); the V2 world's do not ` +
+         `(${pv2.coincident}). Totality is what lets clause 1 be stated ` +
+         `without an "unless" -- an envelope that existed only for V2 would ` +
+         `leave every V1 caller passing bare artifacts around`);
+    }
+
+    /* -- the ordering trap, which is the mistake a CAREFUL consumer makes
+     *
+     * Both lists are canonically ordered and neither ordering is wrong. They
+     * are ordered by different keys -- V2 by seed bytes, V1 by edge -- so
+     * index `i` names two different relations. Joining on the index produces
+     * a total, plausible, entirely mis-attributed mapping, and the pinned
+     * demo world is one where it happens. */
+    {
+      const misaligned = pv2.relation_bindings.some(
+        (b, i) => edgeKey(b.legacy_edge) !== edgeKey(pv2.execution_artifact.edges[i]));
+      const joins = pv2.relation_bindings.every((b) =>
+        pv2.execution_artifact.edges.some(
+          (e) => edgeKey(e) === edgeKey(b.legacy_edge)));
+      ok("relation/v2/projection/bindings-are-not-positional-against-the-edges",
+         misaligned && joins &&
+         pv2.relation_bindings.length === pv2.execution_artifact.edges.length,
+         `the two lists hold the same edges (${joins}) in different orders ` +
+         `(${misaligned}). A consumer joining on index would mis-attribute ` +
+         `every observation in this world -- which is why the binding ` +
+         `carries the edge, and why the rule says so in the same breath as ` +
+         `it says the bindings are positional against the SEMANTIC artifact`);
+    }
   }
 
   }

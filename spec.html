@@ -120,6 +120,7 @@
   <a href="#d8-v2-header">D8.15 · The encoding declaration</a>
   <a href="#d8-adoption">D8.16 · Adopting a migrated relation</a>
   <a href="#d8-admission">D8.17 · Admitting a world source</a>
+  <a href="#d8-projection">D8.18 · The runtime projection</a>
   <a href="#d9">D9 · Dynamic topology</a>
   <a href="#d9-classify">D9 · Conflict classification</a>
   <a href="#d9-closure">D9.1 · Replay closure</a>
@@ -3756,6 +3757,79 @@ that is the source a fallback would have handled most convincingly — it would
 have sealed, printed a real <code class="inline">sem-</code>, and given the
 reader no sign that the encoding they wrote had been overruled.</p>
 
+<h4 id="d8-projection">The runtime projection: what a runtime is handed</h4>
+
+<p>A runtime does not read source and does not need to. It needs an artifact it
+can execute, and <a href="#d8-v2-write">§D8.13</a>'s downgrade produces one. The
+temptation is to stop there — hand the runtime the V1 artifact and let it get on
+with it — and the reason to refuse is that a runtime handed a bare V1 artifact
+will seal it, get a <code class="inline">sem-</code>, and <b>use that
+<code class="inline">sem-</code> as the world</b>. It will be right to. That is
+exactly what a V1 <code class="inline">sem-</code> is for, and nothing in what it
+was handed says this one is different.</p>
+
+<p>It is different. It is the id of a <i>projection</i>: the bytes this world
+runs as, not the bytes this world <b>is</b>. Scope anything durable to it — a
+grant, a birth key, a revision, a ledger event — and the scope moves the moment
+the encoding does, while the world has not moved at all. The failure is silent
+in the worst way: every id involved is real, every hash is correct, and the
+world's own relations end up allocated in a scope that is not the world.</p>
+
+<p>So the handoff is an <b>envelope</b> rather than a return value. It carries
+both ids, says which is which, and carries the bindings that let a consumer
+<i>check</i> the answer instead of believing it. A raw downgrade cannot say any
+of that — not because it is wrong, but because it has nowhere to say it.</p>
+
+<div class="note stop"><b>Draft rule D8.18 — the runtime projection.</b>
+A projection of a sealed world is
+<code class="inline">{ semantic_world_id, semantic_artifact, execution_view_id,
+execution_artifact, relation_bindings }</code>, where a binding is exactly
+<code class="inline">{ relation_id, revision_id, legacy_edge }</code>. It is
+<b>derived, not canonical, and not in the world bytes</b>.
+<ol>
+<li><b><code class="inline">semantic_world_id</code> is the world.</b> It is
+authoritative wherever a world is meant: identity, scope, provenance,
+comparison. No consumer of a projection needs to know which encoding it came
+from before knowing which id is the world's.</li>
+<li><b><code class="inline">execution_view_id</code> identifies projected bytes
+and nothing else.</b> It is the id of <code class="inline">execution_artifact</code>
+under the frozen spine — the value a runtime would compute for itself — and its
+only correct use is to check that what it holds is what it was given.</li>
+<li><b>A runtime executes <code class="inline">execution_artifact</code>.</b> The
+semantic artifact is not an execution input; the encoding stops at this
+boundary, and nothing downstream of it learns a second one.</li>
+<li><b>Observations name relations by <code class="inline">relation_id</code>.</b>
+A runtime reports against the V1 edge it ran, so the binding carries that edge:
+an observation keyed by an edge lifts back to the relation it belongs to without
+the runtime being asked to remember a map it was never given.</li>
+<li><b><code class="inline">execution_view_id</code> is not a world scope.</b> No
+grant, birth key, relation allocation, revision or ledger event may be scoped to
+it — ever, and not "unless the two coincide". Every
+<code class="inline">relation_id</code> in a projection is minted under
+<code class="inline">semantic_world_id</code>, which is the same rule
+<a href="#d8-identity-scope">§D8.5</a> already states, arriving at the one
+boundary where a second plausible id is in the room.</li>
+<li><b>Every binding is independently recomputable.</b> A consumer recomputes
+binding <i>i</i> from <code class="inline">semantic_artifact</code> alone —
+positionally against that artifact's own topology list — and needs nothing from
+the envelope to do it. A projection carrying its own preimages would be offering
+a check against itself.</li>
+<li><b>A V1-native world is the degenerate coincident case.</b> It runs as
+itself, so the two ids are equal and the projection says so. The envelope is
+<i>total</i> over both encodings for this reason: an envelope that existed only
+for V2 would leave every V1 caller passing bare artifacts around, which is the
+habit clause 1 exists to break.</li>
+</ol></div>
+
+<p>One consequence is sharp enough to be worth stating separately, because it is
+the mistake a careful consumer makes. <b>The bindings are not positional against
+<code class="inline">execution_artifact.edges</code>.</b> The two encodings sort
+their topology by different keys — V2 by seed bytes, V1 by edge — so binding
+<i>i</i> and edge <i>i</i> are routinely different relations in the same world. A
+consumer joins the two lists on <code class="inline">legacy_edge</code>, which is
+why the binding carries it; joining on the index mis-attributes every observation
+in any world whose two orders disagree, which is most of them.</p>
+
 <h3 id="d8-owes">What D8 owes before it can ship</h3>
 
 <ol>
@@ -4579,6 +4653,15 @@ substitution is the entire failure this register exists to catch.</p>
 <tr data-pending-law="the-v1-arm-is-the-frozen-verdict-unchanged" data-pending-for="D8.17" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/admission/the-v1-arm-is-the-frozen-verdict-unchanged"><td>an undeclared world admitted, compared key by key against a direct <code class="inline">sealWorld</code>; and an undeclared world that is <i>refused</i></td><td><b>the frozen result with two keys added and nothing renamed, dropped or nested</b>; the refusal reports the same code at the same line. A world in which nothing changed may not cost its readers a migration</td><td><a href="#d8-admission">D8.17</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="the-editing-surface-has-no-encoding-control" data-pending-for="D8.17" data-pending-status="executable" data-pending-stage="surface" data-pending-check="playground/no-encoding-switch"><td>the published surface a reader types world source into, swept for a control that would decide the encoding</td><td><b>there is none, and the absence is the law.</b> A selector may put starter <i>text</i> in an editor — text is the input — but a control that reinterprets text already there would make the id on screen a function of which button was last pressed. The page's dispatch is <a href="#d8-admission">D8.17</a>'s dispatch, called rather than re-implemented, so the page cannot answer the question differently from the module that defines it</td><td><a href="#d8-admission">D8.17</a></td><td class="stage">surface · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="a-published-example-is-admitted-under-the-family-its-source-declares" data-pending-for="D8.17" data-pending-status="executable" data-pending-stage="surface" data-pending-check="playground/badir-family"><td>a published, one-click example that is a <i>well-formed V1 world</i> carrying one broken <code class="inline">ir</code> declaration</td><td><b>admitted under <code class="inline">v2</code> and refused there</b> — never sealed by falling back. This is the example a fallback would have handled most convincingly, which is why it is the one that is published: a page that quietly downgraded it would show a reader a real <code class="inline">sem-</code> and no sign that anything went wrong</td><td><a href="#d8-admission">D8.17</a></td><td class="stage">surface · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="the-world-id-is-authoritative-in-both-encodings" data-pending-for="D8.18" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/projection/the-world-id-is-authoritative-in-both-encodings"><td>a V1 world and a V2 world put through <i>one</i> projection function, with no family argument passed to either, and a third call handed a forged <code class="inline">sem-000…0</code></td><td><b>each arm reports its own world's id</b>, flagged derived / not canonical / not in the artifact bytes; the forged claim is refused with <code class="inline">WRL_SEMANTIC_ID_MISMATCH</code>. A consumer holding a projection never has to ask which encoding it came from before knowing which id is the world's — and a projection that believed a caller's id would mint every binding under whatever it was told</td><td><a href="#d8-projection">D8.18</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="the-execution-view-id-names-only-projected-bytes" data-pending-for="D8.18" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/projection/the-execution-view-id-names-only-projected-bytes"><td>the view id of a V2 world's projection, recomputed from <code class="inline">execution_artifact</code> by the same function a runtime would use on it</td><td><b>the runtime's own answer</b> — it lands on the pinned demo world and differs from the world id. The danger was never that this number would be wrong; it is that it is right, and looks exactly like a world</td><td><a href="#d8-projection">D8.18</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="a-runtime-executes-the-execution-artifact" data-pending-for="D8.18" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/projection/a-runtime-executes-the-execution-artifact"><td>what crosses the runtime boundary, compared against the seal the spine already performed on the way in</td><td><b>V1 bytes, byte-equal to the spine's own reading</b> — <code class="inline">edges</code> and no <code class="inline">relations</code>, in the frozen version family, while the semantic artifact beside it carries the opposite pair. The encoding stops here, which is the whole of what V2 claims about its own blast radius</td><td><a href="#d8-projection">D8.18</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="an-observation-names-the-relation-not-the-edge" data-pending-for="D8.18" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/projection/an-observation-names-the-relation-not-the-edge"><td>the same four edges derived twice — once as the projected world's own relations, once as the V2 world's bindings</td><td><b>every <code class="inline">rev-</code> shared and not one <code class="inline">rel-</code> shared.</b> Structure is the same world; identity is not. So a runtime reporting against an edge cannot re-derive the relation it belongs to — it has to be told, and <code class="inline">legacy_edge</code> is the telling</td><td><a href="#d8-projection">D8.18</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="the-execution-view-id-is-not-a-world-scope" data-pending-for="D8.18" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/projection/the-execution-view-id-is-not-a-world-scope"><td>this world's own seeds expanded under the <i>view</i> id — the forbidden thing, done deliberately</td><td><b>relation ids the world does not hold</b>, arrived at by correct arithmetic from real inputs; under the world id the same seeds mint exactly the ids it does. Nothing about the wrong one looks wrong, which is why the rule is a prohibition rather than a validation</td><td><a href="#d8-projection">D8.18</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="every-binding-is-independently-recomputable" data-pending-for="D8.18" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/projection/every-binding-is-independently-recomputable"><td>every binding recomputed from <code class="inline">semantic_artifact</code> alone, in both encodings, and the key set of a binding record</td><td><b>the envelope's own answer, and exactly three fields.</b> The narrowness is part of the law: a projection shipping its own preimages would be offering a check against itself</td><td><a href="#d8-projection">D8.18</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="a-v1-native-world-is-the-coincident-case" data-pending-for="D8.18" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/projection/a-v1-native-world-is-the-coincident-case"><td>a V1 world's projection, beside a V2 world's</td><td><b>coincident: the two ids are equal and the two artifacts are the same bytes</b>, and the envelope says so rather than leaving it to be noticed. Totality over both encodings is what lets the first clause be stated without an <i>unless</i></td><td><a href="#d8-projection">D8.18</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="bindings-are-not-positional-against-the-edges" data-pending-for="D8.18" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/projection/bindings-are-not-positional-against-the-edges"><td>the binding list and the projected edge list of one world, compared index by index</td><td><b>the same edges in different orders</b> — V2 sorts by seed bytes, V1 by edge, and neither ordering is wrong. A consumer joining on the index would produce a total, plausible, entirely mis-attributed mapping, and the pinned demo world is one where it happens</td><td><a href="#d8-projection">D8.18</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="a-surface-crosses-the-runtime-boundary-through-the-envelope" data-pending-for="D8.18" data-pending-status="executable" data-pending-stage="surface" data-pending-check="playground/the-projection-comes-from-the-envelope"><td>the published surface, swept for how it arrives at the execution view it shows — and for whether it takes the short way to one</td><td><b>one function, called once per family, and no second route to the same number.</b> A page that projected the artifact itself and sealed the result would hold a real <code class="inline">sem-</code> with nothing attached saying it is not the world's, and would be free to label it anything; a raw downgrade is not <i>wrong</i>, it is <b>mute</b>, and every id it produces is correct. Calling the envelope in the V1 arm as well is the same rule: a page that asked for a projection only when the encoding was V2 would be treating <a href="#d8-projection">D8.18</a>'s coincident case as a feature V1 happens not to need</td><td><a href="#d8-projection">D8.18</a></td><td class="stage">surface · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="unpinned-reference-is-refused" data-pending-for="D9.1" data-pending-status="awaiting" data-pending-stage="film"><td>a package whose reference resolves only through a service it does not pin</td><td><b>refused</b> — replay must not depend on a contract the package never stated</td><td><a href="#d9-closure">D9.1</a></td><td class="stage">film · awaiting</td></tr>
 <tr data-pending-law="birth-key-survives-rescheduling" data-pending-for="D9.2" data-pending-status="awaiting" data-pending-stage="runtime"><td>same birth proposed at period 20 and at period 21</td><td>same <code class="inline">RelationBirthKey</code>, different <code class="inline">ScheduledTransition</code></td><td><a href="#d9-transition">D9.2</a></td><td class="stage">runtime · awaiting</td></tr>
 <tr data-pending-law="evidence-does-not-fork-structure" data-pending-for="D9.2" data-pending-status="awaiting" data-pending-stage="runtime"><td>same schedule, different <code class="inline">offered_evidence</code></td><td>one structural candidate, two proposal envelopes</td><td><a href="#d9-transition">D9.2</a></td><td class="stage">runtime · awaiting</td></tr>

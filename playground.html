@@ -755,8 +755,9 @@ async function renderCorrespondence(r) {
 
 const IDNOTE = {
   v1: "IR 1.0 · the encoding is not declared, so the frozen V1 spine reads " +
-      "this text · a V1 world runs as itself, so its world id and its " +
-      "execution view id are one id wearing both hats",
+      "this text · the second row comes from the same projection envelope a " +
+      "V2 world gets, and what it says about this one it worked out rather " +
+      "than assumed",
   v2: "IR 2.0 · declared in the source · TWO IDS, TWO CLAIMS — the upper one " +
       "names this world and is what a grant, a revision or a ledger event is " +
       "scoped to; the lower one identifies only the V1 bytes this world would " +
@@ -767,7 +768,13 @@ function setFamily(r) {
   const v2 = r.ok && r.family === "v2";
   $("panel-seeds").hidden = !v2;
   $("panel-projection").hidden = !v2;
-  $("idrow-exec").hidden = !v2;
+  /* §D8.18 law 7: the envelope is TOTAL, so the second row is not a V2
+     feature. A V1 world has an execution view too; it happens to be itself,
+     and the row is where that is SHOWN instead of asserted in a caption. The
+     projection BYTES panel stays V2-only, because for a V1 world it would be
+     a second copy of the canonical-bytes panel two panels above it -- same
+     bytes, and a reader who saw them twice would reasonably wonder which. */
+  $("idrow-exec").hidden = !r.ok;
   $("tag-world").textContent = v2 ? "Semantic V2 world id" : "SemanticArtifactID";
   $("bytes-title").textContent =
     v2 ? "Canonical V2 artifact bytes" : "Canonical artifact bytes";
@@ -848,9 +855,32 @@ async function renderV1(r) {
     $("out-relations").innerHTML =
       renderRelations(await R.deriveRelations(r.artifact, r.semanticId));
     $("out-corr").innerHTML = await renderCorrespondence(r);
+    /* the SAME call the V2 arm makes, with no family argument, which is the
+       only way the page can show that law 1 holds without an "unless" */
+    showProjection(await V2.deriveRuntimeProjection(r.artifact, r.semanticId));
   } catch (e) {
     $("out-relations").innerHTML = $("out-corr").innerHTML = derivationFailed(e);
+    clearProjection();
   }
+}
+
+/* §D8.18. The page asks the envelope and prints what it says. It does not
+   downgrade the artifact itself and then decide what the result means --
+   which is what it used to do, and what ruling 2 refused: a raw downgrade
+   hands over a `sem-` with nowhere to say that it is not the world's. */
+function showProjection(p) {
+  $("execid").textContent = p.execution_view_id;
+  $("exactnote").className = "exact " + (p.coincident ? "yes" : "");
+  $("exactnote").textContent = p.coincident
+    ? "coincident — this world runs as itself"
+    : "";
+}
+
+function clearProjection() {
+  $("out-projection").textContent = "";
+  $("execid").textContent = "—";
+  $("exactnote").className = "exact";
+  $("exactnote").textContent = "";
 }
 
 async function renderV2(r) {
@@ -866,20 +896,27 @@ async function renderV2(r) {
   $("diag").innerHTML = "";
 
   try {
-    /* The projection is computed from the V2 ARTIFACT, and then checked
-       against the artifact the spine independently sealed from the de-named
-       text. That they agree byte for byte is what "the projection is exact"
-       means, and it is worth computing rather than asserting. */
-    const projection = V2.runnableV1Artifact(r.artifact);
-    const pbytes = W.serializeArtifact(projection);
+    /* The envelope of §D8.18, asked once, for everything about the runtime
+       boundary. What the page adds on top is one thing the envelope cannot
+       know: whether the bytes it projected agree with the artifact the spine
+       INDEPENDENTLY sealed from the de-named text. That is a fact about two
+       different readings of one world meeting, so it is computed here, from
+       the two objects, rather than asserted anywhere. */
+    const p = await V2.deriveRuntimeProjection(r.artifact, r.semanticWorldId);
+    const pbytes = W.serializeArtifact(p.execution_artifact);
     const exact = pbytes === W.serializeArtifact(r.denamedV1Artifact);
     $("out-projection").textContent = pbytes;
-    $("execid").textContent = await R.worldIdOfArtifact(projection);
+    showProjection(p);
     $("exactnote").className = "exact " + (exact ? "yes" : "no");
     $("exactnote").textContent = exact
       ? "byte-exact against the spine's own reading"
       : "DIVERGES from the spine's own reading";
 
+    /* the DERIVED view, which is a different object from the projection and
+       stays a separate call: it carries the seed and the allocation each id
+       came from, so a reader can follow the derivation. The envelope
+       deliberately carries neither -- a projection shipping its own preimages
+       would be offering a check against itself (§D8.18 clause 6). */
     const view = await V2.deriveV2Relations(r.artifact, r.semanticWorldId);
     $("out-seeds").innerHTML = renderSeeds(view);
     $("out-relations").innerHTML = renderRelations(view);
@@ -887,9 +924,7 @@ async function renderV2(r) {
   } catch (e) {
     $("out-seeds").innerHTML = $("out-relations").innerHTML =
       $("out-corr").innerHTML = derivationFailed(e);
-    $("out-projection").textContent = "";
-    $("execid").textContent = "—";
-    $("exactnote").textContent = "";
+    clearProjection();
   }
 }
 
