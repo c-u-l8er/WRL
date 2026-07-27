@@ -1,4 +1,4 @@
-Captured 2026-07-27T14:29:03Z -- worktree /tmp/trvm-c4 (branch c4-projection, base d09472e)
+Captured 2026-07-27T16:49:19Z -- worktree /tmp/trvm-c4 (branch c4-projection, base d09472e)
 Python Python 3.14.2, node v25.2.1
 
 ======== probe3.py ========
@@ -58,37 +58,28 @@ control
   ok   the-untouched-record                       admitted
   ok   the-untouched-bigint-record                admitted
 
-lying claims
+the committed tampers
 
+  ok   the-corpus-is-the-expected-set             wrl.projection-negative-vectors.1, 15 vectors
   ok   a-lying-semantic-world-id                  WRL_SEMANTIC_ID_MISMATCH
   ok   a-lying-execution-view-id                  WRL_PROJECTION_MISMATCH
-
-the bindings
-
   ok   reordered-relation-bindings                WRL_PROJECTION_MISMATCH
   ok   a-changed-relation-id                      WRL_PROJECTION_MISMATCH
   ok   a-changed-revision-id                      WRL_PROJECTION_MISMATCH
   ok   a-changed-legacy-edge                      WRL_PROJECTION_MISMATCH
-
-the record's shape
-
   ok   an-extra-field                             WRL_BAD_PROJECTION
   ok   a-missing-field                            WRL_BAD_PROJECTION
   ok   an-unknown-projection-version              WRL_BAD_PROJECTION
-
-the bytes themselves
-
   ok   a-duplicate-json-key                       WRL_BAD_PROJECTION
   ok   insignificant-whitespace                   WRL_BAD_PROJECTION
   ok   trailing-bytes                             WRL_BAD_PROJECTION
   ok   noncanonical-key-order                     WRL_BAD_PROJECTION
-
-exactness
-
   ok   an-unsafe-integer-rounded                  WRL_SEMANTIC_ID_MISMATCH
   ok   a-non-integral-number                      WRL_BAD_PROJECTION
 
-17 passed, 0 failed
+  15/15 refusals in the vocabulary the corpus records
+
+18 passed, 0 failed
 
 ======== probe5.py ========
 [pinned-fixture]
@@ -115,7 +106,7 @@ exactness
   ok   bigint-rotor/seal-is-the-view-id             
        -- not compiled: spinner w=64 exceeds the stated budget of 32.
           This world's IDENTITY is fully established above; only its
-          backend term is out of budget. See the module docstring.
+          backend term is out of budget. Re-run with --full to build it.
 
 [bigint-rotor-named]
   ok   bigint-rotor-named/carries-no-run-inputs     
@@ -123,24 +114,69 @@ exactness
   ok   bigint-rotor-named/seal-is-the-view-id       
        -- not compiled: spinner w=64 exceeds the stated budget of 32.
           This world's IDENTITY is fully established above; only its
-          backend term is out of budget. See the module docstring.
+          backend term is out of budget. Re-run with --full to build it.
 
 cross-encoding agreement
 
+  ok   named-relations/projects-to-the-same-view    sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a
   ok   named-relations/executes-as-pinned-fixture   same view id, same backend term
-  ok   bigint-rotor-named/projects-to-the-same-view sem-4f927defd2e60b03f3511670b0aead801c09e67facaf283a3bb9cf3857bd65d2 (identity only; neither was compiled)
+  ok   bigint-rotor-named/projects-to-the-same-view sem-4f927defd2e60b03f3511670b0aead801c09e67facaf283a3bb9cf3857bd65d2
+       -- bigint-rotor-named/executes-as-bigint-rotor not checked: out of budget.
+          Recorded under --full: bcnt-3f3aa11da1a0c6ff4c92133a1b7fa59fb4956ed4008ac8549ae37d5ffa6feff2
   ok   the-pinned-world-is-unmoved                  sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a
 
-21 passed, 0 failed
+22 passed, 0 failed
 
-======== probe6.py (Python produces) ========
+======== probe5.py --full ========
+(the two w=64 legs compiled rather than skipped; ~18 min)
+[pinned-fixture]
+  ok   pinned-fixture/carries-no-run-inputs         
+  ok   pinned-fixture/seals-locally                 sem-8ae91fe9cbc5fd086ce4...
+  ok   pinned-fixture/seal-is-the-view-id           
+  ok   pinned-fixture/compiles                      bcnt bcnt-8eba78591f1565d...
+
+[starter-world]
+  ok   starter-world/carries-no-run-inputs          
+  ok   starter-world/seals-locally                  sem-67e954cfe3115166b493...
+  ok   starter-world/seal-is-the-view-id            
+  ok   starter-world/compiles                       bcnt bcnt-37646c9db682e78...
+
+[named-relations]
+  ok   named-relations/carries-no-run-inputs        
+  ok   named-relations/seals-locally                sem-8ae91fe9cbc5fd086ce4...
+  ok   named-relations/seal-is-the-view-id          
+  ok   named-relations/compiles                     bcnt bcnt-8eba78591f1565d...
+
+[bigint-rotor]
+  ok   bigint-rotor/carries-no-run-inputs           
+  ok   bigint-rotor/seals-locally                   sem-4f927defd2e60b03f351...
+  ok   bigint-rotor/seal-is-the-view-id             
+  ok   bigint-rotor/compiles                        bcnt bcnt-3f3aa11da1a0c6f...
+
+[bigint-rotor-named]
+  ok   bigint-rotor-named/carries-no-run-inputs     
+  ok   bigint-rotor-named/seals-locally             sem-4f927defd2e60b03f351...
+  ok   bigint-rotor-named/seal-is-the-view-id       
+  ok   bigint-rotor-named/compiles                  bcnt bcnt-3f3aa11da1a0c6f...
+
+cross-encoding agreement
+
+  ok   named-relations/projects-to-the-same-view    sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a
+  ok   named-relations/executes-as-pinned-fixture   same view id, same backend term
+  ok   bigint-rotor-named/projects-to-the-same-view sem-4f927defd2e60b03f3511670b0aead801c09e67facaf283a3bb9cf3857bd65d2
+  ok   bigint-rotor-named/executes-as-bigint-rotor  same view id, same backend term
+  ok   bigint-rotor/matches-the-recorded-term       bcnt-3f3aa11da1a0c6ff4c92133a1b7fa59fb4956ed4008ac8549ae37d5ffa6feff2
+  ok   the-pinned-world-is-unmoved                  sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a
+
+26 passed, 0 failed
+EXIT=0
+
+======== probe6.py -> probe6.mjs ========
   emitted pinned-fixture   sem-8ae91fe9cbc5fd086ce4... (2581 bytes)
   emitted starter-world    sem-67e954cfe3115166b493... (2057 bytes)
   emitted bigint-rotor     sem-4f927defd2e60b03f351... (2613 bytes)
 
 wrote /tmp/trvm-c4/forge/python-wire.json -- verify it with:  node probe6.mjs
-
-======== probe6.mjs (JS verifies Python's bytes) ========
 producer: forge/wrl_projection.py (python)
 
   ok   pinned-fixture/verifies                        sem-8ae91fe9cbc5fd086ce4356d...
