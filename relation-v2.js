@@ -154,6 +154,8 @@ export const RELATION_V2_CODES = deepFreeze({
     "an adoption names a relation the world does not have",
   WRL_DUPLICATE_ADOPTION:
     "one relation is adopted twice, under two names",
+  WRL_INCOMPLETE_ADOPTION:
+    "an adoption leaves a legacy relation unnamed, and would seal it that way",
 });
 
 /* -------------------------------------------------- the V2 source family */
@@ -1050,31 +1052,58 @@ export async function migrationCorrespondence(sealedV1, sealedV2) {
  * The selector is the seed's own preimage -- `{ kind, src, dst }`, read out of
  * `V2_SEED_FIELDS` rather than restated -- so a caller names a relation by the
  * only name it has.
+ *
+ *   ADOPTION IS EXHAUSTIVE, AND THAT IS THE C.0 CORRECTION. B.6 allowed a
+ *   partial adoption and registered "a partly adopted world is still
+ *   unwritable" as a law. It is a true statement, and it was the wrong thing
+ *   to permit. Every partial step SEALS: the world `sem-` moves, every `rel-`
+ *   in the world is re-minted -- including the relations nobody touched -- and
+ *   what comes out is a world no surface can write. Adopting the rest moves
+ *   them all a second time. So a two-step adoption mints two throwaway
+ *   identities on the way to the one the author wanted, and every id it minted
+ *   is a real id of a real sealed world that can be stored, cited and
+ *   corresponded against.
+ *
+ *   A caller collecting names one at a time is doing EDITOR work, and editor
+ *   state is not sealed. Collect the names wherever you like; hand them over
+ *   once. `WRL_INCOMPLETE_ADOPTION` is what says so.
+ *
+ *   The law this buys is stronger than the one it replaces, and shorter:
+ *   a migrated world takes exactly one adoption to become writable.
  */
 
-/** An adoption assignment: the legacy seed's own fields, plus the new name. */
-export const V2_ADOPTION_FIELDS = deepFreeze(
+/**
+ * An adoption assignment: the legacy seed's own fields, plus the new name.
+ *
+ * Named for the thing it selects, not for the encoding it happens to run
+ * under. This shape is how you point at a relation THAT CAME THROUGH THE V1
+ * MIGRATION -- it is the `legacy-edge` preimage plus a name. A future rename,
+ * a re-adoption under a successor profile, or an adoption of some variant that
+ * does not exist yet would each need their own selector, and would each be
+ * wrong to fold in here. The B.6 spelling `V2_ADOPTION_FIELDS` claimed the
+ * general case and delivered the specific one.
+ */
+export const LEGACY_EDGE_ADOPTION_FIELDS = deepFreeze(
   [...V2_SEED_FIELDS["legacy-edge"], "relation_name"].sort());
 
 /**
- * A migrated world, with some or all of its relations given names. §D8.16.
+ * Name every legacy relation in a migrated world, in one act. §D8.16.
  *
  * Returns `{ artifact, correspondence }`. The correspondence pairs on
  * `revision_id`, which is available because the structure is exactly what
  * adoption leaves alone, and is a total bijection for the same reason.
  *
- * Adoption may be PARTIAL -- a caller names the relations it has names for --
- * and a partially adopted world is still unwritable by the surface. That is
- * not a special case to smooth over: the surface's requirement is that EVERY
- * route have a name, and half a name-set does not meet it.
+ * The assignment must be EXHAUSTIVE: exactly one for every `legacy-edge`
+ * relation in the world, no more and no fewer. A world with nothing left to
+ * adopt is not adoptable (`WRL_UNKNOWN_RELATION`), and a world with something
+ * left over is refused (`WRL_INCOMPLETE_ADOPTION`) rather than sealed
+ * half-named.
  */
 export async function adoptLegacyRelations(v2artifact, assignments) {
   const canonical = canonicalizeV2Artifact(v2artifact);
 
-  if (!Array.isArray(assignments) || assignments.length === 0)
-    fail("WRL_BAD_V2_ARTIFACT",
-         `an adoption is a non-empty list of assignments; adopting nothing ` +
-         `would move every id in the world and change nothing about it`,
+  if (!Array.isArray(assignments))
+    fail("WRL_BAD_V2_ARTIFACT", `an adoption is a list of assignments`,
          { fieldPath: "assignments" });
 
   /* the relations there are to adopt, keyed by the seed each one already is */
@@ -1082,6 +1111,20 @@ export async function adoptLegacyRelations(v2artifact, assignments) {
   for (const rel of canonical.relations)
     if (rel.identity_seed.variant === "legacy-edge")
       available.set(seedKey(rel.identity_seed), rel);
+
+  /* An EMPTY assignment list is not refused here -- it falls through to the
+   * exhaustiveness gate below, which is where it belongs and which gives it a
+   * far more useful message. What IS refused here is adopting a world with
+   * nothing adoptable in it, because there is no answer to give: every name
+   * offered names a relation that is not here, and offering none asks for a
+   * re-seal of identical bytes under a different name for the operation. */
+  if (available.size === 0)
+    fail("WRL_UNKNOWN_RELATION",
+         `this world has no unnamed relation, so nothing in it is adoptable. ` +
+         `A relation that already has a name is not re-adoptable: replacing ` +
+         `its name would be a rename, which is a different act with different ` +
+         `consequences for what an id meant`,
+         { fieldPath: "assignments" });
 
   const chosen = new Map();
   assignments.forEach((a, i) => {
@@ -1091,9 +1134,11 @@ export async function adoptLegacyRelations(v2artifact, assignments) {
            { fieldPath: where });
 
     const keys = Object.keys(a).sort();
-    if (W.serializeArtifact(keys) !== W.serializeArtifact(V2_ADOPTION_FIELDS))
+    if (W.serializeArtifact(keys) !==
+        W.serializeArtifact(LEGACY_EDGE_ADOPTION_FIELDS))
       fail("WRL_BAD_V2_ARTIFACT",
-           `an assignment carries exactly ${V2_ADOPTION_FIELDS.join(", ")}; ` +
+           `an assignment carries exactly ` +
+           `${LEGACY_EDGE_ADOPTION_FIELDS.join(", ")}; ` +
            `this one carries ${keys.join(", ") || "nothing"}`,
            { fieldPath: where });
 
@@ -1128,6 +1173,27 @@ export async function adoptLegacyRelations(v2artifact, assignments) {
 
     chosen.set(k, a.relation_name);
   });
+
+  /* EXHAUSTIVE, or refused. Everything above judged the assignments the caller
+   * DID supply; this judges the ones they did not. The two are separate
+   * questions and neither implies the other: naming four relations correctly
+   * says nothing about whether the world had five.
+   *
+   * Note which direction this runs. `available` holds what the world has and
+   * `chosen` holds what the caller named, so the leftovers are read off the
+   * WORLD -- a caller cannot satisfy this by knowing less than the world does. */
+  const unadopted = [...available.entries()]
+    .filter(([k]) => !chosen.has(k))
+    .map(([, rel]) => rel.identity_seed);
+  if (unadopted.length)
+    fail("WRL_INCOMPLETE_ADOPTION",
+         `${unadopted.length} of ${available.size} legacy relation(s) in this ` +
+         `world were not adopted. Adoption is one act: a partial one seals a ` +
+         `world that no surface can write, moves every id in it -- including ` +
+         `the untouched relations -- and moves them all again when the rest ` +
+         `are named. Collect the names as editor state, then adopt once`,
+         { fieldPath: "assignments",
+           locator: unadopted.map((s) => `${s.src}->${s.dst}`).sort().join(", ") });
 
   /* A repeated NAME is a repeated seed, and the encoder below refuses it --
    * including a name that collides with a relation this world already had.
@@ -1528,7 +1594,7 @@ export async function parseNamedWorld(source) {
  *      a route without one. So a migration produces a world that runs, seals
  *      and compares, but is not authorable text until someone names its
  *      relations. That limit is real, and it is now EXITABLE: `adoptLegacy-
- *      Relations` (§D8.16) is the operation that supplies the names, as an
+ *      Relations` (§D8.16) is the operation that supplies the names, as ONE
  *      explicit act with names the caller carries. What the formatter still
  *      may not do is mint them, which is the one thing §D8.1 forbids.
  *

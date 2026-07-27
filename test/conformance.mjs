@@ -1540,11 +1540,18 @@ for (const [id, entries] of futurePairs) {
 }
 
 /* Markdown too -- README.md prints a world and an id, and is the first thing
- * anyone reads on the repository page. */
+ * anyone reads on the repository page.
+ *
+ * The sweep DISPATCHES ON THE SOURCE'S OWN DECLARATION, for the reason the
+ * playground has to: a V2 world and a V1 world are different bytes read by
+ * different parsers, and a documentation sweep that assumed V1 would either
+ * refuse a correct V2 example or -- worse -- fall back and print the id of a
+ * world the reader was not shown. Documenting an encoding is a use of it. */
 {
   const md = readFileSync(join(ROOT, "README.md"), "utf8");
+  const v2doc = await import("../relation-v2.js");
   const FENCE = /```[a-z]*\n([\s\S]*?)```/g;
-  let m, i = 0, worlds = 0;
+  let m, i = 0, worlds = 0, v2worlds = 0;
   while ((m = FENCE.exec(md)) !== null) {
     i++;
     if (!isWorld(m[1])) continue;
@@ -1555,9 +1562,22 @@ for (const [id, entries] of futurePairs) {
     const claimed = /```[a-z]*\n\s*(sem-[0-9a-f]{64})\s*\n```/.exec(after);
     if (!ok(`doc/README#${i}-states-an-id`, !!claimed,
             "a complete world in the README must be followed by the id it seals to")) continue;
-    await expectSeal(`doc/README#${i}`, m[1], claimed[1]);
+    if (!/^[ \t]*ir\s/m.test(m[1])) { await expectSeal(`doc/README#${i}`, m[1], claimed[1]); continue; }
+
+    v2worlds++;
+    const r = await v2doc.parseNamedWorld(m[1]);
+    if (!r.ok) { ok(`doc/README#${i}`, false, `rejected ${r.code}: ${r.message}`); continue; }
+    const id = await v2doc.v2WorldIdOfArtifact(r.artifact);
+    if (ok(`doc/README#${i}`, id === claimed[1],
+           `got  ${id}\n      want ${claimed[1]}`))
+      /* so the id-literal sweep below accepts it: a V2 world id is a `sem-`
+         like any other, and it is produced by this build. */
+      verified.set(id, `README block ${i} (ir 2.0)`);
   }
   ok("doc/README-has-a-world", worlds > 0, "the README should show a world");
+  ok("doc/README-shows-both-encodings", v2worlds > 0,
+     "the README describes Semantic IR 2.0 but shows no V2 world, so the " +
+     "encoding it documents is the one thing on the page nothing checks");
 }
 
 /* Finally: every id LITERAL published anywhere, in a code block or in running
@@ -4052,7 +4072,7 @@ for (const [id, entries] of futurePairs) {
   }
 
   /* -- §D8.16: adoption is the way OUT of the state a migration leaves a
-   *    world in, and it is an ACT rather than a fix-up.
+   *    world in, and it is one ACT rather than a fix-up.
    *
    * Without it the migration is a one-way door out of the language: a
    * migrated world runs, seals and compares, and can never again be handed to
@@ -4124,6 +4144,16 @@ for (const [id, entries] of futurePairs) {
     const sel = { kind: one.kind, src: one.src, dst: one.dst };
     const at = (a) => refuseAsync(() => v2.adoptLegacyRelations(migrated, a));
 
+    /* every legacy selector in this world, so a case can be exhaustive in
+     * everything except the one mistake it is testing. Since C.0 made adoption
+     * atomic, a case that names a SUBSET is refused for being a subset, and
+     * would never reach the rule it meant to exercise. */
+    const every = migrated.relations.map((r) => {
+      const e = s.projectRelationRevisionToV1Edge(r.revision);
+      return { kind: e.kind, src: e.src, dst: e.dst };
+    });
+    const namedBy = (f) => every.map((x, i) => ({ ...x, relation_name: f(i) }));
+
     const nothing = await at([]);
     /* an absent key and a present-but-empty one are different mistakes and
      * get different answers: one assignment is the wrong SHAPE, the other is
@@ -4135,17 +4165,15 @@ for (const [id, entries] of futurePairs) {
                                  relation_name: "g" }]);
     const twice = await at([{ ...sel, relation_name: "a" },
                             { ...sel, relation_name: "b" }]);
+    /* exhaustive, and two of the names are the same one -- so this reaches the
+     * ENCODER, which is where a repeated name has always been refused */
     const collide = migrated.relations.length > 1
-      ? await at(migrated.relations.slice(0, 2).map((r) => {
-          const e = s.projectRelationRevisionToV1Edge(r.revision);
-          return { kind: e.kind, src: e.src, dst: e.dst,
-                   relation_name: "same" };
-        }))
+      ? await at(namedBy((i) => (i < 2 ? "same" : `n${i}`)))
       : "WRL_DUPLICATE_RELATION_SEED";
     const stray = await at([{ ...sel, relation_name: "a", note: "hi" }]);
 
     ok("relation/v2/adoption/a-name-is-supplied-never-generated",
-       nothing === "WRL_BAD_V2_ARTIFACT" &&
+       nothing === "WRL_INCOMPLETE_ADOPTION" &&
        omitted === "WRL_BAD_V2_ARTIFACT" &&
        nameless === "WRL_MISSING_RELATION_NAME" &&
        notAName === "WRL_BAD_RELATION_NAME" &&
@@ -4161,33 +4189,69 @@ for (const [id, entries] of futurePairs) {
        `eight produces a name`);
   }
 
-  /* -- adoption may be PARTIAL, and a partially adopted world is still not
-   *    writable.
+  /* -- adoption is ATOMIC: one act, or none. C.0.
    *
-   * The surface's requirement is that EVERY route carry a name, and half a
-   * name-set does not meet it. Recording that here rather than smoothing it
-   * over is what keeps `formatNamedWorld`'s refusal a statement about names
-   * rather than about migrations. */
+   * B.6 allowed a partial adoption and registered "a partly adopted world is
+   * still unwritable" as a law. Every word of that was true and it was the
+   * wrong thing to permit, which is a distinction the register is not built
+   * to make -- a passing check does not ask whether the behaviour it pins
+   * should exist.
+   *
+   * What a partial adoption actually did: SEAL. The half-named world is a
+   * real world with a real `sem-`, every `rel-` in it re-minted -- including
+   * the relations nobody touched, because §D8.5 scopes them to a world id
+   * that just moved -- and no surface can write it. Adopting the rest moves
+   * every id a second time. So naming four relations two at a time minted two
+   * throwaway worlds whose ids are indistinguishable from wanted ones, and
+   * left a caller who stopped halfway with an artifact that runs, seals,
+   * compares, and cannot be edited.
+   *
+   * The distinction that dissolves it: collecting names is EDITOR work and
+   * editor state is not sealed. So the refusal is not a restriction on what a
+   * caller may want -- it is a statement about where the seal goes.
+   *
+   * Three things, and the third is the one that makes it a law rather than a
+   * preference: the partial is refused, the exhaustive one succeeds, and the
+   * refused partial left NOTHING behind. */
   if (migrated.relations.length > 1) {
-    const e = s.projectRelationRevisionToV1Edge(migrated.relations[0].revision);
-    const { artifact: half } = await v2.adoptLegacyRelations(migrated,
-      [{ kind: e.kind, src: e.src, dst: e.dst, relation_name: "only_one" }]);
+    const every = migrated.relations.map((r) => {
+      const e = s.projectRelationRevisionToV1Edge(r.revision);
+      return { kind: e.kind, src: e.src, dst: e.dst };
+    });
+    const beforeBytes = W.serializeArtifact(migrated);
 
-    const variants = [...new Set(
-      half.relations.map((r) => r.identity_seed.variant))].sort();
-    const written = refuse(() => v2.formatNamedWorld(half));
-    /* and the one that WAS adopted cannot be adopted again -- it has a name */
-    const again = await refuseAsync(() => v2.adoptLegacyRelations(half,
-      [{ kind: e.kind, src: e.src, dst: e.dst, relation_name: "twice" }]));
+    const partial = await refuseAsync(() => v2.adoptLegacyRelations(migrated,
+      [{ ...every[0], relation_name: "only_one" }]));
 
-    ok("relation/v2/adoption/a-partly-adopted-world-is-still-unwritable",
-       W.serializeArtifact(variants) ===
-         W.serializeArtifact(["legacy-edge", "named-initial"]) &&
-       written === "WRL_UNWRITABLE_SEED" && again === "WRL_UNKNOWN_RELATION",
-       `a half-adopted world holds [${variants.join(", ")}] and the ` +
-       `formatter still refuses it: ${written}. Re-adopting the named one ` +
-       `-> ${again}: a relation that has a name is not adoptable, and ` +
-       `replacing its name would be a rename rather than an adoption`);
+    /* the same call minus the mistake: exhaustive, and it writes */
+    const { artifact: whole } = await v2.adoptLegacyRelations(migrated,
+      every.map((x, i) => ({ ...x, relation_name: `whole_${i}` })));
+    const written = (() => {
+      try { return typeof v2.formatNamedWorld(whole) === "string"; }
+      catch { return false; }
+    })();
+    const allNamed = whole.relations.every(
+      (r) => r.identity_seed.variant === "named-initial");
+
+    /* nothing was minted on the way through the refusal, and the world the
+     * caller passed in is untouched -- an adoption that throws must not have
+     * been half-applied to its argument */
+    const argumentIntact = W.serializeArtifact(migrated) === beforeBytes;
+
+    /* and an adopted world is not re-adoptable: every relation has a name */
+    const again = await refuseAsync(() => v2.adoptLegacyRelations(whole,
+      [{ ...every[0], relation_name: "twice" }]));
+
+    ok("relation/v2/adoption/adoption-is-atomic-or-refused",
+       partial === "WRL_INCOMPLETE_ADOPTION" && written && allNamed &&
+       argumentIntact && again === "WRL_UNKNOWN_RELATION",
+       `adopting 1 of ${every.length} -> ${partial}, and the argument was ` +
+       `left byte-identical: ${argumentIntact}. All ${every.length} at once ` +
+       `-> every seed named-initial: ${allNamed}, formatter writes it: ` +
+       `${written}. Re-adopting an already-named relation -> ${again}. ` +
+       `A migrated world takes exactly one adoption to become writable, and ` +
+       `a partial one would have sealed an unwritable world and re-minted ` +
+       `every id in it twice`);
   }
 
   }
@@ -4526,6 +4590,67 @@ ir 2.0
        `no rel- would mean the name is not the preimage. Every rel- moves ` +
        `rather than just the renamed one because the world id is in every ` +
        `allocation (D8.10 clause 5)`);
+  }
+
+  /* -- the same authored name, in two worlds, is two relations. §D8.5, and
+   *    the half of it that was registered `surface · awaiting`. B.7.
+   *
+   * The row said the arithmetic was settled and the surface half untestable,
+   * "because there is no syntax for naming a relation". There has been since
+   * B.4. The row was true when it was written and nobody re-read it once the
+   * syntax landed -- which is the ordinary way a register goes stale, and
+   * exactly what a register is for.
+   *
+   * The check needs a vacuity guard more than most, because the obvious
+   * spelling proves nothing. Two worlds with different names would of course
+   * derive different `rel-`s, and that is not §D8.5 -- it is just seeds being
+   * preimages. What §D8.5 says is that the SAME name is a different relation
+   * in a different world, so the two worlds must carry BYTE-IDENTICAL seeds
+   * and differ somewhere else entirely.
+   *
+   * So the second world changes a pulser's clock, which touches no route.
+   * That leaves the sharpest possible form of the law standing: every seed is
+   * identical, every `rev-` recurs -- the revisions really are the same
+   * structure -- and every `rel-` still moves, because the only thing that
+   * changed is the world the name is scoped to. If a `rel-` survived here, a
+   * name would be a global identifier and two authors could collide across
+   * worlds that never met. */
+  {
+    const other = await v2.parseNamedWorld(
+      NAMED_DEMO.replace("(every 2)", "(every 3)"));
+
+    const a = await v2.deriveV2Relations(parsed.artifact);
+    const b = await v2.deriveV2Relations(other.artifact);
+
+    const seeds = (art) => W.serializeArtifact(
+      art.relations.map((r) => v2.seedKey(r.identity_seed)).sort());
+    const names = (art) => art.relations
+      .map((r) => r.identity_seed.relation_name).sort();
+
+    /* the guard: same names, and in fact the same seed bytes */
+    const sameSeeds = other.ok &&
+      seeds(parsed.artifact) === seeds(other.artifact);
+    const nameCount = other.ok ? names(other.artifact).length : 0;
+
+    const worldMoved = other.ok && a.world_id !== b.world_id;
+    const bIds = new Set(b.relations.map((r) => r.relation_id));
+    const allMoved = other.ok &&
+      a.relations.every((r) => !bIds.has(r.relation_id));
+    /* and the structure genuinely did not move -- no route was touched */
+    const revs = (v) => W.serializeArtifact(
+      v.relations.map((r) => r.revision_id).sort());
+    const sameRevisions = other.ok && revs(a) === revs(b);
+
+    ok("relation/v2/surface/the-same-authored-name-is-world-scoped",
+       other.ok === true && sameSeeds && nameCount === 4 && worldMoved &&
+       allMoved && sameRevisions,
+       `two authored worlds carry the same ${nameCount} names with ` +
+       `byte-identical seeds: ${sameSeeds}, and the same revisions: ` +
+       `${sameRevisions}. Their world ids differ: ${worldMoved}, and not one ` +
+       `rel- survives: ${allMoved}. A name is scoped to the world that ` +
+       `minted it -- same name, same structure, different world, different ` +
+       `relation -- so no migration is implied between two worlds that ` +
+       `happen to have chosen the same words`);
   }
 
   /* -- the surface mints only what an author may write.

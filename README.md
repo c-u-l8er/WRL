@@ -201,6 +201,49 @@ import * as W from "./wrl.js";
 await W.selfCheck();   // re-seals the pinned demo world, asserts the frozen id
 ```
 
+### `relation-v2.js` — Semantic IR 2.0, where a relation has a name
+
+`relation-identity.js` derives a relation's identity from the edge key a V1
+world already has. That works, and it means a relation's name is
+`(kind, src, dst)` — so renaming an object renames the relation, and two routes
+between the same pair are one relation. **Semantic IR 2.0** is the encoding
+where an author writes the name instead:
+
+```
+profile forge.world.core.v1
+ir 2.0
+
+[pulser:p0](every 2){sig_out}
+[relay:r0]{sig_in, sig_out}
+
+[clock_feed]: [pulser:p0] --sig--> [relay:r0]
+```
+
+```
+sem-9a491fe3a718d8c7262458812c9c220c0bf4157fc2155616f99bcde44263b019
+```
+
+That id is checked by the same sweep that checks the V1 worlds above, and it is
+read by the **V2** parser because the source says `ir 2.0` — nothing else
+decides that, here or anywhere. The header is required, and an encoding a
+reader has to guess is an identity a reader gets to choose. A V2
+world stores `relations` where V1 stored `edges`, each one an
+`{ identity_seed, revision }` pair; no `world_id`, no `rel-`, no `rev-` is in
+the bytes, because all three are *derived* from them.
+
+`profile_id` does **not** move. V2 is a second encoding of the same worlds, not
+a second world model, and both pinned fixtures still seal to the same `sem-`
+they always did. A V1 world imports (`migrateV1ToV2`), a V2 world projects back
+(`downgradeV2ToV1`), and V1 → V2 → V1 is byte-exact.
+
+An imported world's relations carry `legacy-edge` seeds, which record that they
+crossed the migration *without ever being named* — a fact, not a gap, and one
+no surface may write. `adoptLegacyRelations` is how someone supplies the names,
+in one exhaustive act; nothing derives a name from the endpoints.
+
+§D8 and Semantic IR 2.0 are both **drafts**, and an implementation that runs
+does not settle the design it implements.
+
 ## Viewing locally
 
 Static files, no build step. `wrl.js` is an ES module, so open it over HTTP
@@ -217,7 +260,9 @@ then visit <http://localhost:8080/>.
 | Thing | State |
 |---|---|
 | WRL Core | **0.1.2 — frozen** (families only) |
-| Forge Semantic IR | **v1 — frozen** (`forge.world.core.v1`) |
+| Forge Semantic IR 1.x | **frozen** (`forge.world.core.v1`) |
+| Forge Semantic IR 2.0 | **draft — implemented**, [`relation-v2.js`](relation-v2.js); named relations over the *same* profile, both pinned ids unmoved |
+| §D8 relation model | **draft** — the period-0 arithmetic runs; §D8.4, §D8.6 and all of §D9 do not |
 | Surface sugar | `sugar.v2` — implemented, battery green, identity-equivalent, **not frozen** |
 | Route texture `--` | surface-grounded |
 | Route textures `~~` `==` `!!` | partial — the notation is frozen, the surface construct is not writable |
