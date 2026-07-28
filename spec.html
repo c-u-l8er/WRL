@@ -266,32 +266,15 @@ frozen <i>as kinds</i> but their detailed semantics remain draft.</p>
 
 <h2 id="s2"><span class="secnum">§2</span>The four reading laws<span class="frozen">frozen</span></h2>
 
-<p>These four laws constrain how a reader — human or tool — interprets WRL source.
-They are frozen as invariants of the notation, not as specific syntactic rules.</p>
-
 <ol>
 <li><b>Shape says what a thing is.</b> Bracket shape identifies the kind of
-object. <code class="inline">[x]</code> is an identity,
-<code class="inline">(x)</code> is state,
-<code class="inline">{x}</code> is wiring. A reader who knows only the brackets
-already knows whether they are looking at an actor, a cell or a port group.</li>
+object.</li>
 <li><b>Line texture says how it moves.</b> Route style identifies the operational
-guarantee. <code class="inline">--</code> settles this period;
-<code class="inline">~~</code> does not; <code class="inline">==</code> requires
-evidence; <code class="inline">!!</code> carries failure. No further reading is
-needed to know the timing and evidence class of a connection.</li>
-<li><b>The colon introduces; the slash bounds.</b> A single colon names
-(<code class="inline">[pulser:p0]</code>), a double colon quotes
-(<code class="inline">:: fragment //</code>), a single slash gates
-(<code class="inline">/gate</code>), a double slash commits
-(<code class="inline">//commit</code>), a triple slash seals
-(<code class="inline">///seal</code>). Both families cap at three strokes, ordered
-by permanence: transient · committed · sealed.</li>
+guarantee.</li>
+<li><b>The colon introduces; the slash bounds.</b> Both families cap at three
+strokes, ordered by permanence: transient · committed · sealed.</li>
 <li><b>Marks for architecture, words for computation.</b> Process notation owns
-punctuation; expression notation defaults to words. Brackets, dashes, tildes,
-equals and bangs are architecture; variable names, function names and
-<code class="inline">let</code>/<code class="inline">when</code>/<code class="inline">match</code>
-are computation.</li>
+punctuation; expression notation defaults to words.</li>
 </ol>
 
 <h2 id="s3"><span class="secnum">§3</span>Container / shape-as-kind family<span class="frozen">frozen · 3 members</span></h2>
@@ -368,26 +351,12 @@ surface-grounded today:</p>
 
 <ul>
 <li>Logical time is <b>superdense</b>: every event carries
-<code class="inline">(period t, microstep m)</code>. The period is a natural
-number starting at 0; the microstep is a natural number that resets to 0 at the
-start of each period.</li>
+<code class="inline">(period t, microstep m)</code>.</li>
 <li>A <b>period</b> is the settle-and-commit unit; same-period events are ordered
-by microstep. The six-phase period cycle (§8) runs to completion within a single
-period. Signals on <code class="inline">--</code> routes settle within the
-period's REACT phase; signals on <code class="inline">~~</code> routes are
-observable no earlier than the next period.</li>
+by microstep.</li>
 <li>Wall-clock enters only through an explicit boundary and is recorded as a
-signed fact; <b>wall-clock is never replayable state, logical time is</b>. Two
-replays of the same film that disagree on wall-clock still produce the same
-committed state, because no committed state depends on wall-clock.</li>
+signed fact; <b>wall-clock is never replayable state, logical time is</b>.</li>
 </ul>
-
-<p><b>Clock sugar.</b> The surface forms <code class="inline">every N</code>
-(periodic) and <code class="inline">once at E</code> (one-shot at epoch
-<code class="inline">E</code>) desugar into the canonical parameters
-<code class="inline">mode=periodic, period=N, phase=0</code> and
-<code class="inline">mode=once, epoch=E</code> respectively. These are surface
-sugar (§17) and do not introduce new time concepts.</p>
 
 <p><b>Frozen:</b> the period/microstep model and the wall-clock-as-fact
 discipline. <b>Not frozen:</b> the tick surface syntax details.</p>
