@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>The WallRiderLang language guide</title>
-<meta name="description" content="The complete WallRiderLang guide: the ten construct kinds, containers, route textures, walls, periods, memory kinds, the deterministic period cycle, canonicalization, the identity ladder, and the surface you can write today.">
+<meta name="description" content="The complete WallRiderLang guide: the ten construct kinds, containers, route textures, walls, periods, memory kinds, the deterministic period cycle, canonicalization, the identity ladder, the surface you can write today, and every designed-but-unbuilt capability family with status and linked treatment.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
@@ -69,9 +69,16 @@
   <a href="#sugar">18 · Sugar</a>
   <a href="#boundary">19 · Worlds vs. runs</a>
   <a href="#diagnostics">20 · Diagnostics</a>
-  <span class="part-label">IV · Status</span>
-  <a href="#conformance">21 · Conformance families</a>
-  <a href="#road">22 · The road to Core 0.2</a>
+  <span class="part-label">IV · The full language</span>
+  <a href="#full-language">21 · Beyond the writable surface</a>
+  <a href="#expression">22 · Expression notation and types</a>
+  <a href="#process">23 · Process semantics</a>
+  <a href="#meta">24 · Metaprogramming</a>
+  <a href="#at-scale">25 · Programs at scale</a>
+  <a href="#topology-direction">26 · Topology direction</a>
+  <span class="part-label">V · Status</span>
+  <a href="#conformance">27 · Conformance families</a>
+  <a href="#road">28 · The road to Core 0.2</a>
 </aside>
 
 <div class="docbody">
@@ -814,9 +821,153 @@ world <b>runnable</b>. You cannot break a working world by typing badly into
 an editor.</p>
 
 <!-- ===================================================== PART IV -->
-<div class="part">Part IV · Status</div>
+<div class="part">Part IV · The full language</div>
 
-<h2 id="conformance">21 · Conformance families</h2>
+<h2 id="full-language">21 · Beyond the writable surface</h2>
+
+<p>Part III described the surface you can write today. This part describes
+everything the language is <b>designed to become</b> — the full authored design
+that has been specified, tier-marked, and published in the
+<a href="draft.html">Complete Design Draft</a>. Nothing in this part is writable
+today. Every capability named here links to its detailed treatment and carries
+its current status on three axes:
+<b>meaning</b> (how settled the definition is),
+<b>grounding</b> (how much of the toolchain executes it), and
+<b>writable</b> (whether you can type it). See
+<a href="reference.html#tiers">the three axes</a> for what each value means.</p>
+
+<div class="note warn"><b>Reading this part will not let you write more code
+today.</b> The writable surface is Part III, and nothing here changes that.
+What this part does is explain, for each designed-but-unbuilt family, what
+it <i>means</i>, why it is shaped that way, and what it is waiting on — so that
+a reader who encounters a capability name anywhere on this site can follow
+it back to its definition and its status without guessing.</div>
+
+<h2 id="expression">22 · Expression notation and types</h2>
+
+<p>The core surface is topology-only — declarations, edges, configuration. The
+authored design adds a full <b>expression notation</b> for computation within
+actors, specified in six drafted families. None of these are writable today; all
+are specified in the design draft.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Family</th><th>What it covers</th><th>Meaning</th><th>Writable</th><th>Detailed treatment</th></tr></thead>
+<tbody>
+<tr data-guide-capability="expression-notation"><td>Expression notation</td><td>values, data types, functions, pattern matching — the computational substrate</td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">no</span></td><td><a href="draft.html#punctuation">draft §10–§13</a></td></tr>
+<tr data-guide-capability="numerics"><td>Numerics</td><td>the numeric tower with determinism classes; every numeric type is classified by whether its arithmetic is exact, and no floating-point value crosses any boundary the film records</td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">no</span></td><td><a href="draft.html#numerics">draft §15</a></td></tr>
+<tr data-guide-capability="collections"><td>Collections</td><td><code class="inline">Set</code> vs <code class="inline">FactSet</code>, the four symbol kinds; a FactSet merges by lattice union and never retracts, mirroring the <code class="inline">{facts}</code> memory kind from <a href="#memory">§8</a></td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">no</span></td><td><a href="draft.html#collections">draft §16</a></td></tr>
+<tr data-guide-capability="generics-traits"><td>Generics and traits</td><td>parametric generics, traits, and hash-pinned coherence — no global trait registry; coherence is sealed per artifact, not per ecosystem</td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">no</span></td><td><a href="draft.html#traits">draft §14</a></td></tr>
+<tr data-guide-capability="resources"><td>Resources and ownership</td><td>affine handles with <code class="inline">borrow</code> and <code class="inline">move</code> — the ownership system beyond the single-owner invariant from <a href="#memory">§8</a>, generalized to user-defined types</td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">no</span></td><td><a href="draft.html#resources">draft §17</a></td></tr>
+<tr data-guide-capability="typed-ports"><td>Typed ports</td><td>ports carry a type, messages carry a schema — the prerequisite for every later feature that says <i>what</i> flows through a connection</td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">no</span></td><td><a href="draft.html#values">draft §11</a></td></tr>
+</tbody></table></div>
+
+<p>The expression notation's relationship to the topology surface follows the
+fourth reading law: <b>marks for architecture, words for computation</b>. Process
+notation owns the punctuation (<code class="inline">--</code>,
+<code class="inline">::</code>, <code class="inline">[]</code>); computation
+defaults to words so that arithmetic never competes with topology for symbols.
+This is the reason these six families have no surface grammar yet — the topology
+surface was designed and frozen first, and the expression notation follows the
+same deliberate ordering.</p>
+
+<h2 id="process">23 · Process semantics</h2>
+
+<p>The authored design specifies a full actor operating model: mailboxes,
+behaviour blocks, capabilities, supervision, verified transitions, and
+live-state migration. These build on the frozen period cycle
+(<a href="#cycle">§9</a>) and the route textures (<a href="#routes">§5</a>),
+and are ordered by the <a href="direction.html#ladder">dependency ladder</a> so
+that each step has what it needs beneath it.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Family</th><th>What it covers</th><th>Meaning</th><th>Writable</th><th>Detailed treatment</th></tr></thead>
+<tbody>
+<tr data-guide-capability="async-route"><td>Async route (<code class="inline">~~</code>)</td><td>a canonical logical route declaration <i>distinct from</i> the structural edge, plus a writable mailbox with declared capacity and overflow policy — see <a href="#routes">§5</a> for why this cannot simply be another edge kind</td><td><span class="tier core">settled</span></td><td><span class="tier prop">no</span></td><td><a href="draft.html#messages">draft §20.8</a></td></tr>
+<tr data-guide-capability="verified-route"><td>Verified route (<code class="inline">==</code>)</td><td>an evidence-backed transition under a named policy, requiring claimant, target, operation family, and policy — see <a href="#road">§28</a> for why it is not "almost free"</td><td><span class="tier core">settled</span></td><td><span class="tier prop">no</span></td><td><a href="draft.html#verify">draft §23</a></td></tr>
+<tr data-guide-capability="behaviours"><td>Behaviour blocks</td><td>user-written behaviour blocks that canonicalize to the same bytes as the drawn route form — a projection of the topology, not a second semantics</td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">no</span></td><td><a href="draft.html#behavior">draft §26</a></td></tr>
+<tr data-guide-capability="supervision"><td>Supervision</td><td>the supervision floor, caret ownership, and the <code class="inline">!!</code> fault route; the fault texture may only be promoted after a supervision floor actually exists (<a href="spec.html#s16">spec §16</a>)</td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">no</span></td><td><a href="draft.html#supervision">draft §24</a></td></tr>
+<tr data-guide-capability="effect-walls"><td>Effect walls</td><td>capability gates, effect rows, and seeded entropy — a computation that wants to touch the outside world must emit an effect-request crossing a declared boundary, which is what makes the film complete</td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">no</span></td><td><a href="draft.html#effects">draft §21</a></td></tr>
+<tr data-guide-capability="merge-routes"><td>Merge routes</td><td><code class="inline">&lt;~merge~&gt;</code> over a declared join-semilattice — the formal counterpart of the <code class="inline">{facts}</code> memory kind's lattice union</td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">no</span></td><td><a href="draft.html#merge">draft §22</a></td></tr>
+<tr data-guide-capability="migration"><td>Evolution and migration</td><td>live-state migration as a verified, evidence-carrying route — how an actor's schema changes under replay without breaking the film</td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">no</span></td><td><a href="draft.html#evolution">draft §27</a></td></tr>
+<tr data-guide-capability="podium"><td>Podium / ranking</td><td>the ranking boundary with a mandatory stable tie-breaker — how the language represents scored choice visible in the film</td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">no</span></td><td><a href="draft.html#podium">draft §20.7</a></td></tr>
+</tbody></table></div>
+
+<p>The <b>critical ordering constraint</b> among these: the async route must come
+before the verified route (telemetry is asynchronous), supervision must come before
+the fault route (a fault without supervision leaks), and effect walls must follow
+the verified route (a command leaving the world needs authorization). The
+<a href="direction.html#ladder">dependency ladder</a> details why.</p>
+
+<h2 id="meta">24 · Metaprogramming</h2>
+
+<p>Three of the ten construct kinds — Fragment, Stencil, Derive — are the
+metaprogramming family. Their meaning-roles are frozen as kinds
+(<a href="#kinds">§2</a>) but their detailed semantics remain draft or sketch.
+The six metaprogramming laws and three phases (read, expand, check) constrain
+what these constructs may do.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Family</th><th>What it covers</th><th>Meaning</th><th>Writable</th><th>Detailed treatment</th></tr></thead>
+<tbody>
+<tr data-guide-capability="metaprogramming"><td>Phases, fragments, stencils</td><td>the three metaprogramming phases (read, expand, check) and the six laws governing them; fragments are quoted graphs as movable data, stencils are parameterized fragment producers</td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">no</span></td><td><a href="draft.html#phases">draft §28–§31</a></td></tr>
+<tr data-guide-capability="derives"><td>Derives</td><td>stratified monotone graph functions with checkers — a derive transforms typed graphs, and a checker verifies the output without re-running the solver; see <a href="direction.html#p5">pillar 5</a> ("seal the answer, not the search")</td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">no</span></td><td><a href="draft.html#derives">draft §32</a></td></tr>
+<tr data-guide-capability="reflection"><td>Reflection</td><td>compile-time reflection is free; runtime reflection is gated behind a boundary — you may ask "what is this?" at build time but not at run time without capability</td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">no</span></td><td><a href="draft.html#reflection">draft §34</a></td></tr>
+</tbody></table></div>
+
+<div class="note"><b>Why derives matter to the topology direction.</b> The
+<a href="direction.html#demo-derive">road-network derive</a> demonstration
+shows the critical property: a derive can call an external route solver, and
+the result is a graph the checker can verify without trusting the solver.
+This is <a href="direction.html#p5">pillar 5</a> of the direction — seal the
+answer, not the search — and it is why the derive boundary needs both
+attributes (<a href="direction.html#ladder">step 4</a>) and effects
+(<a href="direction.html#ladder">step 9</a>) before it can be built.</div>
+
+<h2 id="at-scale">25 · Programs at scale</h2>
+
+<p>Four capabilities address the language at program-and-project scale: modules,
+build films, testing, and foreign functions.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Family</th><th>What it covers</th><th>Meaning</th><th>Writable</th><th>Detailed treatment</th></tr></thead>
+<tbody>
+<tr data-guide-capability="modules"><td>Modules and no-build</td><td>content-addressed modules and the no-build property — a module is identified by its content hash, so there is no build step that can produce a different answer on a different machine</td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">no</span></td><td><a href="draft.html#modules">draft §35–§36</a></td></tr>
+<tr data-guide-capability="testing"><td>Testing</td><td>tests and properties as first-class graph specifications — a test is a world, not a foreign assertion library</td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">no</span></td><td><a href="draft.html#testing">draft §37</a></td></tr>
+<tr data-guide-capability="ffi"><td>Foreign functions</td><td>foreign functions admitted only through a boundary — an FFI call is an effect, gated by a capability wall, and the film records what crossed the boundary</td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">no</span></td><td><a href="draft.html#ffi">draft §38</a></td></tr>
+</tbody></table></div>
+
+<h2 id="topology-direction">26 · Topology direction</h2>
+
+<p>The <a href="direction.html">Direction</a> document argues that WRL's purpose
+goes past conventional actor semantics into <b>executable topology</b> — giving
+domain relationships first-class canonical meaning. Five capabilities belong to
+this direction, and all of them sit on the
+<a href="direction.html#ladder">dependency ladder</a>.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Family</th><th>What it covers</th><th>Meaning</th><th>Writable</th><th>Detailed treatment</th></tr></thead>
+<tbody>
+<tr data-guide-capability="profile-mechanism"><td>Profile mechanism</td><td><code class="inline">ProfileSchemaV1</code> — the machinery a profile is written <i>in</i>: relation kinds, attribute types, units, bounded resources, and finite resolution tables. Declarative only — no expression notation required</td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">no</span></td><td><a href="spec.html#d6-bootstrap">spec Part II §D6.1</a></td></tr>
+<tr data-guide-capability="attributed-relations"><td>Attributed relations</td><td>typed attributes and units on a relation — <code class="inline">capacity=3</code> with a unit that arithmetic can check, not a name with no semantics</td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">no</span></td><td><a href="spec.html#d8">spec Part II §D8</a></td></tr>
+<tr data-guide-capability="resolved-terminals"><td>Resolved terminals</td><td>many drivers on one terminal, settled by a named resolution function — the bus-contention model from <a href="direction.html#demo-bus">demonstration B</a></td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">no</span></td><td><a href="spec.html#d8">spec Part II §D8</a></td></tr>
+<tr data-guide-capability="acausal-relations"><td>Acausal relations</td><td>undirected conserved-quantity connections settled by a solver wall — the power-grid model from <a href="direction.html#demo-grid">demonstration C</a></td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">no</span></td><td><a href="spec.html#d8">spec Part II §D8</a></td></tr>
+<tr data-guide-capability="dynamic-topology"><td>Dynamic topology</td><td>the eight topology operations (attach, detach, etc.) and their obligations — identities joining and leaving a running world</td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">no</span></td><td><a href="spec.html#d9">spec Part II §D9</a></td></tr>
+<tr data-guide-capability="domain-profiles"><td>Domain profiles</td><td>a complete production package — mobility, electrical, logistics, robotics — pinning roles, ports, units, laws, and film schemas using the step-3 mechanism. <b>Step 11</b> (last) because a profile can only pin things that already exist</td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">no</span></td><td><a href="draft.html#profiles">draft §41</a></td></tr>
+</tbody></table></div>
+
+<div class="note"><b>Why the profile is last.</b> A mobility profile is step 11 —
+the last rung of the <a href="direction.html#ladder">dependency ladder</a> — because
+a profile pins roles, ports, units, laws, and film schemas. It can only pin things
+that exist. Building it before typed ports and behaviours would smuggle in a role
+system by example, which is the failure <a href="spec.html#s16-2">§16.2</a>
+already refuses. See
+<a href="direction.html#first">the first real test</a> for the order that does
+work.</div>
+
+<!-- ===================================================== PART V -->
+<div class="part">Part V · Status</div>
+
+<h2 id="conformance">27 · Conformance families</h2>
 
 <p>These observable properties are frozen as families of guarantee. Their exact
 test matrices remain draft.</p>
@@ -841,7 +992,7 @@ test matrices remain draft.</p>
 of external observations — the signed facts crossing effect walls — the committed
 film is byte-identical across any hardware scheduling.</b></div>
 
-<h2 id="road">22 · The road to Core 0.2</h2>
+<h2 id="road">28 · The road to Core 0.2</h2>
 
 <p>The promotion order below is <b>steered, not merely preferred</b>. Each step
 supplies something the next one needs, so reordering them produces constructs
