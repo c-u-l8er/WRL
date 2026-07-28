@@ -54,6 +54,7 @@
   <a href="#about">What this page is</a>
   <a href="#tiers">The three tiers</a>
   <a href="#reality">The reality check</a>
+  <a href="#topology-reconciliation">Topology reconciliation</a>
   <span class="part-label">II · The expression notation</span>
   <a href="#punctuation">10 · The punctuation rule</a>
   <a href="#values">11 · Values and data types</a>
@@ -106,10 +107,7 @@
 capabilities, supervision, mailboxes, behavior blocks, fragments, stencils,
 derives, sealed tools, modules, build films, tests, FFI — with every section
 carrying the tier its author assigned it, so you can read the language whole and
-see exactly where the implementation stops. The <b>later topology work</b> is
-not on this page; it is documented separately in
-<a href="direction.html">Direction</a> and
-<a href="spec.html#part2">Core Part II</a>.</p>
+see exactly where the implementation stops.</p>
 
 <div class="note"><b>Why the scope line matters.</b> This page is a record, not a
 roadmap that has been kept up to date. It says what the language's author
@@ -120,6 +118,27 @@ profiles — is <b>not</b> in the authored draft and has deliberately not been
 merged into it. Folding later thinking back into an authored document would
 destroy the one thing that makes it worth publishing: you would no longer be
 able to tell which decisions the design actually made.</div>
+
+<div class="note warn" id="topology-reconciliation"><b>How this page relates to the topology work.</b>
+<a href="spec.html#part2">Core Part II</a> and <a href="direction.html">Direction</a>
+develop five topics that post-date the authored draft: multilayer topology
+(<a href="spec.html#d1">§D1</a>), three connection kinds
+(<a href="spec.html#d2">§D2</a>), route axes versus textures
+(<a href="spec.html#d3">§D3</a>), walls as computation boundaries
+(<a href="spec.html#d4">§D4</a>), and derives sealing the answer rather than
+the search (<a href="spec.html#d5">§D5</a>). Those topics are
+<b>not merged into this page</b> — the scope note above says why — but several
+sections below touch the same ground from the authored side. Where the two
+documents meet, a reconciliation note says so, names the Part II section, and
+states which document governs. The five points of contact are:
+<ul style="margin:10px 0 0;padding-left:20px">
+<li><a href="#entities">§19</a> (runtime entities) vs <a href="spec.html#d8">§D8</a> (Relation, not Edge)</li>
+<li><a href="#boundaries">§20.6</a> (boundary operators) vs <a href="spec.html#d4">§D4</a> (walls change the model of computation)</li>
+<li><a href="#traits">§14.2</a> (traits) vs <a href="spec.html#d2">§D2</a> (resolver contracts on resolved terminals)</li>
+<li><a href="#derives">§32</a> (derives) vs <a href="spec.html#d5">§D5</a> (derives seal the answer, not the search)</li>
+<li><a href="#profiles">§41</a> (execution profiles) vs <a href="spec.html#d6">§D6</a> (profiles carry domains, not construct kinds)</li>
+</ul>
+</div>
 
 <h2 id="about">What this page is</h2>
 
@@ -408,6 +427,22 @@ instances implement <code class="inline">&lt;~merge~&gt;</code>.
 implementations. The abstraction mechanism of the expression notation and the
 policy mechanism of the process notation are <b>the same mechanism</b>.</p>
 
+<div class="note warn"><b>Reconciliation with <a href="spec.html#d2">§D2</a>.</b>
+The topology work adds a third policy that traits implement: <b>resolution
+functions</b> on resolved terminals. A resolved port admits many drivers and a
+named function reduces them to one value. <a href="spec.html#d2-two-resolutions">§D2.1</a>
+distinguishes three resolver contracts — canonical-map, parallel-fold and
+join — separated by the algebraic laws each pays. The join resolver is §22's
+<code class="inline">Merge</code> under the same three laws (associative,
+commutative, idempotent); the canonical-map resolver owes only purity, totality
+and determinism, deliberately admitting resolutions that
+<code class="inline">Merge</code> cannot express (e.g. "two enabled drivers is a
+fault"). <a href="spec.html#d6-bootstrap">§D6.1</a> restricts the initial
+profile kernel to <b>finite resolution tables</b> over enumerated types, so the
+expression notation from this section is not needed until step 5 of the
+<a href="direction.html#ladder">dependency ladder</a>. This section governs the
+trait mechanism; §D2 governs what resolution contracts it must serve.</div>
+
 <h3>14.3 · Coherence is hash-pinned <span class="tier exp">Experimental</span></h3>
 
 <p>Instance resolution is a <b>correctness</b> property here, not a style
@@ -572,6 +607,20 @@ operator</b> with a defined effect on memory.</p>
 content-addresses. <b>The finish line is literal</b>: crossing
 <code class="inline">//finish</code> <i>is</i> the canonicalize-and-record
 reduction, which is why it can feed a podium directly.</p>
+
+<div class="note warn"><b>Reconciliation with <a href="spec.html#d4">§D4</a>.</b>
+The topology work extends the boundary idea in one direction this section did not
+anticipate: a wall may enclose a sub-world under a <b>different profile</b>, and
+the wall is the only place where the <b>model of computation</b> may change.
+Within a wall, one discipline; across a wall, a declared boundary with declared
+effects. The authored draft's boundaries are all same-model operators —
+<code class="inline">/gate</code>,
+<code class="inline">//commit</code>,
+<code class="inline">///seal</code> — and they remain correct for that case.
+The extension is <a href="spec.html#d4">§D4</a>'s, and the boundary-safety law
+("undeclared effects cannot cross walls") becomes strictly more load-bearing when
+walls carry profiles. This section governs single-model boundaries;
+§D4 governs cross-model ones.</div>
 
 <h2 id="podium">20.7 · The podium <span class="tier exp">Experimental</span></h2>
 
@@ -1057,6 +1106,22 @@ belongs to sealed tools. <b>That is the principled boundary between the two
 levels</b>, and it is why the stratified system can be trusted without a budget
 on trust.</p>
 
+<div class="note warn"><b>Reconciliation with <a href="spec.html#d5">§D5</a>.</b>
+The topology work narrows and sharpens the derives design for one critical case:
+a derive that wraps an <b>external solver</b>. <a href="spec.html#d5">§D5</a>
+rules that such a derive seals its <b>inputs, solver profile, and result</b> —
+never the search. The solver is an <b>untrusted oracle</b>; a deterministic
+checker is the trusted part, and only the checker's verdict enters the artifact.
+A sealed plan may record <i>feasible</i> and an <i>objective value</i>; it may
+<b>never</b> record <i>optimal</i>, because optimality is a claim about the
+search and the search is not sealed. This section's three restrictions
+(intrinsically typed, stratified and monotonic, semantics not spelling) apply
+<i>within</i> the language's own derive system; §D5 governs the boundary between
+that system and untrusted external engines. The two are complementary, not
+competing: §D5 needs <a href="spec.html#d8">§D8</a>'s attributed relations to
+state constraints and <a href="spec.html#d4">§D4</a>'s effect-wall boundary to
+matter, placing it at <a href="direction.html#ladder">ladder step 10</a>.</div>
+
 <h2 id="tools">33 · Sealed tools behind /compiler <span class="tier prop">Proposed</span></h2>
 
 <p>Parsers, schema generators, GPU layout generators, binding generators, asset
@@ -1271,6 +1336,25 @@ pure functions, <code class="inline">match</code>) — enough to observe the
 deterministic reduction property. Podium, stencils, derives, verified routes,
 merge, behavior blocks, streams and the spatial canvas may be added
 <b>incrementally without changing the core semantics</b>.</div>
+
+<div class="note warn"><b>Reconciliation with <a href="spec.html#d6">§D6</a>.</b>
+The topology work elevates this table's profile concept into the language's
+primary domain-modelling mechanism. <a href="spec.html#d6">§D6</a> says a
+profile fixes which roles exist, which relation names are legal, which
+attributes each relation carries and what they mean, which resolution rules are
+available, and which model of computation applies inside a wall. The six profiles
+above (pure, replay, sandbox, world, forge, cluster) become domain-independent
+<b>execution profiles</b> — a profile's numerics and effect rules — while
+domain-specific vocabulary (mobility, electrical, logistics, robotics) lives in
+<b>domain profiles</b> that are <a href="direction.html#ladder">ladder
+step 11</a>, the last rung. <a href="spec.html#d6-bootstrap">§D6.1</a>
+introduces a restricted <b>profile bootstrap kernel</b>
+(<code class="inline">ProfileSchemaV1</code>) that is purely declarative — finite
+enumerated types, unit declarations, relation signatures, finite resolution
+tables, a closed set of built-in validators — and needs no expression notation at
+all. That kernel is <a href="direction.html#ladder">ladder step 3</a>; the
+expression notation this page designs is step 5. This section governs what the
+execution profiles offer; §D6 governs how profiles are declared.</div>
 
 <h2 id="examples">43 · Seven worked examples</h2>
 
