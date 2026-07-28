@@ -6399,6 +6399,134 @@ function fmt(v) {
      "the promotion ordering of capabilities");
 }
 
+/* ======================================= learn.html tutorial progression */
+/* learn.html must teach the complete writable Core path (Part I, steps 0-10)
+ * AND provide a coherent, linked progression into the full authored language
+ * (Part II, steps 1-11 of the dependency ladder). Every future-syntax block
+ * must be visibly non-current. No implication that proposed features execute. */
+{
+  const learn = readFileSync(join(ROOT, "learn.html"), "utf8");
+
+  /* The full-language progression section must exist. */
+  ok("learn/progression-exists",
+     learn.includes('id="progression"'),
+     "learn.html must have a §progression section for the full-language progression");
+
+  /* The progression must reference the dependency ladder. */
+  ok("learn/ladder-referenced",
+     learn.includes('direction.html#ladder'),
+     "learn.html progression must reference direction.html#ladder " +
+     "so readers can trace the ordering of capabilities");
+
+  /* The progression must link to the guide's full-language section. */
+  ok("learn/links-to-guide-full-language",
+     learn.includes('guide.html#full-language'),
+     "learn.html must link to guide.html#full-language so readers can " +
+     "reach the detailed capability explanations");
+
+  /* The progression must link to spec Part II. */
+  ok("learn/links-to-spec-part2",
+     learn.includes('spec.html#part2'),
+     "learn.html must link to spec.html#part2 so readers can reach the " +
+     "non-normative design draft in spec language");
+
+  /* The progression must link to the design draft. */
+  ok("learn/links-to-draft",
+     learn.includes('href="draft.html"') || learn.includes("href='draft.html'") ||
+     /href="draft\.html#/.test(learn),
+     "learn.html must link to draft.html so readers can reach detailed treatments");
+
+  /* Every step of the dependency ladder must appear as a learn section. */
+  const LADDER_SECTIONS = [
+    { id: "learn-typed-ports",    cap: "typed-ports",         step: 1 },
+    { id: "learn-async",          cap: "async-route",         step: 2 },
+    { id: "learn-profiles",       cap: "profile-mechanism",   step: 3 },
+    { id: "learn-relations",      cap: "attributed-relations", step: 4 },
+    { id: "learn-behaviours",     cap: "behaviours",          step: 5 },
+    { id: "learn-verified",       cap: "verified-route",      step: 6 },
+    { id: "learn-supervision",    cap: "supervision",         step: 7 },
+    { id: "learn-dynamic",        cap: "dynamic-topology",    step: 8 },
+    { id: "learn-walls",          cap: "effect-walls",        step: 9 },
+    { id: "learn-derives",        cap: "derives",             step: 10 },
+    { id: "learn-domain-profiles", cap: "domain-profiles",    step: 11 },
+  ];
+
+  for (const { id, cap, step } of LADDER_SECTIONS) {
+    ok(`learn/section-${id}`,
+       learn.includes(`id="${id}"`),
+       `learn.html must have a section with id="${id}" covering step ${step} ` +
+       `(${cap}) of the dependency ladder`);
+  }
+
+  /* The "where you are now" boundary must exist — it separates writable Core
+   * from the designed-but-unbuilt progression. */
+  ok("learn/core-boundary-exists",
+     learn.includes('id="next"'),
+     "learn.html must have a §next section marking the boundary between " +
+     "writable Core and the full-language progression");
+
+  /* Every non-current code block in learn.html must name at least one
+   * capability via data-requires. The doc sweep already checks this globally,
+   * but a tutorial-specific check makes the failure message useful. */
+  const learnNotCurrent = [...learn.matchAll(/<pre\b([^>]*data-not-current[^>]*)>/g)];
+  for (let i = 0; i < learnNotCurrent.length; i++) {
+    const attrs = learnNotCurrent[i][1];
+    ok(`learn/not-current-block-${i+1}-has-requires`,
+       /data-requires="[^"]+"/.test(attrs),
+       `learn.html not-current block ${i+1} is missing data-requires. ` +
+       `Every non-current block must declare which capabilities it waits on.`);
+  }
+  ok("learn/has-not-current-blocks",
+     learnNotCurrent.length >= 7,
+     `learn.html should have at least 7 not-current code blocks covering ` +
+     `the full-language progression, found ${learnNotCurrent.length}`);
+
+  /* learn.html must NOT contain any data-seal blocks after the progression
+   * boundary — future-syntax blocks must not be presented as sealable. */
+  const progressionStart = learn.indexOf('id="progression"');
+  if (progressionStart > -1) {
+    const afterProgression = learn.slice(progressionStart);
+    const sealedAfter = [...afterProgression.matchAll(/data-seal="[^"]+"/g)];
+    ok("learn/no-sealed-blocks-in-progression",
+       sealedAfter.length === 0,
+       `learn.html has ${sealedAfter.length} data-seal block(s) after the ` +
+       `progression section. Future-syntax blocks must not be presented as ` +
+       `sealable.`);
+  }
+
+  /* learn.html must not present any construct as writable that the registry
+   * marks unshipped. Check by ensuring no block in the progression carries
+   * data-seal (already checked above) and that the page does not use
+   * phrases like "you can write" or "paste this" after the progression. */
+  if (progressionStart > -1) {
+    const afterProg = learn.slice(progressionStart);
+    /* "paste this into the playground" would imply executability */
+    ok("learn/no-paste-prompt-in-progression",
+       !(/paste\s+(this|it)\s+(into|in)\s+(the\s+)?playground/i.test(afterProg)),
+       "learn.html should not prompt readers to paste future-syntax blocks " +
+       "into the playground — the playground will refuse them");
+  }
+
+  /* The Core section (before the progression) must still reference the
+   * playground — it is the hands-on execution environment for Core. */
+  const beforeProgression = progressionStart > -1
+    ? learn.slice(0, progressionStart) : learn;
+  ok("learn/core-references-playground",
+     beforeProgression.includes('playground.html'),
+     "learn.html Core section (Part I) must reference playground.html " +
+     "for hands-on execution");
+
+  /* learn.html must reference the reference tables. */
+  ok("learn/references-reference-tables",
+     learn.includes('reference.html'),
+     "learn.html must link to reference.html");
+
+  /* The metaprogramming / at-scale section must exist. */
+  ok("learn/meta-scale-section",
+     learn.includes('id="learn-meta-scale"'),
+     "learn.html must have a metaprogramming/programs-at-scale section");
+}
+
 /* ==================================================================== report */
 
 console.log(`\n  ${pass} passed, ${fail} failed ` +
