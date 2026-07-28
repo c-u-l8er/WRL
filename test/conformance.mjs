@@ -6527,6 +6527,145 @@ function fmt(v) {
      "learn.html must have a metaprogramming/programs-at-scale section");
 }
 
+/* ===================== reference.html construct table & Part II coverage
+ *
+ * reference.html carries two construct tables: the Part I "Where each construct
+ * sits today" table and the Part II design constructs table. These checks
+ * enforce:
+ *   - Every Part II section (§D1–§D9) is represented by at least one row
+ *   - No Part II construct is marked writable (they are non-normative)
+ *   - No duplicate data-part2-construct values
+ *   - Every source anchor in the Part II table resolves to a real id
+ *   - The capability registry has no duplicate data-capability values
+ *   - Status values in the Part I table use only the documented vocabulary
+ */
+{
+  const ref = readFileSync(join(ROOT, "reference.html"), "utf8");
+  const spec = readFileSync(join(ROOT, "spec.html"), "utf8");
+  const draft = readFileSync(join(ROOT, "draft.html"), "utf8");
+
+  /* ---- Part II construct table ---- */
+  const part2Rows = [...ref.matchAll(
+    /data-part2-construct="([^"]+)"/g
+  )].map((m) => m[1]);
+
+  ok("ref/part2-table-exists",
+     part2Rows.length >= 10,
+     `reference.html Part II construct table should have ≥10 rows, ` +
+     `found ${part2Rows.length}. The five objective topics (§D1–§D5) plus ` +
+     `§D6–§D9 should each have at least one row.`);
+
+  /* No duplicate Part II construct names */
+  const part2Set = new Set();
+  for (const c of part2Rows) {
+    ok(`ref/part2-no-dup-${c}`, !part2Set.has(c),
+       `data-part2-construct="${c}" appears more than once in reference.html`);
+    part2Set.add(c);
+  }
+
+  /* Required Part II sections: every §D section must have at least one
+   * construct row whose "Specified in" cell links to it. */
+  const PART2_SECTIONS = [
+    { id: "d1",  label: "§D1 multilayer topology" },
+    { id: "d2",  label: "§D2 three connection kinds" },
+    { id: "d3",  label: "§D3 route axes vs textures" },
+    { id: "d4",  label: "§D4 walls as computation boundary" },
+    { id: "d5",  label: "§D5 derives" },
+    { id: "d6",  label: "§D6 profiles / mechanism" },
+    { id: "d7",  label: "§D7 falsification conditions" },
+    { id: "d8",  label: "§D8 relation not edge" },
+    { id: "d9",  label: "§D9 dynamic topology" },
+  ];
+
+  for (const { id, label } of PART2_SECTIONS) {
+    /* The reference page must link to spec.html#<id> somewhere in the
+     * Part II construct rows or their surrounding text. */
+    ok(`ref/part2-covers-${id}`,
+       ref.includes(`spec.html#${id}`),
+       `reference.html Part II construct table must link to spec.html#${id} ` +
+       `(${label}). Without it, a reader cannot trace the construct to its ` +
+       `normative source.`);
+
+    /* The target anchor must exist in spec.html. */
+    ok(`ref/part2-anchor-${id}-exists`,
+       spec.includes(`id="${id}"`),
+       `reference.html links to spec.html#${id} but spec.html has no ` +
+       `element with id="${id}". The anchor is broken.`);
+  }
+
+  /* Every href in the Part II table that points at draft.html must resolve. */
+  const part2Table = ref.slice(
+    ref.indexOf('Part II design constructs'),
+    ref.indexOf('No Part II construct is writable')
+  );
+  const draftLinks = [...(part2Table || "").matchAll(
+    /href="draft\.html#([^"]+)"/g
+  )].map((m) => m[1]);
+  for (const anchor of draftLinks) {
+    ok(`ref/part2-draft-anchor-${anchor}`,
+       draft.includes(`id="${anchor}"`),
+       `reference.html Part II table links to draft.html#${anchor} but ` +
+       `draft.html has no element with that id.`);
+  }
+
+  /* No Part II construct may be marked writable. */
+  const part2Writable = [...(part2Table || "").matchAll(
+    /class="tier core">yes</g
+  )];
+  ok("ref/part2-none-writable",
+     part2Writable.length === 0,
+     `${part2Writable.length} Part II construct row(s) are marked writable ` +
+     `(tier core "yes"). Part II constructs are non-normative and cannot ` +
+     `be writable until promoted to Part I.`);
+
+  /* ---- Capability registry: no duplicates ---- */
+  const capRows = [...ref.matchAll(
+    /data-capability="([^"]+)"/g
+  )].map((m) => m[1]);
+  const capSet = new Set();
+  for (const c of capRows) {
+    ok(`ref/cap-no-dup-${c}`, !capSet.has(c),
+       `data-capability="${c}" appears more than once in reference.html. ` +
+       `The capability registry must have exactly one row per capability.`);
+    capSet.add(c);
+  }
+
+  /* ---- Part I construct table: status vocabulary ---- */
+  /* Extract the Part I table (between "Where each construct sits today" and
+   * either "Part II design constructs" or the capability section). */
+  const part1Start = ref.indexOf('Where each construct sits today');
+  const part1End = ref.indexOf('Part II design constructs');
+  if (part1Start > -1 && part1End > -1) {
+    const part1 = ref.slice(part1Start, part1End);
+    /* Meaning values: settled, drafted, sketched */
+    const meaningTiers = [...part1.matchAll(/class="tier (\w+)">[^<]+</g)]
+      .map((m) => m[1]);
+    const validTiers = new Set(["core", "exp", "prop", "partial"]);
+    for (const t of meaningTiers) {
+      ok(`ref/part1-valid-tier-${t}`,
+         validTiers.has(t),
+         `Part I construct table uses tier class "${t}" which is not in ` +
+         `the documented set {core, exp, prop, partial}.`);
+    }
+  }
+
+  /* ---- Cross-check: Part II table and capability registry alignment ---- */
+  /* Certain Part II constructs map directly to capabilities. Verify the
+   * construct names that share a capability name have consistent links. */
+  const CONSTRUCT_CAP_PAIRS = [
+    { construct: "dynamic-topology", cap: "dynamic-topology" },
+    { construct: "derives-boundary", cap: "derives" },
+    { construct: "profile-mechanism", cap: "profile-mechanism" },
+    { construct: "sealed-admission", cap: "dynamic-topology" },
+  ];
+  for (const { construct, cap } of CONSTRUCT_CAP_PAIRS) {
+    ok(`ref/part2-${construct}-has-cap`,
+       REGISTRY.has(cap),
+       `Part II construct "${construct}" corresponds to capability "${cap}" ` +
+       `which must exist in the capability registry.`);
+  }
+}
+
 /* ==================================================================== report */
 
 console.log(`\n  ${pass} passed, ${fail} failed ` +

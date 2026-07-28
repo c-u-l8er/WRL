@@ -619,6 +619,39 @@ that exists as a thing you can type.</div>
 <tr><td>Distributed settlement above fact-union</td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td>receipts are recognized evidence, never blindly merged</td></tr>
 </tbody></table></div>
 
+<h3>Part II design constructs</h3>
+
+<p>The rows above describe Part I and the authored draft. The rows below describe
+the five objective topics of <a href="spec.html#part2">Part II</a> — the
+non-normative design layer that specifies how the language extends beyond the
+frozen core. Every row links to the normative section that defines it.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Construct</th><th>Meaning</th><th>Grounding</th><th>Writable now</th><th>Specified in</th></tr></thead>
+<tbody>
+<tr data-part2-construct="multilayer-topology"><td>Multilayer topology / node-aligned layers</td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td><a href="spec.html#d1">Part II §D1</a> · <a href="draft.html#entities">draft §19</a></td></tr>
+<tr data-part2-construct="three-connection-kinds"><td>Three connection kinds (owned, resolved, acausal)</td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td><a href="spec.html#d2">Part II §D2</a></td></tr>
+<tr data-part2-construct="resolved-terminals"><td>Resolved terminals and resolver contracts</td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td><a href="spec.html#d2-two-resolutions">Part II §D2.1</a></td></tr>
+<tr data-part2-construct="route-axes"><td>Route axes (direction, not texture)</td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td><a href="spec.html#d3">Part II §D3</a> · <a href="draft.html#messages">draft §20.8</a></td></tr>
+<tr data-part2-construct="walls"><td>Walls as computation boundary</td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td><a href="spec.html#d4">Part II §D4</a> · <a href="draft.html#boundaries">draft §20</a></td></tr>
+<tr data-part2-construct="solver-wall"><td>Solver wall (acausal settlement)</td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td><a href="spec.html#d4">Part II §D4</a></td></tr>
+<tr data-part2-construct="derives-boundary"><td>Derives: seal the answer, not the search</td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td><a href="spec.html#d5">Part II §D5</a> · <a href="draft.html#derives">draft §32</a></td></tr>
+<tr data-part2-construct="profile-mechanism"><td>Profile mechanism (<code class="inline">ProfileSchemaV1</code>)</td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td><a href="spec.html#d6-bootstrap">Part II §D6.1</a></td></tr>
+<tr data-part2-construct="relation"><td>Relation (generalized from Edge)</td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td><a href="spec.html#d8">Part II §D8</a></td></tr>
+<tr data-part2-construct="relation-identity"><td>Relation identity (<code class="inline">RelationAllocation</code>)</td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td><a href="spec.html#d8-identity">Part II §D8</a></td></tr>
+<tr data-part2-construct="legacy-projection"><td>Legacy projection (edge ↔ relation bytes)</td><td><span class="tier exp">drafted</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td><a href="spec.html#d8-projection">Part II §D8</a></td></tr>
+<tr data-part2-construct="dynamic-topology"><td>Dynamic topology (eight operations)</td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td><a href="spec.html#d9">Part II §D9</a></td></tr>
+<tr data-part2-construct="sealed-admission"><td>Sealed admission (trust-domain rules)</td><td><span class="tier prop">sketched</span></td><td><span class="tier prop">none</span></td><td><span class="tier prop">no</span></td><td><a href="spec.html#d9-open">Part II §D9</a></td></tr>
+<tr data-part2-construct="falsification-conditions"><td>Falsification conditions (eight conditions)</td><td><span class="tier core">settled</span></td><td>—</td><td>—</td><td><a href="spec.html#d7">Part II §D7</a> · <a href="direction.html#falsify">direction</a></td></tr>
+</tbody></table></div>
+
+<div class="note"><b>No Part II construct is writable.</b> Every row above reads
+<span class="tier prop">no</span> in the Writable column. That is the
+difference between Part I and Part II: Part I is the language you type; Part II
+is the language it is designed to become. The distinction is enforced — a
+conformance check prevents any Part II construct from being marked
+<span class="tier core">yes</span> while it remains non-normative.</div>
+
 <p>Counting the <span class="tier core">yes</span> rows is the honest summary of
 the language as a writable artifact: containers, five roles, two edge kinds, the
 solid route texture, the sugar layer, the document boundary and the
