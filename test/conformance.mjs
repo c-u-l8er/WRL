@@ -6323,6 +6323,82 @@ function fmt(v) {
      `present itself as writable and sealable.`);
 }
 
+/* ======================================= guide.html full-language coverage */
+/* guide.html must reference every registered capability. The guide uses
+ * data-guide-capability attributes on table rows to declare which capability
+ * a row covers, and must link to a detailed treatment (draft.html or spec.html)
+ * for each. This is the check that prevents a capability from being registered
+ * in the reference, placed on the ladder, and then silently absent from the
+ * guide that is supposed to explain the whole language. */
+{
+  const guide = readFileSync(join(ROOT, "guide.html"), "utf8");
+
+  /* Every registered capability must appear in guide.html via a
+   * data-guide-capability attribute. */
+  const guideCaps = new Set(
+    [...guide.matchAll(/data-guide-capability="([^"]+)"/g)].map((m) => m[1]));
+
+  for (const cap of REGISTRY.keys()) {
+    ok(`guide/${cap}-covered`, guideCaps.has(cap),
+       `guide.html does not have a data-guide-capability="${cap}" row. ` +
+       `Every registered capability must be explained in the guide.`);
+  }
+
+  /* Every data-guide-capability must be a real registered capability. */
+  for (const cap of guideCaps) {
+    ok(`guide/${cap}-is-registered`, REGISTRY.has(cap),
+       `guide.html claims data-guide-capability="${cap}" which is not in ` +
+       `the capability registry at reference.html#capability-registry.`);
+  }
+
+  /* Each capability row in the guide must link to a detailed treatment —
+   * either draft.html or spec.html. */
+  for (const cap of guideCaps) {
+    const rowMatch = new RegExp(
+      `data-guide-capability="${cap}"[^]*?</tr>`, "s").exec(guide);
+    if (rowMatch) {
+      const hasLink = /href="(draft|spec)\.html#/.test(rowMatch[0]);
+      ok(`guide/${cap}-has-treatment-link`, hasLink,
+         `the guide row for "${cap}" does not link to draft.html or spec.html. ` +
+         `Every capability entry must link to its detailed treatment.`);
+    }
+  }
+
+  /* guide.html must not present any non-writable capability as writable.
+   * Every capability table row in Part IV must show "no" in its writable column. */
+  for (const cap of guideCaps) {
+    const rowMatch = new RegExp(
+      `data-guide-capability="${cap}"[^]*?</tr>`, "s").exec(guide);
+    if (rowMatch) {
+      const r = REGISTRY.get(cap);
+      if (r && r.impl !== "shipped") {
+        ok(`guide/${cap}-not-marked-writable`,
+           rowMatch[0].includes('tier prop') || !rowMatch[0].includes('>yes<'),
+           `guide.html marks "${cap}" as writable, but the registry says ` +
+           `implementation="${r.impl}". An unshipped capability must not be ` +
+           `presented as writable.`);
+      }
+    }
+  }
+
+  /* guide.html Part IV header and preamble must exist. */
+  ok("guide/part-iv-exists",
+     guide.includes('id="full-language"'),
+     "guide.html must have a §full-language section for full-language coverage");
+
+  /* guide.html must clearly distinguish the three status axes. */
+  ok("guide/three-axes-referenced",
+     guide.includes('reference.html#tiers'),
+     "guide.html full-language preamble must link to reference.html#tiers " +
+     "so readers understand the three-axis status model");
+
+  /* guide.html must link to the dependency ladder for ordering context. */
+  ok("guide/ladder-referenced",
+     guide.includes('direction.html#ladder'),
+     "guide.html must reference direction.html#ladder so readers can trace " +
+     "the promotion ordering of capabilities");
+}
+
 /* ==================================================================== report */
 
 console.log(`\n  ${pass} passed, ${fail} failed ` +
