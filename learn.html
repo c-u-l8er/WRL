@@ -17,6 +17,9 @@
     word-break:break-all}
   .idline b{color:var(--wire)}
   .idline.moved{background:color-mix(in srgb,var(--brass) 16%,var(--paper-2))}
+  .toc .part-label{display:block;font-family:var(--mono);font-size:10px;
+        letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);
+        margin:16px 0 6px}
 </style>
 </head>
 <body>
@@ -54,7 +57,22 @@
   <a href="#errors">8 · Break it on purpose</a>
   <a href="#scenario">9 · The document boundary</a>
   <a href="#sugar">10 · Sugar</a>
-  <a href="#next">Where to go next</a>
+  <a href="#next">Where you are now</a>
+  <span class="part-label">The full language</span>
+  <a href="#progression">11 · The progression</a>
+  <a href="#learn-typed-ports">— Typed ports</a>
+  <a href="#learn-async">— Async route</a>
+  <a href="#learn-profiles">— Profile mechanism</a>
+  <a href="#learn-relations">— Attributed relations</a>
+  <a href="#learn-behaviours">— Behaviours</a>
+  <a href="#learn-verified">— Verified route</a>
+  <a href="#learn-supervision">— Supervision</a>
+  <a href="#learn-dynamic">— Dynamic topology</a>
+  <a href="#learn-walls">— Effect walls</a>
+  <a href="#learn-derives">— Derives</a>
+  <a href="#learn-domain-profiles">— Domain profiles</a>
+  <a href="#learn-meta-scale">— Metaprogramming</a>
+  <a href="#where-next">Where to go next</a>
 </aside>
 
 <div class="docbody">
@@ -511,24 +529,255 @@ at 65536 — and the count is checked <i>before</i> any list is built. These are
 may contain. A world with five thousand spinners is perfectly legal; it just
 cannot be written with one <code class="inline">*</code>.</div>
 
-<h2 id="next">Where to go next</h2>
+<h2 id="next">Where you are now</h2>
 <p>You now know the whole of WRL Core 0.1.2's text surface: one profile, five
 roles, two edge kinds, one config group per role, two sugar tiers, and the
 document boundary. That is genuinely all of the frozen core.</p>
 
+<p>Everything below this line is the language WRL is <b>designed to become</b>.
+None of it is writable today. Every code block from here on is marked
+<span class="tier prop">not current</span> and is verified by the conformance
+suite to be <b>rejected</b> by today's toolchain. The playground will refuse
+every one of them, and that is correct — the refusal is the honesty.</p>
+
+<div class="note stop"><b>The line between Parts I and II is load-bearing.</b>
+Everything above is frozen, executable, and playground-tested. Everything below
+is designed but unbuilt. If you are here to <i>write</i> WRL, Part I is the
+complete answer. If you are here to <i>understand</i> the language's direction,
+the progression below shows the dependency-ordered path from "five roles and
+two edges" to "executable topology with films a third party can check". Each
+section links to the detailed treatment in the
+<a href="guide.html#full-language">guide</a>,
+<a href="draft.html">design draft</a>, and
+<a href="spec.html#part2">spec Part II</a>.</div>
+
+<h2 id="progression">11 · The full-language progression</h2>
+
+<p>The capabilities below are ordered by the
+<a href="direction.html#ladder">dependency ladder</a>: each step supplies
+something the next one needs. That ordering is not a schedule — it is a
+structural constraint on what can be grounded honestly.</p>
+
+<h3 id="learn-typed-ports">Step 1 · Typed ports and message schemas</h3>
+<p>Today a port is a name: <code class="inline">sig_out</code>,
+<code class="inline">pose</code>. The authored design gives ports a
+<b>type</b>, so that messages flowing through them carry a schema the compiler
+can check. Without typed ports, every later feature that says <i>what</i>
+flows through a connection is an untyped string.</p>
+
+<pre class="code" data-not-current data-requires="typed-ports"><code><span class="cm">; NOT CURRENT — requires typed-ports (step 1)</span>
+[<span class="kw">sensor</span>:<span class="id">s0</span>]{<span class="rt">out: Stream&lt;Temperature&gt;</span>}
+[<span class="kw">logger</span>:<span class="id">log</span>]{<span class="rt">in: Stream&lt;Temperature&gt;</span>}
+[<span class="id">s0</span>] <span class="rt">--data--&gt;</span> [<span class="id">log</span>]</code></pre>
+
+<p><b>Where to read more:</b>
+<a href="guide.html#expression">guide §22</a> (expression notation and types),
+<a href="draft.html#values">draft §11</a> (values and data types),
+<a href="reference.html#capabilities">reference: typed-ports</a>.</p>
+
+<h3 id="learn-async">Step 2 · The async route and mailboxes</h3>
+<p>Core's <code class="inline">--sig--&gt;</code> is synchronous: it settles
+within the period. Real systems need asynchronous communication — telemetry
+that arrives when it arrives, messages that queue. The
+<code class="inline">~~</code> texture declares exactly that: a route that
+does not settle this period, backed by a <b>mailbox</b> with declared capacity
+and overflow policy.</p>
+
+<pre class="code" data-not-current data-requires="async-route"><code><span class="cm">; NOT CURRENT — requires async-route (step 2)</span>
+<span class="kw">profile</span> forge.world.core.v1
+
+[<span class="kw">pulser</span>:<span class="id">p0</span>](<span class="lit">every 2</span>){<span class="rt">sig_out</span>}
+[<span class="kw">relay</span>:<span class="id">r0</span>]{<span class="rt">sig_in, sig_out</span>}
+
+[<span class="id">p0</span>] <span class="rt">~~sig~~&gt;</span> [<span class="id">r0</span>]</code></pre>
+
+<p>The Mailbox role (already in the IR, with no surface spelling in Core)
+becomes writable here. See
+<a href="guide.html#process">guide §23</a> (process semantics),
+<a href="draft.html#messages">draft §20.8</a> (messages and schedules),
+<a href="reference.html#capabilities">reference: async-route</a>.</p>
+
+<h3 id="learn-profiles">Step 3 · The profile mechanism</h3>
+<p>Today there is one profile: <code class="inline">forge.world.core.v1</code>.
+The profile <b>mechanism</b> —
+<a href="spec.html#d6-bootstrap"><code class="inline">ProfileSchemaV1</code></a> —
+lets new profiles declare their own relation kinds, attribute types, units,
+bounded resources, and finite resolution tables. It is declarative only: no
+expression notation required, so it can precede step 5.</p>
+
+<p><b>Where to read more:</b>
+<a href="guide.html#topology-direction">guide §26</a> (topology direction),
+<a href="spec.html#d6-bootstrap">spec Part II §D6.1</a>,
+<a href="reference.html#capabilities">reference: profile-mechanism</a>.</p>
+
+<h3 id="learn-relations">Step 4 · Attributed relations and resolved terminals</h3>
+<p>Today an edge is a name with no attributes. The authored design makes
+relations carry <b>typed attributes and units</b> — so
+<code class="inline">capacity=3</code> has a unit arithmetic can check, and a
+<b>resolved terminal</b> can accept many drivers settled by a named resolution
+function. This is the ground the
+<a href="direction.html#demo-bus">resolved-bus demonstration</a> stands on.</p>
+
+<pre class="code" data-not-current data-requires="attributed-relations,resolved-terminals,typed-ports"><code><span class="cm">; NOT CURRENT — requires attributed-relations, resolved-terminals (step 4)</span>
+[<span class="kw">bus</span>:<span class="id">b0</span>](<span class="lit">width=8, resolve=std_logic</span>){<span class="rt">d: resolved&lt;logic8&gt;</span>}
+[<span class="kw">driver</span>:<span class="id">u1</span>](<span class="lit">oe=true</span>) {<span class="rt">y</span>}
+[<span class="kw">driver</span>:<span class="id">u2</span>](<span class="lit">oe=false</span>){<span class="rt">y</span>}
+[<span class="id">u1</span>] <span class="rt">--drive--&gt;</span> [<span class="id">b0</span>].d
+[<span class="id">u2</span>] <span class="rt">--drive--&gt;</span> [<span class="id">b0</span>].d</code></pre>
+
+<p><b>Where to read more:</b>
+<a href="guide.html#topology-direction">guide §26</a>,
+<a href="spec.html#d8">spec Part II §D8</a>,
+<a href="draft.html#entities">draft §19</a>,
+<a href="reference.html#capabilities">reference: attributed-relations, resolved-terminals</a>.</p>
+
+<h3 id="learn-behaviours">Step 5 · Behaviours and expression notation</h3>
+<p>The expression notation is where WRL stops being topology-only and gains
+computation: values, data types, functions, pattern matching, generics, traits,
+the numeric tower, collections, and resource ownership. With these, actors can
+have <b>behaviour blocks</b> — user-written code that canonicalizes to the same
+bytes as the drawn route form.</p>
+
+<pre class="code" data-not-current data-requires="behaviours,expression-notation"><code><span class="cm">; NOT CURRENT — requires behaviours, expression-notation (step 5)</span>
+<span class="kw">behaviour</span> counter {
+  <span class="kw">on</span> tick -> { state.n = state.n + 1; <span class="kw">emit</span> sig_out }
+}</code></pre>
+
+<p>Six families arrive at this step:
+<a href="guide.html#expression">expression-notation</a>,
+<a href="draft.html#numerics">numerics</a>,
+<a href="draft.html#collections">collections</a>,
+<a href="draft.html#traits">generics-traits</a>,
+<a href="draft.html#resources">resources</a>, and
+<a href="draft.html#behavior">behaviours</a>.
+See <a href="reference.html#capabilities">the reference</a> for each.</p>
+
+<h3 id="learn-verified">Step 6 · The verified route</h3>
+<p>The <code class="inline">==</code> texture is an evidence-backed transition:
+a message that carries proof it was permitted. It needs a claimant, a target,
+an operation family, and a named policy — anything less is a route that
+<i>looks</i> verified and is not.</p>
+
+<pre class="code" data-not-current data-requires="verified-route"><code><span class="cm">; NOT CURRENT — requires verified-route (step 6)</span>
+[<span class="kw">operator</span>:<span class="id">kim</span>]{<span class="rt">command_out</span>}
+[<span class="kw">drone</span>:<span class="id">d7</span>]{<span class="rt">command_in</span>}
+[<span class="id">kim</span>] <span class="rt">==command(cap=reroute.v1)==&gt;</span> [<span class="id">d7</span>]</code></pre>
+
+<p><b>Where to read more:</b>
+<a href="guide.html#process">guide §23</a>,
+<a href="draft.html#verify">draft §23</a>,
+<a href="reference.html#capabilities">reference: verified-route, merge-routes</a>.</p>
+
+<h3 id="learn-supervision">Step 7 · Supervision and the fault route</h3>
+<p>The <code class="inline">!!</code> texture is a fault escalation. It may
+only follow a supervision floor that actually exists — a fault without
+supervision leaks. Supervision adds caret ownership and the error ladder.</p>
+
+<pre class="code" data-not-current data-requires="supervision"><code><span class="cm">; NOT CURRENT — requires supervision (step 7)</span>
+[<span class="kw">worker</span>:<span class="id">w0</span>]{<span class="rt">fault_out</span>}
+[<span class="kw">supervisor</span>:<span class="id">sup</span>](<span class="lit">on_fault=restart</span>){<span class="rt">fault_in</span>}
+[<span class="id">w0</span>] <span class="rt">!!fault(class=timeout)!!&gt;</span> [<span class="id">sup</span>]</code></pre>
+
+<p><b>Where to read more:</b>
+<a href="guide.html#process">guide §23</a>,
+<a href="draft.html#supervision">draft §24</a>,
+<a href="reference.html#capabilities">reference: supervision</a>.</p>
+
+<h3 id="learn-dynamic">Step 8 · Dynamic topology</h3>
+<p>Today a world is static: every identity is declared in the document. Dynamic
+topology lets identities join and leave a running world through eight
+operations (attach, detach, and six others), each with declared obligations.
+It needs supervision from step 7 — a lifecycle without supervision leaks — and
+bounded resources from step 4 before an escrowed
+<code class="inline">attach</code> can be safe under partition.</p>
+
+<p><b>Where to read more:</b>
+<a href="guide.html#topology-direction">guide §26</a>,
+<a href="spec.html#d9">spec Part II §D9</a>,
+<a href="reference.html#capabilities">reference: dynamic-topology</a>.</p>
+
+<h3 id="learn-walls">Step 9 · Effect walls and the solver boundary</h3>
+<p>A <b>wall</b> is a computation boundary: inside it, the model of computation
+may differ from the message-passing world outside. An effect wall gates
+capability — a computation that wants to touch the outside world must emit an
+effect-request crossing a declared boundary. Acausal relations (undirected
+conserved-quantity connections) settle inside a solver wall, because they settle
+in a solver, not by passing values.</p>
+
+<pre class="code" data-not-current data-requires="effect-walls,acausal-relations"><code><span class="cm">; NOT CURRENT — requires effect-walls, acausal-relations (step 9)</span>
+<span class="kw">wall</span> electrical <span class="lit">solver=power_flow.v1</span> {
+  [<span class="kw">bus</span>:<span class="id">b1</span>](<span class="lit">nominal=400V</span>){<span class="rt">pin</span>}
+  [<span class="kw">pv</span>:<span class="id">solar</span>](<span class="lit">rated=50kW</span>){<span class="rt">pin</span>}
+  <span class="kw">relation</span> electrical <span class="lit">acausal</span> {<span class="id">b1</span>.pin, <span class="id">solar</span>.pin}
+}</code></pre>
+
+<p><b>Where to read more:</b>
+<a href="guide.html#process">guide §23</a>,
+<a href="draft.html#effects">draft §21</a>,
+<a href="draft.html#boundaries">draft §20.6</a>,
+<a href="spec.html#d4">spec Part II §D4</a>,
+<a href="reference.html#capabilities">reference: effect-walls, acausal-relations</a>.</p>
+
+<h3 id="learn-derives">Step 10b · Derives and the checker boundary</h3>
+<p>A <b>derive</b> is an untrusted external computation whose output is a
+graph the <b>checker</b> can verify without re-running the solver. The solver
+is an oracle — its output is a claim, not a result. This is
+<a href="direction.html#p5">pillar 5</a>: seal the answer, not the search.</p>
+
+<pre class="code" data-not-current data-requires="derives,attributed-relations"><code><span class="cm">; NOT CURRENT — requires derives (step 10)</span>
+<span class="kw">derive</span> plan <span class="lit">by=solver(or_tools.routing.v9, seed=7)</span>
+  <span class="kw">from</span> {[<span class="id">metro</span>], [<span class="id">fleet</span>]}
+  <span class="kw">check</span> feasibility.v1 {
+    every order served exactly once
+    every vehicle within capacity
+  }</code></pre>
+
+<p><b>Where to read more:</b>
+<a href="guide.html#meta">guide §24</a>,
+<a href="draft.html#derives">draft §32</a>,
+<a href="direction.html#demo-derive">direction: demonstration D</a>,
+<a href="reference.html#capabilities">reference: derives</a>.</p>
+
+<h3 id="learn-domain-profiles">Step 11 · Domain profiles</h3>
+<p>The last rung. A production profile — mobility, electrical, logistics,
+robotics — pins roles, ports, units, laws, and film schemas using the step-3
+mechanism. It is last because a profile can only pin things that already exist.
+Building it before typed ports and behaviours would smuggle in a role system by
+example, which is the failure
+<a href="spec.html#s16-2">§16.2</a> already refuses.</p>
+
+<p><b>Where to read more:</b>
+<a href="guide.html#topology-direction">guide §26</a>,
+<a href="draft.html#profiles">draft §41</a>,
+<a href="direction.html#first">direction: the first real test</a>,
+<a href="reference.html#capabilities">reference: domain-profiles</a>.</p>
+
+<h3 id="learn-meta-scale">Metaprogramming and programs at scale</h3>
+<p>Three construct kinds — <b>Fragment</b>, <b>Stencil</b>, <b>Derive</b> —
+form the metaprogramming family. Their meaning-roles are frozen as kinds but
+their detailed semantics remain sketch. Alongside them: content-addressed
+<b>modules</b>, first-class <b>testing</b>, gated <b>FFI</b>, and compile-time
+<b>reflection</b>. See
+<a href="guide.html#meta">guide §24</a> and
+<a href="guide.html#at-scale">guide §25</a> for the full treatment.</p>
+
+<h2 id="where-next">Where to go next</h2>
+
 <div class="grid g3" style="margin-top:26px">
   <a class="card link" href="guide.html"><span class="n">NEXT</span>
     <h3>The complete guide</h3>
-    <p>The other nine construct kinds, the memory kinds, the execution model, and
-    which parts of the design are still ahead of the runtime.</p></a>
+    <p>The full language design: all ten construct kinds, the five memory kinds,
+    the period cycle, every designed-but-unbuilt capability family with status
+    and linked treatment.</p></a>
   <a class="card link" href="reference.html"><span class="n">KEEP OPEN</span>
     <h3>Reference tables</h3>
     <p>Ports, config keys, every error code, the sugar forms, the identity ladder,
-    the stability tiers.</p></a>
+    the stability tiers, the capability registry.</p></a>
   <a class="card link" href="spec.html"><span class="n">AUTHORITY</span>
     <h3>The frozen spec</h3>
     <p>Core 0.1.2 itself. When the guide and the spec disagree about what is
-    settled, the spec wins.</p></a>
+    settled, the spec wins. Part II carries the non-normative design draft
+    in spec language.</p></a>
 </div>
 
 </div>
