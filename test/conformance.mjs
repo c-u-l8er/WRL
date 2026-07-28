@@ -6241,6 +6241,88 @@ function fmt(v) {
      `reinterpreted rather than broken.`);
 }
 
+/* ===================== draft.html topology reconciliation cross-references
+ *
+ * draft.html is the authored design companion. Five Part II spec topics
+ * (D1–D5) post-date it and touch sections it already covers. Each point of
+ * contact must be marked with a reconciliation note that names the Part II
+ * section and links to it. This check verifies the links exist, resolve, and
+ * cover all five topics — so the draft cannot silently fall out of step with
+ * the topology work. */
+{
+  const draft = readFileSync(join(ROOT, "draft.html"), "utf8");
+  const spec  = readFileSync(join(ROOT, "spec.html"),  "utf8");
+
+  /* The five Part II sections that draft.html must cross-reference */
+  const TOPOLOGY_SECTIONS = [
+    { id: "d1", label: "multilayer topology" },
+    { id: "d2", label: "three connection kinds" },
+    { id: "d3", label: "route axes vs textures" },
+    { id: "d4", label: "walls as computation boundary" },
+    { id: "d5", label: "derives seal the answer" },
+  ];
+
+  /* The reconciliation index must exist */
+  ok("draft/topology-reconciliation-anchor",
+     draft.includes('id="topology-reconciliation"'),
+     "draft.html must have an element with id='topology-reconciliation' — " +
+     "the index of how the authored draft connects to the topology work");
+
+  /* Each of the five topics must be linked from draft.html to spec.html */
+  for (const { id, label } of TOPOLOGY_SECTIONS) {
+    const linked = draft.includes(`spec.html#${id}`);
+    ok(`draft/links-to-${id}`,
+       linked,
+       `draft.html must link to spec.html#${id} (${label}). The authored ` +
+       `draft and the topology work share this ground, and a reader who ` +
+       `sees one without the other gets half the argument.`);
+
+    /* and the target anchor must exist in spec.html */
+    if (linked) {
+      ok(`draft/target-${id}-exists`,
+         spec.includes(`id="${id}"`),
+         `draft.html links to spec.html#${id} but that anchor does not exist`);
+    }
+  }
+
+  /* The five reconciliation points of contact named in the index:
+   *   §19 <-> D8, §20.6 <-> D4, §14.2 <-> D2, §32 <-> D5, §41 <-> D6
+   * Each must exist as a note somewhere in draft.html's body (not just the
+   * index). The weakest checkable form: the D-section anchor appears after
+   * the draft section's own anchor. */
+  const CONTACTS = [
+    { draft_anchor: "entities",   spec_ref: "d8", topic: "Relation not Edge" },
+    { draft_anchor: "boundaries", spec_ref: "d4", topic: "walls change the model" },
+    { draft_anchor: "traits",     spec_ref: "d2", topic: "resolver contracts" },
+    { draft_anchor: "derives",    spec_ref: "d5", topic: "derives seal the answer" },
+    { draft_anchor: "profiles",   spec_ref: "d6", topic: "profiles carry domains" },
+  ];
+
+  for (const { draft_anchor, spec_ref, topic } of CONTACTS) {
+    const anchorPos = draft.indexOf(`id="${draft_anchor}"`);
+    const nextSection = draft.indexOf('<h2 ', anchorPos + 1);
+    const sectionBody = nextSection > anchorPos
+      ? draft.slice(anchorPos, nextSection)
+      : draft.slice(anchorPos);
+    const hasRef = sectionBody.includes(`spec.html#${spec_ref}`);
+    ok(`draft/reconciliation-${draft_anchor}-to-${spec_ref}`,
+       hasRef,
+       `draft.html §${draft_anchor} should reference spec.html#${spec_ref} ` +
+       `(${topic}). The reconciliation index lists this contact point but ` +
+       `the section body does not link to it.`);
+  }
+
+  /* draft.html must not present any Part II construct as writable Core. Every
+   * code block in draft.html already carries data-not-current, so this is a
+   * belt-and-suspenders check: no block in draft.html may carry data-seal
+   * unless it is one of the fixture worlds. */
+  const draftSeals = [...draft.matchAll(/data-seal="([^"]+)"/g)];
+  ok("draft/no-draft-blocks-claim-sealed", draftSeals.length === 0,
+     `draft.html has ${draftSeals.length} block(s) claiming data-seal. The ` +
+     `design draft describes unshipped syntax; nothing on this page should ` +
+     `present itself as writable and sealable.`);
+}
+
 /* ==================================================================== report */
 
 console.log(`\n  ${pass} passed, ${fail} failed ` +
