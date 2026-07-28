@@ -5863,6 +5863,66 @@ function fmt(v) {
   return typeof v === "bigint" ? v.toString() : v ?? null;
 }
 
+/* ====================================== 21a. Part II cross-reference integrity
+ *
+ * Three cross-references between the five objective topics (§D1–§D5), the
+ * dependent sections (§D6–§D9), and the dependency ladder carry load that a
+ * link checker cannot verify — because link integrity proves a citation
+ * resolves, not that two pages agree.
+ *
+ * 1. §D4 (walls as computation boundary) must cite its own falsification
+ *    condition (§D7 #5, boundary-undecidable), so a reader of the open problem
+ *    can see what would falsify the answer.
+ * 2. §D9-owes admission-wall item must reference §D4 (wall obligations), not
+ *    §D6 (profiles). An earlier version cited §D6, which defines profiles, not
+ *    walls — so the reference resolved and said the wrong thing.
+ * 3. §D5 (derives) must acknowledge its dependency on attributed relations
+ *    (§D8), because a derive's checker validates against relation attributes
+ *    that §D8 defines.
+ */
+{
+  const spec = readFileSync(join(ROOT, "spec.html"), "utf8");
+
+  /* §D4 → falsification condition 5 */
+  const d4Section = spec.slice(
+    spec.indexOf('id="d4"'),
+    spec.indexOf('id="d5"'));
+  ok("xref/d4-cites-falsify-boundary",
+     d4Section.includes('falsify-boundary-undecidable'),
+     `§D4 (walls as computation boundary) does not cite falsification ` +
+     `condition 5 (boundary-undecidable). The section opens an open problem ` +
+     `— per-profile boundary safety — and the falsification table says what ` +
+     `would close it the wrong way. The two must be linked.`);
+
+  /* §D9-owes admission wall → §D4 */
+  const d9Owes = spec.slice(
+    spec.indexOf('id="d9-owes"'),
+    spec.indexOf('id="d-refs"'));
+  ok("xref/d9-owes-admission-wall-cites-d4",
+     d9Owes.includes('#d4'),
+     `§D9-owes admission-wall item must reference §D4 (wall obligations). ` +
+     `An earlier version cited §D6, which defines profiles, not walls.`);
+  ok("xref/d9-owes-admission-wall-no-orphan-d6-ref",
+     !(/§D6's wall obligations/.test(d9Owes)),
+     `§D9-owes still says "§D6's wall obligations". §D6 defines profiles, ` +
+     `not walls; the wall obligations are in §D4 and §12.`);
+
+  /* §D5 → §D8 dependency */
+  const d5Section = spec.slice(
+    spec.indexOf('id="d5"'),
+    spec.indexOf('id="d6"'));
+  ok("xref/d5-dependency-on-d8",
+     d5Section.includes('#d8'),
+     `§D5 (derives) must acknowledge its dependency on §D8 (attributed ` +
+     `relations). A derive's checker validates against relation attributes ` +
+     `that §D8 defines; without the link a reader sees no dependency chain ` +
+     `from derives to the relation model.`);
+  ok("xref/d5-dependency-on-ladder",
+     d5Section.includes('direction.html#ladder'),
+     `§D5 (derives) must reference the dependency ladder to show where ` +
+     `the derive boundary sits in the promotion order.`);
+}
+
 /* ======================================= 21b. the part boundary wears a badge
  *
  * Part I is normative and Part II is draft, and the page says so in two

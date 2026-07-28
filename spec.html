@@ -1148,7 +1148,7 @@ collection of DSLs sharing a parser.</div>
 cannot cross walls", §12) becomes strictly more load-bearing: it is what stops a
 solver inside a wall from writing cells outside it. If walls are to carry
 profiles, boundary safety has to be enforced <i>per profile pair</i>, not
-globally — an open problem, not a solved one.</p>
+globally — an open problem, not a solved one. <a href="#falsify-boundary-undecidable">Falsification condition 5</a> is the sharpened form of this: if per-profile boundary safety proves undecidable in practice, heterogeneous execution has to be dropped and acausal connections have nowhere to live.</p>
 
 <h2 id="d5"><span class="secnum">§D5</span>Derives seal the answer, not the search<span class="draft">draft</span></h2>
 
@@ -1185,6 +1185,15 @@ determines what a derive <i>is</i>. A derive whose output cannot be checked more
 cheaply than it was produced is not admissible under D5, and several
 optimisation problems have no such checker. Those problems stay outside the
 language.</p>
+
+<div class="note"><b>Dependency on attributed relations.</b> A derive's inputs are
+the world's topology and the attributes on its relations — a road segment's
+capacity, a link's cost, a terminal's position. Without
+<a href="#d8">§D8</a>'s attributed relations there is nothing for the checker to
+validate the result against, so the derive boundary is
+<a href="direction.html#ladder">ladder step 10</a>, after attributed relations at
+step 4. The checker also needs <a href="#d4">§D4</a>'s effect-wall boundary
+(step 9), because a solver invocation is an effect that crosses the world.</div>
 
 <h2 id="d6"><span class="secnum">§D6</span>Profiles carry domains, not construct kinds<span class="draft">draft</span></h2>
 
@@ -4988,7 +4997,7 @@ has to be as carefully specified as one that admits messages.</p>
 <li><b>Attributed relations (§D8).</b> Operation 5 changes attributes that do not yet exist.</li>
 <li><b>A conflict diagnostic set.</b> Every incompatible pair needs a code, in the same family as <code class="inline">WRL_CONTROLLER_CONFLICT</code>, which is today's static analogue of exactly this problem.</li>
 <li><b>A declared bounded-resource kind.</b> The escrow class above cannot be applied to an attribute that is merely a number. <code class="inline">capacity</code> has to be declared in the profile as a bounded resource, with a total, before an allowance can be split against it — which makes this a §D8 attribute-type-system obligation as much as a §D9 one.</li>
-<li><b>An admission wall.</b> The <code class="inline">admit</code> rule above turns participant entry into a boundary crossing, and §D6's wall obligations apply to it in full: what evidence is required, what is recorded, what happens when the checker rejects, and what a partition does while it cannot reach the quota state.</li>
+<li><b>An admission wall.</b> The <code class="inline">admit</code> rule above turns participant entry into a boundary crossing, and <a href="#d4">§D4</a>'s wall obligations — boundary safety enforced per profile pair, undeclared effects stopped at the wall (§12) — apply to it in full: what evidence is required, what is recorded, what happens when the checker rejects, and what a partition does while it cannot reach the quota state.</li>
 </ol>
 
 <h3 id="d-refs">References</h3>
