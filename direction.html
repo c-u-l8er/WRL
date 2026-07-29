@@ -20,9 +20,11 @@
   .cite{font-size:13px;color:var(--ink-faint)}
   .cite a{color:var(--ink-soft)}
 </style>
+<script type="module" src="/amp-nav.js"></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
+<amp-nav property="wrl"></amp-nav>
 
 <header class="site">
   <a class="mark" href="./">WallRiderLang<small>WRL CORE 0.1.2 · FROZEN</small></a>
@@ -256,19 +258,19 @@ be blamed on a harsh grader:</p>
 <div class="tbl"><table class="scorecard">
 <thead><tr><th>What is being scored</th><th></th><th>Why</th></tr></thead>
 <tbody>
-<tr><td><b>WRL Core's writable actor surface</b><br><span class="cite">what you can type today</span></td><td><b>3.5</b>/10</td><td>five fixed roles, one texture, no behaviours, no mailbox, no spawn. This is the number a hands-on reviewer will reach, and it is right</td></tr>
-<tr><td><b>The implemented deterministic runtime foundation</b><br><span class="cite">what the small surface sits on</span></td><td><b>7.5</b>/10</td><td>content-addressed worlds, canonical ordering, within-period fixpoint, byte-exact replay, an independent oracle. Rare and hard — and <b>frozen and demonstrated for the Core fixture</b>, which is a smaller claim than "finished": it has not been shown at fleet scale, under partition, or across hosts of different architectures</td></tr>
-<tr><td><b>The full authored actor-model design</b><br><span class="cite">what the language is designed to be</span></td><td><b>8.7</b>/10</td><td>mailboxes with capacity and overflow, behaviour blocks, capability walls, deterministic supervision, verified migration, message compatibility — all written, none running</td></tr>
+<tr><td><b>WRL Core's writable actor surface</b><br><span class="cite">what you can type today</span></td><td><b>4</b>/10</td><td>five fixed roles, two textures (<code class="inline">--</code> and <code class="inline">~~</code>), no behaviours, no spawn. The mailbox texture is surface-emittable in Forge but the full capacity/overflow semantics are not yet writable. Still the number a hands-on reviewer will reach</td></tr>
+<tr><td><b>The implemented deterministic runtime foundation</b><br><span class="cite">what the small surface sits on</span></td><td><b>8.5</b>/10</td><td>content-addressed worlds, canonical ordering, within-period fixpoint, byte-exact replay, an independent oracle — <b>now verified across two independent implementations</b> (JS + Python/Forge) and <b>two encoding families</b> (V1 + V2 Semantic IR), with runtime projection on the wire and 1254 conformance checks. Cross-implementation byte-exact agreement on <code class="inline">sem-</code> and <code class="inline">bcnt-</code> hashes is proven. Still demonstrated only for the Core fixture, not at fleet scale or across hosts</td></tr>
+<tr><td><b>The full authored actor-model design</b><br><span class="cite">what the language is designed to be</span></td><td><b>8.8</b>/10</td><td>mailboxes with capacity and overflow, behaviour blocks, capability walls, deterministic supervision, verified migration, message compatibility — all written, <code class="inline">~~</code> now emittable. Four documentation pages (reference, guide, tutorial, draft) cover the full language with conformance-checked examples</td></tr>
 <tr><td><b>Topology-native actor-system potential</b><br><span class="cite">the ceiling if the thesis is right</span></td><td><b>9.7</b>/10</td><td>few actor-oriented systems combine a first-class relation with canonical identity, replay evidence and capability topology — the pieces exist separately in graph databases, modelling languages and actor runtimes, and the combination is what is unoccupied. A ceiling, not a result</td></tr>
 <tr><td><b>Production operations maturity vs OTP</b><br><span class="cite">running it in anger</span></td><td><b>2</b>/10</td><td>no distribution, no hot upgrade in production, no observer, no tracing, no thirty years of operators. This one is not close and will not be soon</td></tr>
 </tbody></table></div>
 
-<div class="note"><b>Read the spread, not the average.</b> Averaging 3.5 and 9.7
+<div class="note"><b>Read the spread, not the average.</b> Averaging 4 and 9.7
 produces a number that describes nothing. The shape of the spread is the actual
 finding: <b>a narrow surface on a strong foundation, with a designed middle and
-an unbuilt operational floor</b>. That shape says the risk is in delivery, not
-in conception — and it says the fastest way to be wrong is to widen the surface
-before the foundation can carry it.</div>
+an unbuilt operational floor</b>. The foundation is now significantly stronger
+(cross-implementation agreement, two encodings, runtime projection) — the risk
+remains in delivery, not in conception.</div>
 
 <h3 id="today-features">Feature by feature</h3>
 
@@ -285,8 +287,8 @@ you can type today, and the two disagree on purpose.</p>
 <tr><td>Immutable messages</td><td><b>9.5</b></td><td>partly</td><td>values are immutable by construction; the asynchronous carrier is not writable</td></tr>
 <tr><td>Error / value / fault ladder</td><td><b>9.5</b></td><td>partly</td><td>three distinct outcome kinds, not exceptions; fault <i>state</i> exists, escalation does not</td></tr>
 <tr><td>Owned state</td><td><b>9</b></td><td>yes</td><td>single-writer per cell is a static check, not a convention</td></tr>
-<tr><td>Same-period vs later delivery</td><td><b>9</b></td><td>no</td><td>the distinction is frozen in the texture family; only <code class="inline">--</code> is writable</td></tr>
-<tr><td>Bounded mailboxes</td><td><b>9</b></td><td>no</td><td>capacity and overflow policy are part of the port type, not runtime configuration</td></tr>
+<tr><td>Same-period vs later delivery</td><td><b>9</b></td><td>partly</td><td>two textures writable (<code class="inline">--</code> and <code class="inline">~~</code>); the remaining two (<code class="inline">!!</code> and <code class="inline">&gt;&gt;</code>) are frozen meanings with no surface</td></tr>
+<tr><td>Bounded mailboxes</td><td><b>9</b></td><td>partly</td><td><code class="inline">~~</code> is surface-emittable in Forge; full capacity and overflow policy are designed but not yet writable</td></tr>
 <tr><td>Quiescence</td><td><b>9</b></td><td>yes</td><td>defined precisely, and distinguished from termination</td></tr>
 <tr><td>Capability / effect walls</td><td><b>9</b></td><td>no</td><td>no effect happens invisibly; every crossing is a named, recorded wall</td></tr>
 <tr><td>Live-state migration</td><td><b>9</b></td><td>no</td><td>a verified route with recorded evidence, not an improvised upgrade script</td></tr>
@@ -312,14 +314,14 @@ meaning is decided and weak exactly where operations happen.</p>
 <div class="tbl"><table class="scorecard">
 <thead><tr><th>The claim</th><th>What exists today</th></tr></thead>
 <tbody>
-<tr><td>Many typed layers over one identity</td><td><b>One</b> layer. Two edge kinds, both signal-ish.</td></tr>
-<tr><td>Four route textures carrying guarantees</td><td><b>One</b> writable texture, <code class="inline">--</code>. The other three are frozen <i>meanings</i> with no surface.</td></tr>
+<tr><td>Many typed layers over one identity</td><td><b>Two</b> encoding families (V1 + V2 Semantic IR) over one identity. Two edge kinds, both signal-ish.</td></tr>
+<tr><td>Four route textures carrying guarantees</td><td><b>Two</b> writable textures (<code class="inline">--</code> and <code class="inline">~~</code>). The other two are frozen <i>meanings</i> with no surface.</td></tr>
 <tr><td>Attributed, weighted relations</td><td>None. An edge carries a kind and two endpoints.</td></tr>
 <tr><td>Programmable behaviour</td><td>None. Five fixed roles with fixed reactions.</td></tr>
 <tr><td>Dynamic topology</td><td>None. The world is static for the length of a run.</td></tr>
 <tr><td>Supervision</td><td>Fault <i>state</i> exists. Supervision does not.</td></tr>
-<tr><td>Domain profiles</td><td>One profile, <code class="inline">forge.world.core.v1</code>.</td></tr>
-<tr><td>Content-addressed worlds and replayable films</td><td><b>This part is real</b>, tested, and shipping.</td></tr>
+<tr><td>Domain profiles</td><td>One profile, <code class="inline">forge.world.core.v1</code>. V2 Semantic IR adds a second encoding family, not a second profile.</td></tr>
+<tr><td>Content-addressed worlds and replayable films</td><td><b>Real, cross-implementation, and two-encoding.</b> Verified across JS and Python/Forge with byte-exact <code class="inline">sem-</code> agreement. 1254 conformance checks, 128 register rows, model debt 0.</td></tr>
 </tbody></table></div>
 
 <p>So the honest summary is: the <b>mechanism</b> is built and the
