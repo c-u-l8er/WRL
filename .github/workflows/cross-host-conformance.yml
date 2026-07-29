@@ -1,0 +1,146 @@
+# cross-host-conformance.yml -- Two independent hosted-runner jobs that each
+# run the hermetic conformance entry point, stage uniquely named certificate
+# artifacts, and a gate job that compares both identifiers with each other
+# and the pinned frozen-Core identifier.
+#
+# This workflow does NOT execute automatically.  It is defined for
+# workflow_dispatch only and is blocked on CI authorization and runner
+# availability (see docs/cross-host-execution-packet.md).
+#
+# Prerequisites for execution:
+#   - wrl_canonical.py must be available to run-conformance.  On hosted
+#     runners this requires either (a) checking TRVM into this repo or a
+#     submodule, or (b) a prior step that fetches it.  This is documented
+#     as a follow-on dependency in the execution packet.
+#
+# Pinned identifier:
+#   sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a
+
+name: cross-host-conformance
+
+on:
+  workflow_dispatch:
+
+# No automatic triggers -- execution is a follow-on objective.
+
+jobs:
+  # ── Job A: Ubuntu 22.04, Node 20, Python 3.11 ──
+  verify-host-a:
+    name: "Verify host A (ubuntu-22.04 / node-20 / python-3.11)"
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run hermetic conformance pipeline
+        run: forge-probe/live-local-bundle/run-conformance
+
+      - name: Extract certificate identifier
+        id: extract-id
+        run: |
+          ID=$(node -e "
+            const c = JSON.parse(require('fs').readFileSync(
+              'forge-probe/live-local-bundle/certificates/certificate.json','utf8'));
+            for (const r of c.results) process.stdout.write(r.computed_semantic_artifact_id);
+          ")
+          echo "cert_id=$ID" >> "$GITHUB_OUTPUT"
+
+      - name: Upload certificate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: certificate-host-a-ubuntu2204-node20
+          path: forge-probe/live-local-bundle/certificates/certificate.json
+          retention-days: 90
+
+    outputs:
+      cert_id: ${{ steps.extract-id.outputs.cert_id }}
+
+  # ── Job B: Ubuntu 24.04, Node 22, Python 3.12 ──
+  verify-host-b:
+    name: "Verify host B (ubuntu-24.04 / node-22 / python-3.12)"
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run hermetic conformance pipeline
+        run: forge-probe/live-local-bundle/run-conformance
+
+      - name: Extract certificate identifier
+        id: extract-id
+        run: |
+          ID=$(node -e "
+            const c = JSON.parse(require('fs').readFileSync(
+              'forge-probe/live-local-bundle/certificates/certificate.json','utf8'));
+            for (const r of c.results) process.stdout.write(r.computed_semantic_artifact_id);
+          ")
+          echo "cert_id=$ID" >> "$GITHUB_OUTPUT"
+
+      - name: Upload certificate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: certificate-host-b-ubuntu2404-node22
+          path: forge-probe/live-local-bundle/certificates/certificate.json
+          retention-days: 90
+
+    outputs:
+      cert_id: ${{ steps.extract-id.outputs.cert_id }}
+
+  # ── Gate: compare both identifiers with each other and the pinned ID ──
+  identifier-gate:
+    name: "Identifier comparison gate"
+    needs: [verify-host-a, verify-host-b]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compare identifiers
+        env:
+          ID_A: ${{ needs.verify-host-a.outputs.cert_id }}
+          ID_B: ${{ needs.verify-host-b.outputs.cert_id }}
+          PINNED: "sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a"
+        run: |
+          echo "=== Identifier comparison gate ==="
+          echo "  Host A:  $ID_A"
+          echo "  Host B:  $ID_B"
+          echo "  Pinned:  $PINNED"
+          echo ""
+
+          PASS=true
+
+          if [ "$ID_A" != "$ID_B" ]; then
+            echo "FAIL: Host A and Host B identifiers differ"
+            PASS=false
+          fi
+
+          if [ "$ID_A" != "$PINNED" ]; then
+            echo "FAIL: Host A identifier does not match pinned"
+            PASS=false
+          fi
+
+          if [ "$ID_B" != "$PINNED" ]; then
+            echo "FAIL: Host B identifier does not match pinned"
+            PASS=false
+          fi
+
+          if [ "$PASS" = "true" ]; then
+            echo ""
+            echo "GATE PASSED: all three identifiers are equal"
+            echo "  sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a"
+          else
+            echo ""
+            echo "GATE FAILED"
+            exit 1
+          fi
