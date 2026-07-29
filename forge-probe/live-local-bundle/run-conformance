@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# run-conformance -- Single deterministic network-free entry point for the
+# frozen-Core conformance pipeline.
+#
+# Produces a certificate from both implementations (wrl-js-node and
+# forge-python-spine) running in separate child processes, then verifies
+# the certificate against the contract and pinned fixture.
+#
+# Requires: node (>=18), python3, and the repository checkout containing
+# wrl.js and wrl_projection.py/wrl_canonical.py.
+#
+# No network access is needed.  All inputs come from the bundle directory
+# and the repository working tree.
+#
+# Usage:
+#   ./run-conformance                 # produce + verify
+#   ./run-conformance --verify-only   # verify existing certificate only
+#   ./run-conformance --check         # check prerequisites only
+#
+# Exit 0: certificate produced and verified, identifier matches pinned value.
+# Exit 1: any failure (missing inputs, production failure, verification
+#          failure, identifier mismatch).
+
+set -euo pipefail
+
+BUNDLE_DIR="$(cd "$(dirname "$0")" && pwd)"
+PINNED_ID="sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a"
+
+# ── Prerequisites ──
+
+fail() { echo "FAIL: $*" >&2; exit 1; }
+
+command -v node  >/dev/null 2>&1 || fail "node not found on PATH"
+command -v python3 >/dev/null 2>&1 || fail "python3 not found on PATH"
+
+NODE_MAJOR="$(node -e 'process.stdout.write(String(process.versions.node.split(".")[0]))')"
+[ "$NODE_MAJOR" -ge 18 ] 2>/dev/null || fail "node >= 18 required (got $(node --version))"
+
+# ── Bundle files ──
+
+for f in contract.json fixture.json run-on-host.mjs run-node.mjs run-python.py verify.mjs; do
+  [ -f "$BUNDLE_DIR/$f" ] || fail "missing bundle file: $f"
+done
+
+# ── Mode dispatch ──
+
+MODE="full"
+for arg in "$@"; do
+  case "$arg" in
+    --verify-only) MODE="verify-only" ;;
+    --check)       MODE="check" ;;
+  esac
+done
+
+if [ "$MODE" = "check" ]; then
+  exec node "$BUNDLE_DIR/run-on-host.mjs" --check
+fi
+
+# ── Produce certificate ──
+
+if [ "$MODE" = "full" ]; then
+  echo "=== Producing certificate ==="
+  node "$BUNDLE_DIR/run-on-host.mjs" || fail "certificate production failed"
+  echo ""
+fi
+
+# ── Verify certificate ──
+
+echo "=== Verifying certificate ==="
+node "$BUNDLE_DIR/verify.mjs" "$BUNDLE_DIR" || fail "certificate verification failed"
+echo ""
+
+# ── Identifier gate ──
+
+CERT_FILE="$BUNDLE_DIR/certificates/certificate.json"
+[ -f "$CERT_FILE" ] || fail "certificate file not found after verification"
+
+# Extract and check every computed_semantic_artifact_id matches the pinned ID
+IDS="$(node -e "
+  const c = JSON.parse(require('fs').readFileSync('$CERT_FILE','utf8'));
+  for (const r of c.results) process.stdout.write(r.computed_semantic_artifact_id + '\n');
+")"
+
+while IFS= read -r id; do
+  [ -z "$id" ] && continue
+  if [ "$id" != "$PINNED_ID" ]; then
+    fail "identifier mismatch: got $id, want $PINNED_ID"
+  fi
+done <<< "$IDS"
+
+echo "=== Identifier gate ==="
+echo "  pinned: $PINNED_ID"
+echo "  all results match"
+echo ""
+echo "CONFORMANCE PASSED"

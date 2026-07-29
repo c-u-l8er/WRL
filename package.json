@@ -13,6 +13,8 @@
     "conformance:live-local": "node forge-probe/live-local-bundle/run-on-host.mjs",
     "conformance:certificate:verify": "node forge-probe/live-local-bundle/verify.mjs forge-probe/live-local-bundle",
     "conformance:live-local:checks": "node test/live-local-checks.mjs",
+    "conformance:run": "forge-probe/live-local-bundle/run-conformance",
+    "conformance:regression": "node test/entry-point-regression.mjs",
     "serve": "python3 -m http.server 8099"
   },
   "engines": { "node": ">=18" }
