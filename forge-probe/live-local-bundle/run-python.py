@@ -4,9 +4,10 @@ WRL spine, write a JSON result to stdout.
 
 This file is spawned as a SEPARATE child process by the orchestrator.
 
-Usage:  python3 run-python.py <forge_dir> < fixture.json
+Usage:  python3 run-python.py <dir1> [<dir2> ...] < fixture.json
   stdin:   the fixture JSON (with .source and .wire fields)
-  argv 1:  path to the directory containing wrl_canonical.py and wrl_projection.py
+  argv:    one or more directories to add to sys.path (must collectively
+           contain wrl_projection.py and wrl_canonical.py)
   stdout:  JSON result object
 """
 import hashlib
@@ -21,20 +22,30 @@ sys.dont_write_bytecode = True
 
 
 def main():
-    if len(sys.argv) < 2:
-        sys.stderr.write("run-python.py: missing forge_dir argument\n")
+    dirs = [os.path.abspath(d) for d in sys.argv[1:]]
+    if not dirs:
+        sys.stderr.write("run-python.py: missing directory argument(s)\n")
         sys.exit(2)
 
-    forge_dir = os.path.abspath(sys.argv[1])
+    # Add all directories to sys.path
+    for d in dirs:
+        if d not in sys.path:
+            sys.path.insert(0, d)
 
     # Read fixture from stdin
     fixture = json.loads(sys.stdin.read())
 
-    # Compute implementation file digest
-    projection_path = os.path.join(forge_dir, "wrl_projection.py")
-    if not os.path.isfile(projection_path):
-        # Try the probe directory
-        projection_path = os.path.join(forge_dir, "wrl_projection.py")
+    # Find wrl_projection.py across the provided directories
+    projection_path = None
+    for d in dirs:
+        p = os.path.join(d, "wrl_projection.py")
+        if os.path.isfile(p):
+            projection_path = p
+            break
+    if projection_path is None:
+        sys.stderr.write("run-python.py: wrl_projection.py not found in %s\n"
+                         % ", ".join(dirs))
+        sys.exit(2)
 
     impl_bytes = open(projection_path, "rb").read()
     impl_digest = hashlib.sha256(impl_bytes).hexdigest()
@@ -73,10 +84,6 @@ def main():
         pass
 
     try:
-        # Add forge_dir to sys.path so wrl_canonical and wrl_projection can import
-        if forge_dir not in sys.path:
-            sys.path.insert(0, forge_dir)
-
         import wrl_projection as P
 
         # Verify the wire bytes through the projection pipeline

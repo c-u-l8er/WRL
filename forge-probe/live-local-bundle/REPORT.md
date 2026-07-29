@@ -41,8 +41,4 @@ tmpdir=$(mktemp -d) && cp -R forge-probe/live-local-bundle "$tmpdir/bundle" && \
 ```
 
 DOCTRINE:
-advanced — the portability and identity claim for the frozen-Core fixture
-moved from `in_tree` to `live_local`. The evidence is the certificate in
-`certificates/certificate.json`, verified by `verify.mjs`, which records two
-separate-process runs against real implementations with agreeing identifiers.
-`live_deployed` has not been reached.
+advanced — the portability and identity claim for the frozen-Core fixture moved from in_tree to live_local. The evidence is the certificate in certificates/certificate.json, verified by verify.mjs, which records two separate-process runs against real implementations with agreeing identifiers. live_deployed has not been reached.

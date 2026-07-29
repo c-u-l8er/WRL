@@ -49,20 +49,46 @@ function findWrlJs(opts) {
   return null;
 }
 
-function findForgeDir(opts) {
-  if (opts.forgeDir) return resolve(opts.forgeDir);
-  if (process.env.FORGE_DIR) return resolve(process.env.FORGE_DIR);
-  // Default: the forge-probe directory (has wrl_projection.py)
-  // but wrl_canonical.py may need to be found elsewhere
-  const probeDir = resolve(HERE, "..", "..", "forge-probe");
-  if (existsSync(join(probeDir, "wrl_projection.py"))) {
-    // Check if wrl_canonical.py is there too
-    if (existsSync(join(probeDir, "wrl_canonical.py"))) return probeDir;
-    // Look in TRVM/forge/
-    const trvm = resolve(HERE, "..", "..", "..", "TRVM", "forge");
-    if (existsSync(join(trvm, "wrl_canonical.py"))) return trvm;
+/**
+ * Find the directories that collectively contain wrl_projection.py and
+ * wrl_canonical.py. Returns an array of directory paths.
+ */
+function findForgeDirs(opts) {
+  if (opts.forgeDir) {
+    const d = resolve(opts.forgeDir);
+    // If the single dir has both files, use it alone
+    if (existsSync(join(d, "wrl_projection.py")) &&
+        existsSync(join(d, "wrl_canonical.py"))) {
+      return [d];
+    }
+    return [d];
   }
-  return null;
+  if (process.env.FORGE_DIR) {
+    const d = resolve(process.env.FORGE_DIR);
+    return [d];
+  }
+
+  // Default search: forge-probe/ has wrl_projection.py, TRVM/forge/ has wrl_canonical.py
+  const dirs = [];
+  const probeDir = resolve(HERE, "..", "..", "forge-probe");
+  if (existsSync(join(probeDir, "wrl_projection.py"))) dirs.push(probeDir);
+
+  // Check if wrl_canonical.py is already found
+  const haveCanonical = dirs.some((d) => existsSync(join(d, "wrl_canonical.py")));
+  if (!haveCanonical) {
+    // Search common locations
+    for (const candidate of [
+      resolve(HERE, "..", "..", "..", "TRVM", "forge"),
+      resolve(HERE, "..", "..", "..", "..", "TRVM", "forge"),
+      resolve(HERE, "..", "..", "..", "..", "..", "TRVM", "forge"),
+    ]) {
+      if (existsSync(join(candidate, "wrl_canonical.py"))) {
+        dirs.push(candidate);
+        break;
+      }
+    }
+  }
+  return dirs.length > 0 ? dirs : null;
 }
 
 function spawnChild(command, args, stdinData) {
@@ -112,7 +138,10 @@ async function main() {
   }
 
   const wrlJsPath = findWrlJs(opts);
-  const forgeDir = findForgeDir(opts);
+  const forgeDirs = findForgeDirs(opts);
+
+  // Helper: check if a file exists in any of the forge dirs
+  const forgeHas = (name) => forgeDirs && forgeDirs.some((d) => existsSync(join(d, name)));
 
   // --check mode: verify implementations are available
   if (opts.check) {
@@ -123,26 +152,27 @@ async function main() {
     } else {
       console.log("OK: wrl.js at %s", wrlJsPath);
     }
-    if (!forgeDir || !existsSync(join(forgeDir, "wrl_projection.py"))) {
-      console.error("MISSING: Forge Python spine not found (tried: %s)", forgeDir || "default paths");
+    if (!forgeHas("wrl_projection.py")) {
+      console.error("MISSING: wrl_projection.py not found");
       ok = false;
     } else {
-      console.log("OK: Forge Python spine at %s", forgeDir);
-      if (!existsSync(join(forgeDir, "wrl_canonical.py"))) {
-        console.error("MISSING: wrl_canonical.py not found in %s", forgeDir);
-        ok = false;
-      } else {
-        console.log("OK: wrl_canonical.py at %s", join(forgeDir, "wrl_canonical.py"));
-      }
+      console.log("OK: wrl_projection.py found");
     }
+    if (!forgeHas("wrl_canonical.py")) {
+      console.error("MISSING: wrl_canonical.py not found");
+      ok = false;
+    } else {
+      console.log("OK: wrl_canonical.py found");
+    }
+    if (forgeDirs) console.log("  forge dirs: %s", forgeDirs.join(", "));
     process.exit(ok ? 0 : 1);
   }
 
   // Validate implementations exist before spawning
   const missing = [];
   if (!wrlJsPath || !existsSync(wrlJsPath)) missing.push("wrl-js-node");
-  if (!forgeDir || !existsSync(join(forgeDir, "wrl_projection.py"))) missing.push("forge-python-spine (wrl_projection.py)");
-  if (forgeDir && !existsSync(join(forgeDir, "wrl_canonical.py"))) missing.push("forge-python-spine (wrl_canonical.py)");
+  if (!forgeHas("wrl_projection.py")) missing.push("forge-python-spine (wrl_projection.py)");
+  if (!forgeHas("wrl_canonical.py")) missing.push("forge-python-spine (wrl_canonical.py)");
   if (missing.length > 0) {
     console.error("FATAL: required implementations missing: %s", missing.join(", "));
     process.exit(1);
@@ -193,7 +223,7 @@ async function main() {
   try {
     const pyResult = await spawnChild(
       "python3",
-      [join(HERE, "run-python.py"), forgeDir],
+      [join(HERE, "run-python.py"), ...forgeDirs],
       fixtureBytes
     );
     if (pyResult.stderr) console.error("  stderr: %s", pyResult.stderr.trim());

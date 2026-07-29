@@ -1,0 +1,44 @@
+{
+  "contract_version": "live-local.1",
+  "fixture_digest_sha256": "ade989ea5d4b34b2e1ec1afd846a1be0fb795070ba96b0bdae078652a1c1547e",
+  "host_fingerprint": {
+    "hostname": "PX13",
+    "platform": "linux",
+    "arch": "x64",
+    "node_version": "v25.2.1"
+  },
+  "timestamp_utc": "2026-07-29T01:52:28.460Z",
+  "orchestrator_pid": 1828264,
+  "results": [
+    {
+      "implementation_name": "wrl-js-node",
+      "repository_revision": "e6190defca07e62fb80b6f8fc79658d405ab4839",
+      "impl_file_digest_sha256": "305188a869edcc590d00215ae6ec95f6d8462797b20a3aa9e0e7690c9e6835ec",
+      "host_fingerprint": {
+        "hostname": "PX13",
+        "platform": "linux",
+        "arch": "x64"
+      },
+      "process_id": 1828271,
+      "computed_semantic_artifact_id": "sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a",
+      "verification_result": "pass",
+      "expected_identifier": "sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a",
+      "identifier_discrepancy": null
+    },
+    {
+      "implementation_name": "forge-python-spine",
+      "repository_revision": "e6190defca07e62fb80b6f8fc79658d405ab4839",
+      "impl_file_digest_sha256": "618ebff65a72076bf80877eb12391b73db405058c184b984c7d05ef4872f3c58",
+      "host_fingerprint": {
+        "hostname": "PX13",
+        "platform": "linux",
+        "arch": "x86_64"
+      },
+      "process_id": 1828283,
+      "computed_semantic_artifact_id": "sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a",
+      "verification_result": "pass",
+      "expected_identifier": "sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a",
+      "identifier_discrepancy": null
+    }
+  ]
+}
