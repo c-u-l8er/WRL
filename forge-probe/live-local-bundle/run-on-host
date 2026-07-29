@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# run-on-host -- deployment-ready wrapper for the live-local conformance run.
+#
+# Usage:
+#   ./run-on-host [--check] [--wrl-js <path>] [--forge-dir <path>] [--out <dir>]
+#
+# All arguments are forwarded to run-on-host.mjs.
+
+DIR="$(cd "$(dirname "$0")" && pwd)"
+exec node "$DIR/run-on-host.mjs" "$@"

@@ -1,0 +1,160 @@
+{
+  "contract_version": "live-local.1",
+  "description": "Execution and certificate contract for the frozen-Core conformance fixture exercised through real WRL implementations in separate OS processes.",
+  "fixture": {
+    "source_file": "fixture.json",
+    "source_digest_sha256": "ade989ea5d4b34b2e1ec1afd846a1be0fb795070ba96b0bdae078652a1c1547e",
+    "expected_semantic_artifact_id": "sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a",
+    "vector_name": "pinned-fixture"
+  },
+  "implementations": [
+    {
+      "name": "wrl-js-node",
+      "description": "wrl.js under Node.js -- the browser identity spine running in a separate child process",
+      "runner": "run-node.mjs",
+      "language": "javascript",
+      "impl_file_relative": "../../wrl.js",
+      "required": true
+    },
+    {
+      "name": "forge-python-spine",
+      "description": "Forge Python WRL spine (wrl_projection.py + wrl_canonical.py) in a separate child process",
+      "runner": "run-python.py",
+      "language": "python",
+      "impl_file_relative": "../../forge-probe/wrl_projection.py",
+      "forge_canonical_relative": null,
+      "required": true
+    }
+  ],
+  "certificate_schema": {
+    "type": "object",
+    "required": [
+      "contract_version",
+      "fixture_digest_sha256",
+      "host_fingerprint",
+      "timestamp_utc",
+      "results"
+    ],
+    "properties": {
+      "contract_version": {
+        "const": "live-local.1"
+      },
+      "fixture_digest_sha256": {
+        "type": "string",
+        "description": "SHA-256 of the fixture.json bytes used in this run; must match the pinned digest."
+      },
+      "host_fingerprint": {
+        "type": "object",
+        "required": [
+          "hostname",
+          "platform",
+          "arch",
+          "node_version"
+        ],
+        "properties": {
+          "hostname": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string"
+          },
+          "arch": {
+            "type": "string"
+          },
+          "node_version": {
+            "type": "string"
+          }
+        }
+      },
+      "timestamp_utc": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "results": {
+        "type": "array",
+        "minItems": 2,
+        "items": {
+          "type": "object",
+          "required": [
+            "implementation_name",
+            "repository_revision",
+            "impl_file_digest_sha256",
+            "host_fingerprint",
+            "process_id",
+            "computed_semantic_artifact_id",
+            "verification_result",
+            "expected_identifier",
+            "identifier_discrepancy"
+          ],
+          "properties": {
+            "implementation_name": {
+              "type": "string"
+            },
+            "repository_revision": {
+              "type": "string",
+              "description": "Git HEAD revision at run time."
+            },
+            "impl_file_digest_sha256": {
+              "type": "string",
+              "description": "SHA-256 of the implementation file that was executed."
+            },
+            "host_fingerprint": {
+              "type": "object",
+              "required": [
+                "hostname",
+                "platform",
+                "arch"
+              ],
+              "properties": {
+                "hostname": {
+                  "type": "string"
+                },
+                "platform": {
+                  "type": "string"
+                },
+                "arch": {
+                  "type": "string"
+                }
+              }
+            },
+            "process_id": {
+              "type": "integer",
+              "description": "PID of the child process that computed the result. Must differ from the orchestrator PID."
+            },
+            "computed_semantic_artifact_id": {
+              "type": "string",
+              "description": "The sem- identifier this implementation computed from the fixture source."
+            },
+            "verification_result": {
+              "type": "string",
+              "enum": [
+                "pass",
+                "fail",
+                "error"
+              ],
+              "description": "pass: wire bytes match; fail: mismatch; error: implementation could not run."
+            },
+            "expected_identifier": {
+              "type": "string",
+              "description": "The expected sem- identifier from the contract."
+            },
+            "identifier_discrepancy": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "null when computed == expected; a diagnostic string otherwise."
+            }
+          }
+        }
+      }
+    }
+  },
+  "invariants": [
+    "Every result.process_id must differ from the orchestrator PID.",
+    "Every required implementation must have exactly one result entry.",
+    "fixture_digest_sha256 in the certificate must match the contract's pinned digest.",
+    "identifier_discrepancy is null if and only if computed_semantic_artifact_id equals expected_identifier.",
+    "A missing or errored required implementation makes the certificate invalid."
+  ]
+}
