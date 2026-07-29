@@ -94,32 +94,46 @@ Once both are established, a follow-on objective should:
 
 ## Execution records
 
-### Clean-local run 1
+### Clean-local run A
 
 | Field | Value |
 |---|---|
-| Environment | Fresh `git clone --depth 1` into `/tmp/wrl-clean-env-1` on host PX13 (Linux x86_64) |
-| Command | `forge-probe/live-local-bundle/run-conformance` |
+| Environment | `rsync` copy of worktree into `/tmp/wrl-clean-env-a/`, `git init` + commit, on host PX13 (Linux 6.18.6-arch1-1 x86_64) |
+| machine_id | `280bd2f747df4019ac625b71406ab387` |
+| Command | `FORGE_DIR=/tmp/wrl-clean-env-a/forge-probe forge-probe/live-local-bundle/run-conformance` |
 | Node version | v25.2.1 |
 | Python version | 3.14.2 |
-| Certificate digest (SHA-256) | `d3de87a5c39be0d1310552cdfba9565f4b2c2de3523938d1d48c9fbd7b95d4ad` |
+| wrl_canonical.py | Copied from `TRVM/forge/wrl_canonical.py` into `forge-probe/` (external dependency, not tracked in this repo) |
+| Orchestrator PID | 2818169 |
+| wrl-js-node PID | 2818222 |
+| forge-python-spine PID | 2818274 |
+| Timestamp (UTC) | 2026-07-29T07:52:53.408Z |
+| Certificate digest (SHA-256) | `bbeb5622482147a90d2483c082cb6fddb2d62485e1b1cc82179dc1277c7c58c8` |
+| Results digest | `5ba0f371bb1b933d8cfb627dc33fe998f3402c81af120d26d6b8e556e7b219b3` |
 | Verifier result | CERTIFICATE VALID (67 checks, 0 failures) |
-| Pinned identifier match | Yes — `sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a` |
+| Identifier gate | CONFORMANCE PASSED — all results match pinned `sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a` |
 
-Note: `wrl_canonical.py` (from `TRVM/forge/`) was symlinked into the clone's `forge-probe/` since it is an external dependency not tracked in this repository.
-
-### Clean-local run 2
+### Clean-local run B
 
 | Field | Value |
 |---|---|
-| Environment | Fresh `git clone --depth 1` into `/tmp/wrl-clean-env-2` on host PX13 (Linux x86_64) |
-| Command | `forge-probe/live-local-bundle/run-conformance` |
+| Environment | `rsync` copy of worktree into `/tmp/wrl-clean-env-b/`, `git init` + commit, on host PX13 (Linux 6.18.6-arch1-1 x86_64) |
+| machine_id | `280bd2f747df4019ac625b71406ab387` |
+| Command | `FORGE_DIR=/tmp/wrl-clean-env-b/forge-probe forge-probe/live-local-bundle/run-conformance` |
 | Node version | v25.2.1 |
 | Python version | 3.14.2 |
-| Certificate digest (SHA-256) | `7c1a4a78b4b24ae417a5a5ad1a02358453b9ba963d296f8402fef0529344f404` |
+| wrl_canonical.py | Copied from `TRVM/forge/wrl_canonical.py` into `forge-probe/` (external dependency, not tracked in this repo) |
+| Orchestrator PID | 2818853 |
+| wrl-js-node PID | 2818860 |
+| forge-python-spine PID | 2818872 |
+| Timestamp (UTC) | 2026-07-29T07:52:58.320Z |
+| Certificate digest (SHA-256) | `fb006dff60a9659398a11fcbfd1d023c5e1caeba0dd63c6093075c68b7ac9f7f` |
+| Results digest | `d5d97e235ecfed3a4d13d43de4f85ef74e71900092300bf54dd0f12f5e59217a` |
 | Verifier result | CERTIFICATE VALID (67 checks, 0 failures) |
-| Pinned identifier match | Yes — `sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a` |
+| Identifier gate | CONFORMANCE PASSED — all results match pinned `sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a` |
 
-Note: Same `wrl_canonical.py` symlink setup as run 1. Certificate digests differ between runs (expected — timestamps and PIDs vary) but both produce the identical pinned identifier.
+### Cross-run comparison
 
-Both clean-local environments are on the same developer machine (PX13). Clean local environments do not establish distinct deployed machines.
+Both runs produce the identical `sem-` identifier from both implementations. Certificate digests differ (expected — timestamps, PIDs, and git revisions vary between independent environments). The fixture digest (`ade989ea5d4b34b2e1ec1afd846a1be0fb795070ba96b0bdae078652a1c1547e`) and implementation file digests are identical across runs, confirming deterministic content-addressing.
+
+Both clean-local environments are on the same developer machine (PX13, machine_id `280bd2f747df4019ac625b71406ab387`). Clean local environments do not establish distinct deployed machines. The portability and identity claims remain at `live_local`; `live_deployed` advancement requires execution on a distinct deployed machine, which is blocked on CI authorization and runner availability (see follow-on objective above).
