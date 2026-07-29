@@ -31,9 +31,11 @@
     "required": [
       "contract_version",
       "fixture_digest_sha256",
+      "fixture_bytes_sha256",
       "host_fingerprint",
       "timestamp_utc",
-      "results"
+      "results",
+      "results_digest_sha256"
     ],
     "properties": {
       "contract_version": {
@@ -42,6 +44,14 @@
       "fixture_digest_sha256": {
         "type": "string",
         "description": "SHA-256 of the fixture.json bytes used in this run; must match the pinned digest."
+      },
+      "fixture_bytes_sha256": {
+        "type": "string",
+        "description": "Independent SHA-256 of the exact input bytes fed to child processes; must equal fixture_digest_sha256."
+      },
+      "results_digest_sha256": {
+        "type": "string",
+        "description": "SHA-256 over the canonical JSON of the results array, for tamper detection."
       },
       "host_fingerprint": {
         "type": "object",
@@ -153,8 +163,12 @@
   "invariants": [
     "Every result.process_id must differ from the orchestrator PID.",
     "Every required implementation must have exactly one result entry.",
+    "No two results may share the same implementation_name (no duplicates).",
     "fixture_digest_sha256 in the certificate must match the contract's pinned digest.",
+    "fixture_bytes_sha256 must equal fixture_digest_sha256 (embedded input bytes cross-check).",
+    "results_digest_sha256 must match the recomputed digest of the results array (tamper detection).",
     "identifier_discrepancy is null if and only if computed_semantic_artifact_id equals expected_identifier.",
-    "A missing or errored required implementation makes the certificate invalid."
+    "A missing or errored required implementation makes the certificate invalid.",
+    "A certificate with zero results is vacuous and invalid."
   ]
 }

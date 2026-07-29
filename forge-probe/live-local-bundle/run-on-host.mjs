@@ -258,10 +258,24 @@ async function main() {
     }
   }
 
-  // Build certificate
+  // Build certificate with deterministic field ordering.
+  // fixture_bytes_sha256: independent re-hash of the input bytes fed to children,
+  // proving the certificate embeds knowledge of the exact input.
+  // results_digest_sha256: integrity hash over the results array, so tampering
+  // with individual records is detectable.
+  const fixtureBytesSha256 = createHash("sha256").update(fixtureBytes).digest("hex");
+  const resultsDigest = createHash("sha256")
+    .update(JSON.stringify(results, Object.keys(results.reduce((acc, r) => {
+      for (const k of Object.keys(r)) acc[k] = 1;
+      if (r.host_fingerprint) for (const k of Object.keys(r.host_fingerprint)) acc["hf." + k] = 1;
+      return acc;
+    }, {})).sort()))
+    .digest("hex");
+
   const certificate = {
     contract_version: contract.contract_version,
     fixture_digest_sha256: fixtureDigest,
+    fixture_bytes_sha256: fixtureBytesSha256,
     host_fingerprint: {
       hostname: hostname(),
       platform: platform(),
@@ -271,6 +285,7 @@ async function main() {
     timestamp_utc: new Date().toISOString(),
     orchestrator_pid: orchestratorPid,
     results,
+    results_digest_sha256: resultsDigest,
   };
 
   const outDir = opts.out ? resolve(opts.out) : join(HERE, "certificates");
