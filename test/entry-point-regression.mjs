@@ -87,12 +87,10 @@ console.log("entry-point regression checks\n");
 check("missing-fixture-causes-nonzero-exit", () => {
   const tmp = cloneBundle();
   unlinkSync(join(tmp, "fixture.json"));
-  const r = run(RUN_ON_HOST, [], { cwd: tmp, env: { ...process.env, HOME: tmp } });
-  // run-on-host searches relative to its own __dirname, so run it from the clone
-  // by invoking the cloned copy
-  const r2 = run(join(tmp, "run-on-host.mjs"), []);
+  // run-on-host uses __dirname to find its files, so invoke the cloned copy
+  const r = run(join(tmp, "run-on-host.mjs"), []);
   rmSync(tmp, { recursive: true, force: true });
-  assert(r2.code !== 0, `expected nonzero exit, got ${r2.code}`);
+  assert(r.code !== 0, `expected nonzero exit, got ${r.code}`);
 });
 
 // ── 2. Missing inputs: contract absent → run-on-host exits nonzero ──
