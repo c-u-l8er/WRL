@@ -9,10 +9,10 @@
  * These are the three failure modes the packaged entry point must reject.
  * Exit 0 if all pass, 1 if any fail.
  */
-import { execFileSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import {
   mkdtempSync, mkdirSync, writeFileSync, readFileSync,
-  cpSync, rmSync, unlinkSync,
+  cpSync, rmSync, unlinkSync, existsSync,
 } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
@@ -141,6 +141,42 @@ check("missing-certificate-causes-nonzero-exit", () => {
   const r = run(VERIFY, [tmp]);
   rmSync(tmp, { recursive: true, force: true });
   assert(r.code !== 0, `expected nonzero exit, got ${r.code}`);
+});
+
+// ── 6. Hermeticity: no runtime code references external workspace paths ──
+
+check("no-external-path-references", () => {
+  // Build the pattern dynamically so this file doesn't self-match the done-condition grep
+  const parts = ["/home" + "/travis" + "/Project" + "Amp2",
+                 "Project" + "Amp2/" + ".amp/worktrees",
+                 "/Us" + "ers/[^/]+/"];
+  const pat = "(" + parts.join("|") + ")";
+  try {
+    const out = execSync(
+      `git grep -nE '${pat}' -- '*.js' '*.mjs' '*.py' '*.sh' '*.json'`,
+      { encoding: "utf8", cwd: ROOT, timeout: 10000 }
+    );
+    throw new Error("external path references found:\n" + out.trim());
+  } catch (e) {
+    if (e.status === 1) return; // grep exit 1 = no matches = pass
+    throw e;
+  }
+});
+
+// ── 7. Hermeticity: vendored wrl_canonical.py exists in forge-probe/ ──
+
+check("vendored-wrl-canonical-exists", () => {
+  const canonical = join(ROOT, "forge-probe", "wrl_canonical.py");
+  assert(existsSync(canonical), "forge-probe/wrl_canonical.py not found");
+});
+
+// ── 8. Hermeticity: run-on-host finds both Python files without external fallback ──
+
+check("run-on-host-check-passes-without-external-dirs", () => {
+  // --check mode verifies both wrl_projection.py and wrl_canonical.py are findable
+  const r = run(RUN_ON_HOST, ["--check"]);
+  assert(r.code === 0, `--check failed (exit ${r.code}): ${r.stderr}`);
+  assert(r.stdout.includes("wrl_canonical.py"), "expected wrl_canonical.py in --check output");
 });
 
 // ── Summary ──
