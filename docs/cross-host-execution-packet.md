@@ -103,7 +103,7 @@ Once both are established, a follow-on objective should:
 | Command | `cd /tmp/wrl-clean-exec-a && FORGE_DIR=/tmp/wrl-clean-exec-a/forge-probe forge-probe/live-local-bundle/run-conformance` |
 | Node version | v25.2.1 |
 | Python version | 3.13.14 |
-| wrl_canonical.py | Copied from `TRVM/forge/wrl_canonical.py` into `forge-probe/` (external dependency, not tracked in this repo) |
+| wrl_canonical.py | Vendored at `forge-probe/wrl_canonical.py` (tracked; copied from `TRVM/forge/wrl_canonical.py`) |
 | Orchestrator PID | 4087405 |
 | wrl-js-node PID | 4087412 |
 | forge-python-spine PID | 4087425 |
@@ -122,7 +122,7 @@ Once both are established, a follow-on objective should:
 | Command | `cd /tmp/wrl-clean-exec-b && FORGE_DIR=/tmp/wrl-clean-exec-b/forge-probe forge-probe/live-local-bundle/run-conformance` |
 | Node version | v25.2.1 |
 | Python version | 3.13.14 |
-| wrl_canonical.py | Copied from `TRVM/forge/wrl_canonical.py` into `forge-probe/` (external dependency, not tracked in this repo) |
+| wrl_canonical.py | Vendored at `forge-probe/wrl_canonical.py` (tracked; copied from `TRVM/forge/wrl_canonical.py`) |
 | Orchestrator PID | 4087600 |
 | wrl-js-node PID | 4087608 |
 | forge-python-spine PID | 4087629 |
