@@ -39,6 +39,8 @@ Trigger: `workflow_dispatch` only (no automatic execution).
 
 Jobs A and B run independently (no `needs:` dependency between them). They execute on separate GitHub-hosted runner instances with different OS versions and runtime versions, providing runtime-environment diversity.
 
+Both jobs extract a validated identifier from the certificate using the same logic (step id `extract-id`), write `cert_id=$ID` to `$GITHUB_OUTPUT`, and declare `cert_id` as a job output. This was corrected in `93f9e2d` — prior to that commit, `verify-host-b` was missing the `$GITHUB_OUTPUT` write.
+
 ## Identifier comparison gate
 
 Job: `identifier-gate`
@@ -79,7 +81,7 @@ The portability and identity claims are at `live_local`. The two clean-local ver
 The `live_local` evidence is:
 - Two implementations (wrl-js-node, forge-python-spine) independently compute the pinned identifier in separate OS processes.
 - The certificate is produced and verified by `run-conformance` and `verify.mjs`.
-- The clean-local runs below reproduce this from independent fresh environments.
+- The clean-local runs below reproduce this from independent fresh environments at the corrected revision (`892476b`).
 
 ### live_deployed is not claimed
 
@@ -105,19 +107,19 @@ Once both are established, a follow-on objective should:
 
 | Field | Value |
 |---|---|
-| Environment | `git clone --no-hardlinks` of repo into `/tmp/wrl-clean-clone-a-224471/`, detached HEAD at `e9e9875`, on host PX13 (Linux 6.18.6-arch1-1 x86_64) |
+| Environment | `git clone --no-hardlinks` of repo into `/tmp/wrl-clean-clone-a-255717/`, detached HEAD at `892476b`, on host PX13 (Linux 6.18.6-arch1-1 x86_64) |
 | machine_id | `280bd2f747df4019ac625b71406ab387` |
-| Command | `cd /tmp/wrl-clean-clone-a-224471 && forge-probe/live-local-bundle/run-conformance` |
+| Command | `cd /tmp/wrl-clean-clone-a-255717 && forge-probe/live-local-bundle/run-conformance` |
 | Node version | v25.2.1 |
 | Python version | 3.13.14 |
 | wrl_canonical.py | Vendored at `forge-probe/wrl_canonical.py` (tracked in repo) |
-| Repository revision | `e9e987596efc9df820ebb168a48443bbf3e54a8b` |
-| Orchestrator PID | 225272 |
-| wrl-js-node PID | 225280 |
-| forge-python-spine PID | 225294 |
-| Timestamp (UTC) | 2026-07-30T02:19:08.332Z |
-| Certificate digest (SHA-256) | `8e4ff982bf443b9dbb80f001ac24318a0b6dfc815188a7b52022ac29ff6a602e` |
-| Results digest | `c92f5b7f7de09b18f4177c1cb82b811cc7e4408648903ee5f2817b8f75f5abd9` |
+| Repository revision | `892476bc33475904722e5c37477002a5f5d58709` |
+| Orchestrator PID | 255763 |
+| wrl-js-node PID | 255771 |
+| forge-python-spine PID | 255806 |
+| Timestamp (UTC) | 2026-07-30T02:23:19.678Z |
+| Certificate digest (SHA-256) | `6fda5827ea956109085ccf047ad9bc09d6ac96db1120f4f2ad045afd5849f562` |
+| Results digest | `7244c203857783ce5c66c822e247cc2bf4da2beb296f90671528b631acc4e10f` |
 | Verifier result | CERTIFICATE VALID (67 checks, 0 failures) |
 | Identifier gate | CONFORMANCE PASSED — all results match pinned `sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a` |
 
@@ -125,19 +127,19 @@ Once both are established, a follow-on objective should:
 
 | Field | Value |
 |---|---|
-| Environment | `git clone --no-hardlinks` of repo into `/tmp/wrl-clean-clone-b-224663/`, detached HEAD at `e9e9875`, on host PX13 (Linux 6.18.6-arch1-1 x86_64) |
+| Environment | `git clone --no-hardlinks` of repo into `/tmp/wrl-clean-clone-b-256471/`, detached HEAD at `892476b`, on host PX13 (Linux 6.18.6-arch1-1 x86_64) |
 | machine_id | `280bd2f747df4019ac625b71406ab387` |
-| Command | `cd /tmp/wrl-clean-clone-b-224663 && forge-probe/live-local-bundle/run-conformance` |
+| Command | `cd /tmp/wrl-clean-clone-b-256471 && forge-probe/live-local-bundle/run-conformance` |
 | Node version | v25.2.1 |
 | Python version | 3.13.14 |
 | wrl_canonical.py | Vendored at `forge-probe/wrl_canonical.py` (tracked in repo) |
-| Repository revision | `e9e987596efc9df820ebb168a48443bbf3e54a8b` |
-| Orchestrator PID | 225609 |
-| wrl-js-node PID | 225617 |
-| forge-python-spine PID | 225629 |
-| Timestamp (UTC) | 2026-07-30T02:19:09.545Z |
-| Certificate digest (SHA-256) | `7fbc5cddb43e13b0a9c5f7f7dedb5226fc5166d1244822b15148db15504536d8` |
-| Results digest | `85591a1ac723297ac2e891c75e1208211e175dc3a056eb1c770e9bca5e7e4f44` |
+| Repository revision | `892476bc33475904722e5c37477002a5f5d58709` |
+| Orchestrator PID | 256505 |
+| wrl-js-node PID | 256513 |
+| forge-python-spine PID | 256526 |
+| Timestamp (UTC) | 2026-07-30T02:23:27.142Z |
+| Certificate digest (SHA-256) | `5e1fb3532d3b61226fb4225de3b818cdfe2caf915ad209d332aecceca3c9ebc9` |
+| Results digest | `30d5cf74d6af6d762739d5ba4fae0e6106dab73cca71de5b5eb4fbb1ab33b115` |
 | Verifier result | CERTIFICATE VALID (67 checks, 0 failures) |
 | Identifier gate | CONFORMANCE PASSED — all results match pinned `sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a` |
 
@@ -145,8 +147,8 @@ Once both are established, a follow-on objective should:
 
 Both runs produce the identical `sem-` identifier from both implementations. Certificate digests differ (expected — timestamps, PIDs, and git revisions vary between independent environments). The fixture digest (`ade989ea5d4b34b2e1ec1afd846a1be0fb795070ba96b0bdae078652a1c1547e`) and implementation file digests are identical across runs, confirming deterministic content-addressing.
 
-Both clean-local environments were created via `git clone --no-hardlinks` into separate `/tmp/` directories, each checked out at detached HEAD `e9e9875`. This confirms the hermetic entry point works from a true clean checkout (no worktree state, no untracked files, no `.env`). Both environments are on the same developer machine (PX13, machine_id `280bd2f747df4019ac625b71406ab387`). Clean local environments do not establish distinct deployed machines. The portability and identity claims remain at `live_local`; `live_deployed` advancement requires execution on a distinct deployed machine, which is blocked on CI authorization and runner availability (see follow-on objective above).
+Both clean-local environments were created via `git clone --no-hardlinks` into separate `/tmp/` directories, each checked out at detached HEAD `892476b`. This is the corrected revision that includes the `verify-host-b` `cert_id` output fix (`93f9e2d`) and the execution packet update (`892476b`). Both environments are on the same developer machine (PX13, machine_id `280bd2f747df4019ac625b71406ab387`). Clean local environments do not establish distinct deployed machines. The portability and identity claims remain at `live_local`; `live_deployed` advancement requires execution on a distinct deployed machine, which is blocked on CI authorization and runner availability (see follow-on objective above).
 
 ### DOCTRINE
 
-`live_local` — both clean-local executions independently verify the pinned identifier `sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a` from two implementations in separate OS processes. This confirms the hermetic entry point works from a clean checkout with no worktree contamination. It does not constitute `live_deployed` evidence; hosted execution is a follow-on objective.
+none — this updates the execution records to the corrected revision (`892476b`) and reconciles the workflow description with the committed workflow. The evidence rung remains `live_local`; no claim has moved up or down the evidence ladder.
