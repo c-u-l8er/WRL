@@ -68,27 +68,13 @@ function findForgeDirs(opts) {
     return [d];
   }
 
-  // Default search: forge-probe/ has wrl_projection.py, TRVM/forge/ has wrl_canonical.py
-  const dirs = [];
+  // Both wrl_projection.py and wrl_canonical.py are vendored in forge-probe/
   const probeDir = resolve(HERE, "..", "..", "forge-probe");
-  if (existsSync(join(probeDir, "wrl_projection.py"))) dirs.push(probeDir);
-
-  // Check if wrl_canonical.py is already found
-  const haveCanonical = dirs.some((d) => existsSync(join(d, "wrl_canonical.py")));
-  if (!haveCanonical) {
-    // Search common locations
-    for (const candidate of [
-      resolve(HERE, "..", "..", "..", "TRVM", "forge"),
-      resolve(HERE, "..", "..", "..", "..", "TRVM", "forge"),
-      resolve(HERE, "..", "..", "..", "..", "..", "TRVM", "forge"),
-    ]) {
-      if (existsSync(join(candidate, "wrl_canonical.py"))) {
-        dirs.push(candidate);
-        break;
-      }
-    }
+  if (existsSync(join(probeDir, "wrl_projection.py")) &&
+      existsSync(join(probeDir, "wrl_canonical.py"))) {
+    return [probeDir];
   }
-  return dirs.length > 0 ? dirs : null;
+  return null;
 }
 
 function spawnChild(command, args, stdinData) {

@@ -19,7 +19,7 @@ import { dirname, join } from "node:path";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const V2 = await import(process.env.WRL_V2 ||
-  "/home/travis/ProjectAmp2/WRL/relation-v2.js");
+  join(HERE, "..", "relation-v2.js"));
 
 let passed = 0, failed = 0;
 const ok = (name, cond, detail = "") => {
