@@ -58,10 +58,17 @@ The identifier is extracted from each job's certificate via:
 ```javascript
 const c = JSON.parse(require('fs').readFileSync(
   'forge-probe/live-local-bundle/certificates/certificate.json','utf8'));
-for (const r of c.results) process.stdout.write(r.computed_semantic_artifact_id);
+if (!c.results || c.results.length === 0) { process.exit(1); }
+const ids = c.results.map(r => r.computed_semantic_artifact_id);
+if (ids.some(id => id !== ids[0])) {
+  console.error('FAIL: results disagree on identifier');
+  for (const r of c.results) console.error('  ' + r.implementation_name + ': ' + r.computed_semantic_artifact_id);
+  process.exit(1);
+}
+process.stdout.write(ids[0]);
 ```
 
-This concatenates all `computed_semantic_artifact_id` values from the certificate results. Because both required implementations must produce the same identifier for `run-conformance` to exit 0, and the workflow only reaches the gate if both jobs' `run-conformance` invocations succeeded, the extracted value is the repeated pinned identifier. The gate then confirms cross-job agreement.
+This validates that all `computed_semantic_artifact_id` values in the certificate results agree on a single identifier and emits exactly that one value. If the certificate has no results, or if any result's identifier disagrees with the others, the extraction step exits non-zero and the gate is never reached. The gate then confirms cross-job agreement between the single validated identifier from each host and the pinned identifier.
 
 ## Evidence-ladder status
 
