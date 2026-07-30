@@ -98,18 +98,18 @@ Once both are established, a follow-on objective should:
 
 | Field | Value |
 |---|---|
-| Environment | `rsync` copy of worktree into `/tmp/wrl-clean-env-a/`, `git init` + commit, on host PX13 (Linux 6.18.6-arch1-1 x86_64) |
+| Environment | `rsync` copy of worktree into `/tmp/wrl-clean-exec-a/`, `git init` + commit, on host PX13 (Linux 6.18.6-arch1-1 x86_64) |
 | machine_id | `280bd2f747df4019ac625b71406ab387` |
-| Command | `FORGE_DIR=/tmp/wrl-clean-env-a/forge-probe forge-probe/live-local-bundle/run-conformance` |
+| Command | `cd /tmp/wrl-clean-exec-a && FORGE_DIR=/tmp/wrl-clean-exec-a/forge-probe forge-probe/live-local-bundle/run-conformance` |
 | Node version | v25.2.1 |
-| Python version | 3.14.2 |
+| Python version | 3.13.14 |
 | wrl_canonical.py | Copied from `TRVM/forge/wrl_canonical.py` into `forge-probe/` (external dependency, not tracked in this repo) |
-| Orchestrator PID | 2818169 |
-| wrl-js-node PID | 2818222 |
-| forge-python-spine PID | 2818274 |
-| Timestamp (UTC) | 2026-07-29T07:52:53.408Z |
-| Certificate digest (SHA-256) | `bbeb5622482147a90d2483c082cb6fddb2d62485e1b1cc82179dc1277c7c58c8` |
-| Results digest | `5ba0f371bb1b933d8cfb627dc33fe998f3402c81af120d26d6b8e556e7b219b3` |
+| Orchestrator PID | 4087405 |
+| wrl-js-node PID | 4087412 |
+| forge-python-spine PID | 4087425 |
+| Timestamp (UTC) | 2026-07-30T01:26:33.382Z |
+| Certificate digest (SHA-256) | `5d1e70e9f629ef6917d523923d9dae11492efa31682a0204db1ff2b14c2a5313` |
+| Results digest | `743fcb8b16736e63478e8c629bd86b095139c6c34e5a54db0dba036e479ea9ee` |
 | Verifier result | CERTIFICATE VALID (67 checks, 0 failures) |
 | Identifier gate | CONFORMANCE PASSED — all results match pinned `sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a` |
 
@@ -117,18 +117,18 @@ Once both are established, a follow-on objective should:
 
 | Field | Value |
 |---|---|
-| Environment | `rsync` copy of worktree into `/tmp/wrl-clean-env-b/`, `git init` + commit, on host PX13 (Linux 6.18.6-arch1-1 x86_64) |
+| Environment | `rsync` copy of worktree into `/tmp/wrl-clean-exec-b/`, `git init` + commit, on host PX13 (Linux 6.18.6-arch1-1 x86_64) |
 | machine_id | `280bd2f747df4019ac625b71406ab387` |
-| Command | `FORGE_DIR=/tmp/wrl-clean-env-b/forge-probe forge-probe/live-local-bundle/run-conformance` |
+| Command | `cd /tmp/wrl-clean-exec-b && FORGE_DIR=/tmp/wrl-clean-exec-b/forge-probe forge-probe/live-local-bundle/run-conformance` |
 | Node version | v25.2.1 |
-| Python version | 3.14.2 |
+| Python version | 3.13.14 |
 | wrl_canonical.py | Copied from `TRVM/forge/wrl_canonical.py` into `forge-probe/` (external dependency, not tracked in this repo) |
-| Orchestrator PID | 2818853 |
-| wrl-js-node PID | 2818860 |
-| forge-python-spine PID | 2818872 |
-| Timestamp (UTC) | 2026-07-29T07:52:58.320Z |
-| Certificate digest (SHA-256) | `fb006dff60a9659398a11fcbfd1d023c5e1caeba0dd63c6093075c68b7ac9f7f` |
-| Results digest | `d5d97e235ecfed3a4d13d43de4f85ef74e71900092300bf54dd0f12f5e59217a` |
+| Orchestrator PID | 4087600 |
+| wrl-js-node PID | 4087608 |
+| forge-python-spine PID | 4087629 |
+| Timestamp (UTC) | 2026-07-30T01:26:33.907Z |
+| Certificate digest (SHA-256) | `4f842471d427e51d61ccc0aca942f917c688e666ca0b4c4519349038b58b4b91` |
+| Results digest | `8f1f9c1bbaabaa1c85d13d1dd08749d6f63e6f4bb42c002cf93b7fa3ed2c52de` |
 | Verifier result | CERTIFICATE VALID (67 checks, 0 failures) |
 | Identifier gate | CONFORMANCE PASSED — all results match pinned `sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a` |
 
@@ -137,3 +137,7 @@ Once both are established, a follow-on objective should:
 Both runs produce the identical `sem-` identifier from both implementations. Certificate digests differ (expected — timestamps, PIDs, and git revisions vary between independent environments). The fixture digest (`ade989ea5d4b34b2e1ec1afd846a1be0fb795070ba96b0bdae078652a1c1547e`) and implementation file digests are identical across runs, confirming deterministic content-addressing.
 
 Both clean-local environments are on the same developer machine (PX13, machine_id `280bd2f747df4019ac625b71406ab387`). Clean local environments do not establish distinct deployed machines. The portability and identity claims remain at `live_local`; `live_deployed` advancement requires execution on a distinct deployed machine, which is blocked on CI authorization and runner availability (see follow-on objective above).
+
+### DOCTRINE
+
+`live_local` — both clean-local executions independently verify the pinned identifier `sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a` from two implementations in separate OS processes. This confirms the hermetic entry point works from a clean checkout. It does not constitute `live_deployed` evidence; hosted execution is a follow-on objective.
