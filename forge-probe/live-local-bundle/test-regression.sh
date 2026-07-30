@@ -285,7 +285,39 @@ else
 fi
 
 # ────────────────────────────────────────────
-# 6. Baseline: valid bundle passes verification
+# 6. Workflow YAML: both jobs write cert_id to GITHUB_OUTPUT
+# ────────────────────────────────────────────
+
+WORKFLOW="$BUNDLE_DIR/../../.github/workflows/cross-host-conformance.yml"
+if [ -f "$WORKFLOW" ]; then
+  # Count occurrences of the GITHUB_OUTPUT write for cert_id.
+  # Both verify-host-a and verify-host-b must have it.
+  OUTPUT_WRITES=$(grep -c 'cert_id=\$ID.*GITHUB_OUTPUT\|GITHUB_OUTPUT.*cert_id' "$WORKFLOW" || true)
+  TOTAL=$((TOTAL + 1))
+  if [ "$OUTPUT_WRITES" -ge 2 ]; then
+    echo "  ok    workflow/both-jobs-publish-cert_id  ($OUTPUT_WRITES writes found)"
+    PASS=$((PASS + 1))
+  else
+    echo "  FAIL  workflow/both-jobs-publish-cert_id  (expected >=2, got $OUTPUT_WRITES)"
+    FAIL=$((FAIL + 1))
+  fi
+
+  # Also verify both jobs declare cert_id as a job output
+  OUTPUT_DECLS=$(grep -c 'cert_id:.*steps\.extract-id\.outputs\.cert_id' "$WORKFLOW" || true)
+  TOTAL=$((TOTAL + 1))
+  if [ "$OUTPUT_DECLS" -ge 2 ]; then
+    echo "  ok    workflow/both-jobs-declare-cert_id-output  ($OUTPUT_DECLS declarations found)"
+    PASS=$((PASS + 1))
+  else
+    echo "  FAIL  workflow/both-jobs-declare-cert_id-output  (expected >=2, got $OUTPUT_DECLS)"
+    FAIL=$((FAIL + 1))
+  fi
+else
+  echo "  SKIP  workflow/cert_id-checks  (workflow file not found at $WORKFLOW)"
+fi
+
+# ────────────────────────────────────────────
+# 7. Baseline: valid bundle passes verification
 # ────────────────────────────────────────────
 
 expect_zero "verify/valid-bundle-passes" \
