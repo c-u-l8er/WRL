@@ -53,7 +53,22 @@ The gate performs three exact string comparisons:
 2. Host A identifier == pinned identifier (`sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a`)
 3. Host B identifier == pinned identifier (`sem-8ae91fe9cbc5fd086ce4356d587c403211e5c7b2b3ebdd316496367429ecfe4a`)
 
-All three must hold for the gate to pass. Any mismatch exits non-zero.
+All three must hold for the gate to pass. Any mismatch causes the gate to print the differing values, print `GATE FAILED`, and exit with code 1.
+
+### Failure behavior
+
+The gate has four distinct failure modes, each producing a non-zero exit:
+
+| Failure mode | Where it fires | Behavior |
+|---|---|---|
+| Verification job failure | `verify-host-a` or `verify-host-b` | The gate job has `needs: [verify-host-a, verify-host-b]` — if either verification job fails, the gate job is skipped entirely by GitHub Actions (never runs). The workflow run shows a failed status. |
+| Empty certificate results | `extract-id` step within each verification job | If `c.results` is falsy or empty, the extraction script calls `process.exit(1)`. The job fails before reaching artifact upload. The gate is never reached. |
+| Intra-certificate identifier disagreement | `extract-id` step within each verification job | If any `computed_semantic_artifact_id` in the certificate's results array differs from the others, the extraction script prints each implementation's identifier to stderr and calls `process.exit(1)`. The job fails; the gate is never reached. |
+| Cross-host or pinned identifier mismatch | `identifier-gate` job | If Host A != Host B, Host A != pinned, or Host B != pinned, the gate prints the specific failing comparison(s), prints `GATE FAILED`, and exits with code 1. All three comparisons are evaluated before exiting, so all mismatches are reported in a single run. |
+
+In all cases, a non-zero exit causes the GitHub Actions workflow run to report failure. No partial success is possible — either all three identifiers match or the workflow fails.
+
+### Identifier extraction algorithm
 
 The identifier is extracted from each job's certificate via:
 
@@ -95,11 +110,16 @@ Actual hosted execution and artifact retention are blocked on:
 2. **Runner availability** — `ubuntu-22.04` and `ubuntu-24.04` hosted runners must be available to the repository's organization/plan.
 
 Once both are established, a follow-on objective should:
-- Dispatch the workflow.
-- Retrieve both certificate artifacts from the completed run.
-- Verify that both certificates name the pinned identifier.
-- Confirm that the two jobs' `host_fingerprint` fields name distinct runner instances.
-- Assess whether GitHub-hosted runners constitute "deployed machines" per the spec's definition (see `docs/spec/README.md` § "Rejected alternatives" — CI runners were rejected for `live_deployed` because they are ephemeral and not the deployment substrate the stack runs on; this assessment remains valid and the follow-on should not claim `live_deployed` from CI runners alone).
+
+1. **Dispatch the workflow** — trigger `workflow_dispatch` on the `cross-host-conformance` workflow from the branch containing the hermetic entry point.
+2. **Confirm the identifier gate passes** — all three jobs must succeed; the gate job must print `GATE PASSED` with the pinned identifier.
+3. **Retrieve both certificate artifacts** — download `certificate-host-a-ubuntu2204-node20` and `certificate-host-b-ubuntu2404-node22` from the completed workflow run.
+4. **Verify artifact retention** — confirm both artifacts are retrievable by name from the GitHub Actions artifact API within the 90-day retention window. Evidence: the `actions/download-artifact@v4` retrieval succeeds, or equivalent API call returns HTTP 200 with the expected artifact name and a non-zero size. Record the artifact IDs, sizes, and download timestamps.
+5. **Verify certificate content** — for each retrieved artifact, parse the certificate JSON and confirm `computed_semantic_artifact_id` equals the pinned identifier for every result entry.
+6. **Confirm distinct runner instances** — compare the two certificates' `host_fingerprint` fields; they must name different hostnames (GitHub-hosted runners assign unique hostnames per job).
+7. **Assess evidence rung** — GitHub-hosted runners are ephemeral and are not the deployment substrate the stack runs on (see `docs/spec/README.md` § "Rejected alternatives"). CI runner execution may establish cross-host portability evidence but does not by itself constitute `live_deployed`. The follow-on should label this honestly and identify what additional substrate (if any) would reach `live_deployed`.
+
+The follow-on objective must not claim `live_deployed` or `external` status from CI execution alone. It must produce its own execution records with the same fields as the clean-local records above, plus the artifact IDs, retention confirmation, and the honest rung assessment.
 
 ## Execution records
 
