@@ -132,7 +132,7 @@ The follow-on objective must not claim `live_deployed` or `external` status from
 | Command | `cd /tmp/wrl-clean-clone-a-255717 && forge-probe/live-local-bundle/run-conformance` |
 | Node version | v25.2.1 |
 | Python version | 3.13.14 |
-| wrl_canonical.py | Vendored at `forge-probe/wrl_canonical.py` (tracked in repo) |
+| wrl_canonical.py | Vendored at `forge-probe/wrl_canonical.py` (tracked in repo; source: TRVM commit `2bb18a9`) |
 | Repository revision | `892476bc33475904722e5c37477002a5f5d58709` |
 | Orchestrator PID | 255763 |
 | wrl-js-node PID | 255771 |
@@ -152,7 +152,7 @@ The follow-on objective must not claim `live_deployed` or `external` status from
 | Command | `cd /tmp/wrl-clean-clone-b-256471 && forge-probe/live-local-bundle/run-conformance` |
 | Node version | v25.2.1 |
 | Python version | 3.13.14 |
-| wrl_canonical.py | Vendored at `forge-probe/wrl_canonical.py` (tracked in repo) |
+| wrl_canonical.py | Vendored at `forge-probe/wrl_canonical.py` (tracked in repo; source: TRVM commit `2bb18a9`) |
 | Repository revision | `892476bc33475904722e5c37477002a5f5d58709` |
 | Orchestrator PID | 256505 |
 | wrl-js-node PID | 256513 |
