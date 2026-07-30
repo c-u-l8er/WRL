@@ -46,7 +46,14 @@ jobs:
           ID=$(node -e "
             const c = JSON.parse(require('fs').readFileSync(
               'forge-probe/live-local-bundle/certificates/certificate.json','utf8'));
-            for (const r of c.results) process.stdout.write(r.computed_semantic_artifact_id);
+            if (!c.results || c.results.length === 0) { process.exit(1); }
+            const ids = c.results.map(r => r.computed_semantic_artifact_id);
+            if (ids.some(id => id !== ids[0])) {
+              console.error('FAIL: results disagree on identifier');
+              for (const r of c.results) console.error('  ' + r.implementation_name + ': ' + r.computed_semantic_artifact_id);
+              process.exit(1);
+            }
+            process.stdout.write(ids[0]);
           ")
           echo "cert_id=$ID" >> "$GITHUB_OUTPUT"
 
@@ -84,9 +91,15 @@ jobs:
           ID=$(node -e "
             const c = JSON.parse(require('fs').readFileSync(
               'forge-probe/live-local-bundle/certificates/certificate.json','utf8'));
-            for (const r of c.results) process.stdout.write(r.computed_semantic_artifact_id);
+            if (!c.results || c.results.length === 0) { process.exit(1); }
+            const ids = c.results.map(r => r.computed_semantic_artifact_id);
+            if (ids.some(id => id !== ids[0])) {
+              console.error('FAIL: results disagree on identifier');
+              for (const r of c.results) console.error('  ' + r.implementation_name + ': ' + r.computed_semantic_artifact_id);
+              process.exit(1);
+            }
+            process.stdout.write(ids[0]);
           ")
-          echo "cert_id=$ID" >> "$GITHUB_OUTPUT"
 
       - name: Upload certificate artifact
         uses: actions/upload-artifact@v4

@@ -183,7 +183,109 @@ else
 fi
 
 # ────────────────────────────────────────────
-# 5. Baseline: valid bundle passes verification
+# 5. Identifier extraction: one validated ID per certificate
+# ────────────────────────────────────────────
+
+# The workflow extraction script validates that all results agree on the
+# identifier, emitting exactly one.  This mirrors the logic from
+# cross-host-conformance.yml's "Extract certificate identifier" step.
+
+EXTRACT_SCRIPT='
+  const c = JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));
+  if (!c.results || c.results.length === 0) { process.exit(1); }
+  const ids = c.results.map(r => r.computed_semantic_artifact_id);
+  if (ids.some(id => id !== ids[0])) {
+    console.error("FAIL: results disagree on identifier");
+    for (const r of c.results) console.error("  " + r.implementation_name + ": " + r.computed_semantic_artifact_id);
+    process.exit(1);
+  }
+  process.stdout.write(ids[0]);
+'
+
+# 5a. Valid certificate: extraction succeeds and returns exactly the pinned ID
+EXTRACTED_ID="$(node -e "$EXTRACT_SCRIPT" "$BUNDLE_DIR/certificates/certificate.json" 2>/dev/null)" || true
+TOTAL=$((TOTAL + 1))
+if [ "$EXTRACTED_ID" = "$PINNED" ]; then
+  echo "  ok    extract/valid-cert-returns-pinned-id"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL  extract/valid-cert-returns-pinned-id  (got: $EXTRACTED_ID)"
+  FAIL=$((FAIL + 1))
+fi
+
+# 5b. Disagreeing results: extraction fails (nonzero exit)
+mkdir -p "$TMP/disagree/certificates"
+node -e "
+  const fs = require('fs');
+  const cert = JSON.parse(fs.readFileSync('$BUNDLE_DIR/certificates/certificate.json','utf8'));
+  cert.results[0].computed_semantic_artifact_id = 'sem-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  cert.results[1].computed_semantic_artifact_id = 'sem-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+  fs.writeFileSync('$TMP/disagree/certificates/certificate.json', JSON.stringify(cert, null, 2) + '\n');
+"
+expect_nonzero "extract/rejects-disagreeing-results" \
+  node -e "$EXTRACT_SCRIPT" "$TMP/disagree/certificates/certificate.json"
+
+# 5c. Empty results: extraction fails (nonzero exit)
+mkdir -p "$TMP/empty-extract/certificates"
+node -e "
+  const fs = require('fs');
+  const cert = JSON.parse(fs.readFileSync('$BUNDLE_DIR/certificates/certificate.json','utf8'));
+  cert.results = [];
+  fs.writeFileSync('$TMP/empty-extract/certificates/certificate.json', JSON.stringify(cert, null, 2) + '\n');
+"
+expect_nonzero "extract/rejects-empty-results" \
+  node -e "$EXTRACT_SCRIPT" "$TMP/empty-extract/certificates/certificate.json"
+
+# 5d. Gate logic: equal pinned IDs accepted, unequal rejected
+#     Simulates the gate from cross-host-conformance.yml identifier-gate job.
+gate_check() {
+  local id_a="$1" id_b="$2" pinned="$3"
+  [ "$id_a" = "$id_b" ] && [ "$id_a" = "$pinned" ] && [ "$id_b" = "$pinned" ]
+}
+
+TOTAL=$((TOTAL + 1))
+if gate_check "$PINNED" "$PINNED" "$PINNED"; then
+  echo "  ok    gate/accepts-equal-pinned-ids"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL  gate/accepts-equal-pinned-ids"
+  FAIL=$((FAIL + 1))
+fi
+
+TOTAL=$((TOTAL + 1))
+if gate_check "sem-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" \
+              "$PINNED" "$PINNED"; then
+  echo "  FAIL  gate/rejects-host-a-mismatch  (should have rejected)"
+  FAIL=$((FAIL + 1))
+else
+  echo "  ok    gate/rejects-host-a-mismatch"
+  PASS=$((PASS + 1))
+fi
+
+TOTAL=$((TOTAL + 1))
+if gate_check "$PINNED" \
+              "sem-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" \
+              "$PINNED"; then
+  echo "  FAIL  gate/rejects-host-b-mismatch  (should have rejected)"
+  FAIL=$((FAIL + 1))
+else
+  echo "  ok    gate/rejects-host-b-mismatch"
+  PASS=$((PASS + 1))
+fi
+
+TOTAL=$((TOTAL + 1))
+if gate_check "sem-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" \
+              "sem-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" \
+              "$PINNED"; then
+  echo "  FAIL  gate/rejects-both-wrong  (should have rejected)"
+  FAIL=$((FAIL + 1))
+else
+  echo "  ok    gate/rejects-both-wrong"
+  PASS=$((PASS + 1))
+fi
+
+# ────────────────────────────────────────────
+# 6. Baseline: valid bundle passes verification
 # ────────────────────────────────────────────
 
 expect_zero "verify/valid-bundle-passes" \
