@@ -6207,6 +6207,61 @@ function fmt(v) {
        `${row && Object.keys(row.endpoints).length}, source lines comparing ` +
        `a profile id to a literal: ${branches.map(([n]) => n).join(", ") || "none"}`);
   }
+
+  /* -- (k) A SECOND STATIC PROFILE. graphonomous.semantic.v1 (2026-09-03) is
+   *    the first evidence that the WRL-P0 table takes a second row without a
+   *    branch: v0 is a frozen contract, so a needed change is a NEW id, and
+   *    the whole of what "new id" costs is one entry in one object. The four
+   *    things this asserts are the four ways a second row could go wrong. */
+  {
+    const V1 = "graphonomous.semantic.v1";
+    const v0row = v2.V2_PROFILES?.[G_PROFILE], v1row = v2.V2_PROFILES?.[V1];
+    const pairs = (r) => Object.values(r.endpoints).reduce((n, v) => n + v.length, 0);
+    /* (1) v0 IS UNTOUCHED. The numbers 21/31/92 are the frozen contract. */
+    const v0Held = Object.keys(v0row.roles).length === 21 &&
+      Object.keys(v0row.endpoints).length === 31 && pairs(v0row) === 92;
+    /* (2) v1 is v0 plus exactly the declared delta -- 3 roles, 1 kind, 10 pairs */
+    const v1Shape = !!v1row && Object.keys(v1row.roles).length === 24 &&
+      Object.keys(v1row.endpoints).length === 32 && pairs(v1row) === 102 &&
+      Object.isFrozen(v1row) && Object.values(v1row.roles).every((p) =>
+        W.serializeArtifact(p) === W.serializeArtifact(["node"]));
+    /* (3) v1 ADMITS EVERYTHING v0 ADMITS. Superset, checked pair by pair --
+     *     this is what lets a v1 projection be called a superset of a v0 one. */
+    const superset = Object.entries(v0row.endpoints).every(([k, ps]) =>
+      ps.every((p) => (v1row.endpoints[k] ?? []).some((q) => q[0] === p[0] && q[1] === p[1])));
+    /* (4) THE ROLES ARE NOT INTERCHANGEABLE. The same world sealing under v1
+     *     and refused under v0 is the whole point of a successor profile: a
+     *     DEFEATER attacking a RECEIPT is a v1 sentence and a v0 refusal. */
+    const DEF = "defeater_3Afactory_3ADEF_2DR83", RCPT = "receipt_3Afactory_3AR83";
+    const attackWorld = (profile_id) => ({
+      ir_version: "2.0", profile_id, semantic_policies: { rulepack_id: G_RULES },
+      objects: [
+        { object_id: DEF, role: "DEFEATER",
+          static_config: { lid: "defeater:factory:DEF-R83-UNTRUSTED-COUNT", attrs: {} }, ports: ["node"] },
+        { object_id: RCPT, role: "RECEIPT",
+          static_config: { lid: "receipt:factory:mosaic/receipts/INV-R8.3.json", attrs: {} }, ports: ["node"] },
+      ],
+      relations: [gRelation("rel:ATTACKS:defeater:factory:DEF-R83:receipt:factory:INV-R8.3",
+        "ATTACKS", DEF, RCPT)],
+    });
+    const sealedV1 = await mint(attackWorld(V1));
+    const refusedV0 = await mint(attackWorld(G_PROFILE));
+    /* and a pair v1 does NOT declare is still refused UNDER v1 -- a successor
+       profile widens by declaration, never by becoming permissive */
+    const undeclared = await mint((() => {
+      const w = attackWorld(V1);
+      w.relations[0].revision.endpoints = [
+        { role: "source", terminal: term(RCPT) }, { role: "target", terminal: term(DEF) }];
+      return w;
+    })());
+    ok("relation/v2/profile/static/a-second-row-costs-one-entry-and-v0-does-not-move",
+       v0Held && v1Shape && superset &&
+       isSem(sealedV1) && refusedV0 === "WRL_UNDECLARED_ROLE" &&
+       undeclared === "WRL_UNDECLARED_ENDPOINT_PAIR",
+       `v0 held 21/31/92: ${v0Held}; v1 24/32/102 frozen: ${v1Shape}; v1 ⊇ v0: ` +
+       `${superset}; DEFEATER→RECEIPT under v1: ${String(sealedV1).slice(0, 24)}; ` +
+       `under v0: ${refusedV0}; RECEIPT→DEFEATER under v1: ${undeclared}`);
+  }
 }
 
 /* ======================================= 21b. the part boundary wears a badge

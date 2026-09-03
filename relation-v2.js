@@ -268,6 +268,24 @@ const GRAPHONOMOUS_ROLES = [
   "EVIDENCE_STATE_TRANSITION", "ROUND", "CELL", "REGISTRY", "SOURCE_LOCATION",
 ];
 
+/* v1 (2026-09-03) is v0 PLUS a measured delta and nothing else. The three roles
+ * and ten endpoint pairs below are each justified by pinned records in the
+ * invariant factory ledger at d217ee2 -- 27 ARGUMENT, 68 DEFEATER and 12
+ * INSTRUMENT objects, and edges that all resolve against a projection that
+ * already exists. v0 is a FROZEN CONTRACT: the row below is not edited, it is
+ * SPREAD, so v1 cannot drift from it and a reader can see the whole delta in
+ * one place. The additions are declared as data here for the same reason the
+ * v0 row is -- a profile is a table, never a branch. */
+const GRAPHONOMOUS_V1_ROLES = ["ARGUMENT", "DEFEATER", "INSTRUMENT"];
+const GRAPHONOMOUS_V1_ENDPOINTS = {
+  SUPPORTS: [["ARGUMENT", "CLAIM"]],
+  WITNESSES: [["WITNESS", "ARGUMENT"]],
+  ASSUMES: [["ARGUMENT", "ASSUMPTION"], ["INSTRUMENT", "ASSUMPTION"]],
+  ATTACKS: [["DEFEATER", "CLAIM"], ["DEFEATER", "ARGUMENT"], ["DEFEATER", "ASSUMPTION"],
+    ["DEFEATER", "INSTRUMENT"], ["DEFEATER", "RECEIPT"]],
+  DISCHARGED_BY: [["ASSUMPTION", "CLAIM"]],
+};
+
 /**
  * The V2 profile table. Frozen data; the key is the `profile_id` a world
  * declares. A row's `policies` is the whole vocabulary `revision.policy` may
@@ -279,6 +297,73 @@ const GRAPHONOMOUS_ROLES = [
  * the transition -> claim step (D-034 / D-037). The declared kinds are the
  * keys of `endpoints`, so a kind cannot be declared without its constraint.
  */
+/* The v0 row, lifted out of the table literal by TRVM-unrelated v1 work so that
+ * v1 can SPREAD it instead of copying it. Not one character of the row itself
+ * changed; `declaration reconcile` and conformance 21j compare its contents,
+ * and its contents are what a world's bytes are checked against. */
+const GRAPHONOMOUS_V0_ROW = {
+  derivation: "static",
+  rulepack_id: GRAPHONOMOUS_RULEPACK,
+  policies: [GRAPHONOMOUS_RULEPACK],
+  domain: "semantic",
+  signature: {
+    orientation: "directed",
+    texture: "solid",
+    arity: 2,
+    endpoint_roles: ["source", "target"],
+  },
+  roles: Object.fromEntries(GRAPHONOMOUS_ROLES.map((r) => [r, ["node"]])),
+  endpoints: {
+    STATES: [["CLAIM", "OBLIGATION"], ["CLAIM", "DEFINITION"], ["CLAIM", "REPRESENTATION"], ["CLAIM", "LAW"]],
+    IMPLEMENTS: [["CLAIM", "OBLIGATION"], ["CLAIM", "ENFORCEMENT_PROPERTY"], ["CLAIM", "DEFINITION"], ["CLAIM", "REPRESENTATION"], ["CLAIM", "LAW"], ["MECHANISM", "OBLIGATION"], ["MECHANISM", "ENFORCEMENT_PROPERTY"], ["MECHANISM", "DEFINITION"], ["MECHANISM", "REPRESENTATION"], ["MECHANISM", "LAW"]],
+    DERIVES_FROM: [["CLAIM", "CLAIM"], ["CLAIM", "OBLIGATION"], ["CLAIM", "DEFINITION"], ["CLAIM", "REPRESENTATION"], ["CLAIM", "LAW"]],
+    REDUCES_TO: [["OBLIGATION", "OBLIGATION"], ["CLAIM", "OBLIGATION"]],
+    REFINES: [["CLAIM", "CLAIM"]],
+    SPLIT_FROM: [["CLAIM", "CLAIM"]],
+    SUPERSEDES: [["CLAIM", "CLAIM"], ["ROUND", "ROUND"], ["EVIDENCE_STATE_TRANSITION", "EVIDENCE_STATE_TRANSITION"]],
+    RETRACTS: [["ADJUDICATION", "*"], ["ROUND", "*"]],
+    REQUIRES: [["CLAIM", "CLAIM"]],
+    WITNESSES: [["WITNESS", "CLAIM"], ["WITNESS", "OBLIGATION"], ["WITNESS", "EVIDENCE_STATE_TRANSITION"], ["RECEIPT", "CLAIM"], ["RECEIPT", "OBLIGATION"], ["RECEIPT", "EVIDENCE_STATE_TRANSITION"]],
+    SUPPORTS: [["WITNESS", "CLAIM"], ["WITNESS", "LAW"], ["RECEIPT", "CLAIM"], ["RECEIPT", "LAW"], ["FINDING", "CLAIM"], ["FINDING", "LAW"]],
+    FALSIFIES: [["FALSIFIER", "CLAIM"], ["FALSIFIER", "LAW"], ["FINDING", "CLAIM"], ["FINDING", "LAW"], ["WITNESS", "CLAIM"], ["WITNESS", "LAW"], ["RECEIPT", "CLAIM"], ["RECEIPT", "LAW"]],
+    ATTACKS: [["FALSIFIER", "CLAIM"], ["FALSIFIER", "MECHANISM"]],
+    TESTED_UNDER: [["CLAIM", "PROFILE"]],
+    SCOPED_BY: [["CLAIM", "PROFILE"], ["CLAIM", "ASSUMPTION"]],
+    ASSUMES: [["CLAIM", "ASSUMPTION"]],
+    CLOSES: [["ROUND", "FINDING"], ["ADJUDICATION", "FINDING"], ["RECEIPT", "FINDING"]],
+    OPENS: [["ROUND", "FINDING"], ["ADJUDICATION", "FINDING"], ["RECEIPT", "FINDING"]],
+    PRODUCED_BY: [["RECEIPT", "EXPERIMENT"], ["RECEIPT", "ROUND"], ["RECEIPT", "ARTIFACT"], ["ARTIFACT", "EXPERIMENT"], ["ARTIFACT", "ROUND"], ["ARTIFACT", "ARTIFACT"], ["CLAIM", "EXPERIMENT"], ["CLAIM", "ROUND"], ["CLAIM", "ARTIFACT"], ["EVIDENCE_STATE_TRANSITION", "EXPERIMENT"], ["EVIDENCE_STATE_TRANSITION", "ROUND"], ["EVIDENCE_STATE_TRANSITION", "ARTIFACT"]],
+    ADJUDICATED_BY: [["EVIDENCE_STATE_TRANSITION", "ADJUDICATION"], ["CLAIM", "ADJUDICATION"], ["ROUND", "ADJUDICATION"]],
+    LOCATED_IN: [["*", "SOURCE_LOCATION"]],
+    MEMBER_OF: [["*", "REGISTRY"], ["*", "ROUND"]],
+    BINDS: [["CLAIM", "CELL"]],
+    CITES: [["*", "*"]],
+    INDEPENDENT_OF: [["ENFORCEMENT_PROPERTY", "ENFORCEMENT_PROPERTY"]],
+    CONFLICTS_WITH: [["CLAIM", "CLAIM"]],
+    EQUIVALENT_TO: [["CLAIM", "CLAIM"]],
+    DEFINES: [["CLAIM", "DEFINITION"], ["CLAIM", "OBLIGATION"]],
+    REPRESENTS: [["CLAIM", "REPRESENTATION"], ["CLAIM", "OBLIGATION"], ["CLAIM", "LAW"]],
+    CROSS_CUTS: [["CLAIM", "LAW"], ["CLAIM", "OBLIGATION"]],
+    STATE_TRANSITION_OF: [["EVIDENCE_STATE_TRANSITION", "CLAIM"]],
+  },
+};
+
+/* v1 = v0 spread + the measured delta merged. Pairs for a kind v0 already
+ * declares are the v0 pairs FOLLOWED BY the v1 ones, so a v1 world admits
+ * everything a v0 world admits — "a v1 projection is a superset" is then
+ * checkable rather than asserted. */
+const GRAPHONOMOUS_V1_ROW = {
+  ...GRAPHONOMOUS_V0_ROW,
+  roles: Object.fromEntries([...Object.keys(GRAPHONOMOUS_V0_ROW.roles),
+    ...GRAPHONOMOUS_V1_ROLES].map((r) => [r, ["node"]])),
+  endpoints: Object.fromEntries([
+    ...Object.entries(GRAPHONOMOUS_V0_ROW.endpoints).map(
+      ([k, v]) => [k, [...v, ...(GRAPHONOMOUS_V1_ENDPOINTS[k] ?? [])]]),
+    ...Object.entries(GRAPHONOMOUS_V1_ENDPOINTS).filter(
+      ([k]) => !(k in GRAPHONOMOUS_V0_ROW.endpoints)),
+  ]),
+};
+
 export const V2_PROFILES = deepFreeze({
   "forge.world.core.v1": {
     derivation: "lowered",
@@ -286,53 +371,20 @@ export const V2_PROFILES = deepFreeze({
     policies: [FORGE_RULEPACK],
     domain: R.profileDefaultDomain("forge.world.core.v1"),
   },
-  "graphonomous.semantic.v0": {
-    derivation: "static",
-    rulepack_id: GRAPHONOMOUS_RULEPACK,
-    policies: [GRAPHONOMOUS_RULEPACK],
-    domain: "semantic",
-    signature: {
-      orientation: "directed",
-      texture: "solid",
-      arity: 2,
-      endpoint_roles: ["source", "target"],
-    },
-    roles: Object.fromEntries(GRAPHONOMOUS_ROLES.map((r) => [r, ["node"]])),
-    endpoints: {
-      STATES: [["CLAIM", "OBLIGATION"], ["CLAIM", "DEFINITION"], ["CLAIM", "REPRESENTATION"], ["CLAIM", "LAW"]],
-      IMPLEMENTS: [["CLAIM", "OBLIGATION"], ["CLAIM", "ENFORCEMENT_PROPERTY"], ["CLAIM", "DEFINITION"], ["CLAIM", "REPRESENTATION"], ["CLAIM", "LAW"], ["MECHANISM", "OBLIGATION"], ["MECHANISM", "ENFORCEMENT_PROPERTY"], ["MECHANISM", "DEFINITION"], ["MECHANISM", "REPRESENTATION"], ["MECHANISM", "LAW"]],
-      DERIVES_FROM: [["CLAIM", "CLAIM"], ["CLAIM", "OBLIGATION"], ["CLAIM", "DEFINITION"], ["CLAIM", "REPRESENTATION"], ["CLAIM", "LAW"]],
-      REDUCES_TO: [["OBLIGATION", "OBLIGATION"], ["CLAIM", "OBLIGATION"]],
-      REFINES: [["CLAIM", "CLAIM"]],
-      SPLIT_FROM: [["CLAIM", "CLAIM"]],
-      SUPERSEDES: [["CLAIM", "CLAIM"], ["ROUND", "ROUND"], ["EVIDENCE_STATE_TRANSITION", "EVIDENCE_STATE_TRANSITION"]],
-      RETRACTS: [["ADJUDICATION", "*"], ["ROUND", "*"]],
-      REQUIRES: [["CLAIM", "CLAIM"]],
-      WITNESSES: [["WITNESS", "CLAIM"], ["WITNESS", "OBLIGATION"], ["WITNESS", "EVIDENCE_STATE_TRANSITION"], ["RECEIPT", "CLAIM"], ["RECEIPT", "OBLIGATION"], ["RECEIPT", "EVIDENCE_STATE_TRANSITION"]],
-      SUPPORTS: [["WITNESS", "CLAIM"], ["WITNESS", "LAW"], ["RECEIPT", "CLAIM"], ["RECEIPT", "LAW"], ["FINDING", "CLAIM"], ["FINDING", "LAW"]],
-      FALSIFIES: [["FALSIFIER", "CLAIM"], ["FALSIFIER", "LAW"], ["FINDING", "CLAIM"], ["FINDING", "LAW"], ["WITNESS", "CLAIM"], ["WITNESS", "LAW"], ["RECEIPT", "CLAIM"], ["RECEIPT", "LAW"]],
-      ATTACKS: [["FALSIFIER", "CLAIM"], ["FALSIFIER", "MECHANISM"]],
-      TESTED_UNDER: [["CLAIM", "PROFILE"]],
-      SCOPED_BY: [["CLAIM", "PROFILE"], ["CLAIM", "ASSUMPTION"]],
-      ASSUMES: [["CLAIM", "ASSUMPTION"]],
-      CLOSES: [["ROUND", "FINDING"], ["ADJUDICATION", "FINDING"], ["RECEIPT", "FINDING"]],
-      OPENS: [["ROUND", "FINDING"], ["ADJUDICATION", "FINDING"], ["RECEIPT", "FINDING"]],
-      PRODUCED_BY: [["RECEIPT", "EXPERIMENT"], ["RECEIPT", "ROUND"], ["RECEIPT", "ARTIFACT"], ["ARTIFACT", "EXPERIMENT"], ["ARTIFACT", "ROUND"], ["ARTIFACT", "ARTIFACT"], ["CLAIM", "EXPERIMENT"], ["CLAIM", "ROUND"], ["CLAIM", "ARTIFACT"], ["EVIDENCE_STATE_TRANSITION", "EXPERIMENT"], ["EVIDENCE_STATE_TRANSITION", "ROUND"], ["EVIDENCE_STATE_TRANSITION", "ARTIFACT"]],
-      ADJUDICATED_BY: [["EVIDENCE_STATE_TRANSITION", "ADJUDICATION"], ["CLAIM", "ADJUDICATION"], ["ROUND", "ADJUDICATION"]],
-      LOCATED_IN: [["*", "SOURCE_LOCATION"]],
-      MEMBER_OF: [["*", "REGISTRY"], ["*", "ROUND"]],
-      BINDS: [["CLAIM", "CELL"]],
-      CITES: [["*", "*"]],
-      INDEPENDENT_OF: [["ENFORCEMENT_PROPERTY", "ENFORCEMENT_PROPERTY"]],
-      CONFLICTS_WITH: [["CLAIM", "CLAIM"]],
-      EQUIVALENT_TO: [["CLAIM", "CLAIM"]],
-      DEFINES: [["CLAIM", "DEFINITION"], ["CLAIM", "OBLIGATION"]],
-      REPRESENTS: [["CLAIM", "REPRESENTATION"], ["CLAIM", "OBLIGATION"], ["CLAIM", "LAW"]],
-      CROSS_CUTS: [["CLAIM", "LAW"], ["CLAIM", "OBLIGATION"]],
-      STATE_TRANSITION_OF: [["EVIDENCE_STATE_TRANSITION", "CLAIM"]],
-    },
-  },
+  "graphonomous.semantic.v0": GRAPHONOMOUS_V0_ROW,
+  "graphonomous.semantic.v1": GRAPHONOMOUS_V1_ROW,
 });
+
+/* graphonomous.semantic.v1 -- v0 spread, then the measured delta merged in.
+ * Written as its own statement rather than inside the literal above so that the
+ * v0 row is the ONLY definition of v0 and this row cannot contain a private
+ * copy of it that could drift. Adding a row changes no existing identity:
+ * selection is a hasOwnProperty on the key (v2ProfileOf), nothing iterates the
+ * table to decide bytes, and V2_PROFILE_IDS appears only in a refusal message.
+ * Endpoint pairs for a kind v0 already declares are the v0 pairs PLUS the v1
+ * ones, in that order -- a v1 world therefore admits everything a v0 world
+ * admits, which is what makes "a v1 projection is a superset" checkable rather
+ * than asserted. */
 
 export const V2_PROFILE_IDS = deepFreeze(Object.keys(V2_PROFILES));
 
