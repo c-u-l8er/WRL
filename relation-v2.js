@@ -69,6 +69,10 @@
  * touching the encoding. The admission gate is still the whole tuple, exactly
  * as A.4 made it for V1; only the version coordinate moved.
  *
+ * WRL-P0 is that wider profile arriving: `V2_PROFILES` is the table, keyed by
+ * `profile_id`, and `graphonomous.semantic.v0` is its first `static` row. See
+ * the banner above the table for what a static profile is and is not.
+ *
  * WHAT THIS MODULE VALIDATES (B.6, and it used to be the opposite)
  * ----------------------------------------------------------------
  * Through B.5 this header said the module was "a relation-layer encoder, not a
@@ -160,6 +164,19 @@ export const RELATION_V2_CODES = deepFreeze({
     "a transmitted runtime projection does not have the shape of one",
   WRL_PROJECTION_MISMATCH:
     "a transmitted runtime projection claims a value its own world does not derive",
+  /* WRL-P0: the world gate holds a world to its PROFILE's declaration */
+  WRL_UNDECLARED_POLICY:
+    "a relation's policy is not in the vocabulary its world's profile declares",
+  WRL_UNDECLARED_ROLE:
+    "an object's role is not one its static profile declares",
+  WRL_UNDECLARED_KIND:
+    "a relation's kind is not one its static profile declares",
+  WRL_UNDECLARED_PORT:
+    "a terminal names a port its object's role does not declare",
+  WRL_UNDECLARED_ENDPOINT_PAIR:
+    "a relation joins two roles its kind does not admit as (source, target)",
+  WRL_PROFILE_SIGNATURE_MISMATCH:
+    "a relation's domain, orientation, texture, arity or endpoint roles are not its profile's signature",
 });
 
 /* -------------------------------------------------- the V2 source family */
@@ -183,6 +200,152 @@ export const V2_RELATION_SOURCE_FAMILIES = deepFreeze({
 
 export const V2_IR_VERSIONS =
   deepFreeze(Object.keys(V2_RELATION_SOURCE_FAMILIES));
+
+/* ------------------------------------------------------------ profiles
+ *
+ * WRL-P0. The first profile that is not `forge.world.core.v1` arrived from an
+ * application, not from this file: Graphonomous holds a deterministic V2 world
+ * with twenty-one roles, one port, a `semantic` domain and thirty-one directed
+ * solid kinds, and nothing in it is a Pulser. The gate above admitted one
+ * profile per `ir_version`, and `assertV2World` then lowered every relation
+ * through the frozen V1 projection -- so a world that no V1 world corresponds
+ * to could not be sealed at all, and the application was left minting its own
+ * world id under its own prefix, which the kernel's `validateAllocation`
+ * (correctly) refuses to scope a `rel-` to.
+ *
+ * The repair is a table of PROFILES, and the two rows in it are two different
+ * kinds of thing, told apart by one data tag:
+ *
+ *   `lowered`  -- the profile's worlds are V1 worlds spelled in V2. The row
+ *                 declares nothing of its own; the frozen spine's registries
+ *                 ARE its declaration, reached by deriving the V1 artifact and
+ *                 handing it to `graphToIr` (`v2WorldAsV1`). One row, and it
+ *                 keeps every byte and every id it had.
+ *
+ *   `static`   -- the profile's declaration is DATA in the row: roles and the
+ *                 ports each has, the relation domain, the kinds, one
+ *                 orientation/texture/arity signature, and the (source role,
+ *                 target role) pairs each kind admits. `v2WorldOfStaticProfile`
+ *                 reads the row and never asks which row it is reading.
+ *
+ * A STATIC PROFILE IMPLIES NO RUNTIME. Its derived `semantic_policies` is
+ * exactly `{ rulepack_id }` -- no admit policy, no film schema, no numeric
+ * policy list -- and it derives no `schemas` and no `state_schema_ref`. Those
+ * fields are claims about how a world RUNS, and a profile that declares roles
+ * and kinds has said nothing about that. Filling them with no-op values would
+ * seal a runtime claim into identity for a runtime that does not exist. The
+ * same reasoning refuses the downgrade, the runtime projection and the text
+ * surface for a static world: a seal is not a run.
+ *
+ * WHAT WAS CONSIDERED AND NOT DONE. Keying this table by `ir_version` (the
+ * shape of `V2_RELATION_SOURCE_FAMILIES`) would force every new profile to be
+ * a new encoding, which the header argues against at length. Giving each row
+ * a `deriveWorld` function would be code per profile -- a branch in a costume,
+ * and not freezable or inspectable as data. Deriving `schemas` and
+ * `state_schema_ref` for a static row from some default would be the no-op
+ * runtime claim above. And widening `validateAllocation` to a second world-id
+ * prefix would let a world nobody sealed scope a `rel-`; the fix is to seal
+ * the world, which is what this table makes possible.
+ *
+ * `V2_RELATION_SOURCE_FAMILIES` stays as it is: it is the `ir_version`'s
+ * DEFAULT profile -- the one the text surface writes, since the surface is
+ * the V1 spine with names -- and its rulepack is where the lowered row gets
+ * its own, so the two tables cannot disagree about it.
+ */
+
+export const V2_PROFILE_DERIVATIONS = deepFreeze(["lowered", "static"]);
+
+const FORGE_RULEPACK = V2_RELATION_SOURCE_FAMILIES[V2_IR_VERSION].rulepack_id;
+const GRAPHONOMOUS_RULEPACK = "graphonomous.semantic.rules.v0";
+
+/* every graphonomous role has the same one nominal port; the table is still
+ * per-role because that is the SHAPE -- a later static profile may give two
+ * roles two different port lists, and nothing here would have to change */
+const GRAPHONOMOUS_ROLES = [
+  "OBLIGATION", "ENFORCEMENT_PROPERTY", "CLAIM", "LAW", "MECHANISM",
+  "DEFINITION", "REPRESENTATION", "PROFILE", "ASSUMPTION", "WITNESS",
+  "FALSIFIER", "FINDING", "EXPERIMENT", "RECEIPT", "ARTIFACT", "ADJUDICATION",
+  "EVIDENCE_STATE_TRANSITION", "ROUND", "CELL", "REGISTRY", "SOURCE_LOCATION",
+];
+
+/**
+ * The V2 profile table. Frozen data; the key is the `profile_id` a world
+ * declares. A row's `policies` is the whole vocabulary `revision.policy` may
+ * take under it (GAP-W9), and its `domain` is the one every relation states.
+ *
+ * The graphonomous row's endpoint pairs are the application's declared
+ * `endpoint_constraints` written out explicitly -- `*` is any role -- with
+ * `SUPERSEDES` frozen to same-kind pairs and `STATE_TRANSITION_OF` carrying
+ * the transition -> claim step (D-034 / D-037). The declared kinds are the
+ * keys of `endpoints`, so a kind cannot be declared without its constraint.
+ */
+export const V2_PROFILES = deepFreeze({
+  "forge.world.core.v1": {
+    derivation: "lowered",
+    rulepack_id: FORGE_RULEPACK,
+    policies: [FORGE_RULEPACK],
+    domain: R.profileDefaultDomain("forge.world.core.v1"),
+  },
+  "graphonomous.semantic.v0": {
+    derivation: "static",
+    rulepack_id: GRAPHONOMOUS_RULEPACK,
+    policies: [GRAPHONOMOUS_RULEPACK],
+    domain: "semantic",
+    signature: {
+      orientation: "directed",
+      texture: "solid",
+      arity: 2,
+      endpoint_roles: ["source", "target"],
+    },
+    roles: Object.fromEntries(GRAPHONOMOUS_ROLES.map((r) => [r, ["node"]])),
+    endpoints: {
+      STATES: [["CLAIM", "OBLIGATION"], ["CLAIM", "DEFINITION"], ["CLAIM", "REPRESENTATION"], ["CLAIM", "LAW"]],
+      IMPLEMENTS: [["CLAIM", "OBLIGATION"], ["CLAIM", "ENFORCEMENT_PROPERTY"], ["CLAIM", "DEFINITION"], ["CLAIM", "REPRESENTATION"], ["CLAIM", "LAW"], ["MECHANISM", "OBLIGATION"], ["MECHANISM", "ENFORCEMENT_PROPERTY"], ["MECHANISM", "DEFINITION"], ["MECHANISM", "REPRESENTATION"], ["MECHANISM", "LAW"]],
+      DERIVES_FROM: [["CLAIM", "CLAIM"], ["CLAIM", "OBLIGATION"], ["CLAIM", "DEFINITION"], ["CLAIM", "REPRESENTATION"], ["CLAIM", "LAW"]],
+      REDUCES_TO: [["OBLIGATION", "OBLIGATION"], ["CLAIM", "OBLIGATION"]],
+      REFINES: [["CLAIM", "CLAIM"]],
+      SPLIT_FROM: [["CLAIM", "CLAIM"]],
+      SUPERSEDES: [["CLAIM", "CLAIM"], ["ROUND", "ROUND"], ["EVIDENCE_STATE_TRANSITION", "EVIDENCE_STATE_TRANSITION"]],
+      RETRACTS: [["ADJUDICATION", "*"], ["ROUND", "*"]],
+      REQUIRES: [["CLAIM", "CLAIM"]],
+      WITNESSES: [["WITNESS", "CLAIM"], ["WITNESS", "OBLIGATION"], ["WITNESS", "EVIDENCE_STATE_TRANSITION"], ["RECEIPT", "CLAIM"], ["RECEIPT", "OBLIGATION"], ["RECEIPT", "EVIDENCE_STATE_TRANSITION"]],
+      SUPPORTS: [["WITNESS", "CLAIM"], ["WITNESS", "LAW"], ["RECEIPT", "CLAIM"], ["RECEIPT", "LAW"], ["FINDING", "CLAIM"], ["FINDING", "LAW"]],
+      FALSIFIES: [["FALSIFIER", "CLAIM"], ["FALSIFIER", "LAW"], ["FINDING", "CLAIM"], ["FINDING", "LAW"], ["WITNESS", "CLAIM"], ["WITNESS", "LAW"], ["RECEIPT", "CLAIM"], ["RECEIPT", "LAW"]],
+      ATTACKS: [["FALSIFIER", "CLAIM"], ["FALSIFIER", "MECHANISM"]],
+      TESTED_UNDER: [["CLAIM", "PROFILE"]],
+      SCOPED_BY: [["CLAIM", "PROFILE"], ["CLAIM", "ASSUMPTION"]],
+      ASSUMES: [["CLAIM", "ASSUMPTION"]],
+      CLOSES: [["ROUND", "FINDING"], ["ADJUDICATION", "FINDING"], ["RECEIPT", "FINDING"]],
+      OPENS: [["ROUND", "FINDING"], ["ADJUDICATION", "FINDING"], ["RECEIPT", "FINDING"]],
+      PRODUCED_BY: [["RECEIPT", "EXPERIMENT"], ["RECEIPT", "ROUND"], ["RECEIPT", "ARTIFACT"], ["ARTIFACT", "EXPERIMENT"], ["ARTIFACT", "ROUND"], ["ARTIFACT", "ARTIFACT"], ["CLAIM", "EXPERIMENT"], ["CLAIM", "ROUND"], ["CLAIM", "ARTIFACT"], ["EVIDENCE_STATE_TRANSITION", "EXPERIMENT"], ["EVIDENCE_STATE_TRANSITION", "ROUND"], ["EVIDENCE_STATE_TRANSITION", "ARTIFACT"]],
+      ADJUDICATED_BY: [["EVIDENCE_STATE_TRANSITION", "ADJUDICATION"], ["CLAIM", "ADJUDICATION"], ["ROUND", "ADJUDICATION"]],
+      LOCATED_IN: [["*", "SOURCE_LOCATION"]],
+      MEMBER_OF: [["*", "REGISTRY"], ["*", "ROUND"]],
+      BINDS: [["CLAIM", "CELL"]],
+      CITES: [["*", "*"]],
+      INDEPENDENT_OF: [["ENFORCEMENT_PROPERTY", "ENFORCEMENT_PROPERTY"]],
+      CONFLICTS_WITH: [["CLAIM", "CLAIM"]],
+      EQUIVALENT_TO: [["CLAIM", "CLAIM"]],
+      DEFINES: [["CLAIM", "DEFINITION"], ["CLAIM", "OBLIGATION"]],
+      REPRESENTS: [["CLAIM", "REPRESENTATION"], ["CLAIM", "OBLIGATION"], ["CLAIM", "LAW"]],
+      CROSS_CUTS: [["CLAIM", "LAW"], ["CLAIM", "OBLIGATION"]],
+      STATE_TRANSITION_OF: [["EVIDENCE_STATE_TRANSITION", "CLAIM"]],
+    },
+  },
+});
+
+export const V2_PROFILE_IDS = deepFreeze(Object.keys(V2_PROFILES));
+
+/** The row a world declares, or the profile refusal. */
+export function v2ProfileOf(artifact) {
+  const id = artifact && typeof artifact === "object" ? artifact.profile_id : undefined;
+  if (!Object.prototype.hasOwnProperty.call(V2_PROFILES, id))
+    fail("WRL_UNSUPPORTED_PROFILE",
+         `profile ${JSON.stringify(id)} is not one this encoder declares ` +
+         `(${V2_PROFILE_IDS.join(", ")})`,
+         { fieldPath: "profile_id" });
+  return V2_PROFILES[id];
+}
 
 /* ------------------------------------------------------------ the seed */
 
@@ -443,18 +606,17 @@ export function assertV2Artifact(artifact) {
          `V2 family this encoder reads (${V2_IR_VERSIONS.join(", ")})`,
          { fieldPath: "ir_version" });
 
-  if (artifact.profile_id !== family.profile_id)
-    fail("WRL_UNSUPPORTED_PROFILE",
-         `ir_version ${artifact.ir_version} names profile ` +
-         `'${family.profile_id}', and this artifact declares ` +
-         `${JSON.stringify(artifact.profile_id)}`,
-         { fieldPath: "profile_id" });
+  /* WRL-P0: the profile coordinate is answered by the PROFILE table, not by
+   * the version's one default row. The family still names the default -- it
+   * is what the text surface writes -- but a world may declare any profile
+   * the table declares. */
+  const profile = v2ProfileOf(artifact);
 
   const rulepack = artifact.semantic_policies?.rulepack_id;
-  if (rulepack !== family.rulepack_id)
+  if (rulepack !== profile.rulepack_id)
     fail("WRL_UNSUPPORTED_RULEPACK",
-         `family ${artifact.ir_version} declares rulepack ` +
-         `'${family.rulepack_id}' and this artifact declares ` +
+         `profile '${artifact.profile_id}' declares rulepack ` +
+         `'${profile.rulepack_id}' and this artifact declares ` +
          `${JSON.stringify(rulepack)}. The rulepack is copied into every ` +
          `relation's policy, so an unrecognised one is sealed into revision ` +
          `identity`,
@@ -484,8 +646,9 @@ export function assertV2Artifact(artifact) {
   /* The profile still has to declare a domain, for the same reason V1's does:
    * `domain` is a profile-declared namespace, and a V2 relation states one
    * explicitly rather than inheriting it -- but the encoder cannot check that
-   * the stated one belongs to the profile without the profile saying so. */
-  R.profileDefaultDomain(artifact.profile_id);
+   * the stated one belongs to the profile without the profile saying so. The
+   * row carries it: the lowered row asked the kernel's table at load, the
+   * static row declares its own. */
 
   /* ...and then the world itself. Everything above judges the ENVELOPE: the
    * version tuple, which topology key is present, that two arrays are arrays.
@@ -530,8 +693,9 @@ export function assertV2Artifact(artifact) {
  * and that is a PROFILE limit rather than an encoding one: `forge.world.core.v1`
  * declares one domain, two kinds and one texture, so under this profile the
  * two encodings describe the same set of worlds and only spell them
- * differently. A wider profile arrives with its own projection, and this
- * function is where the fork goes.
+ * differently. A wider profile arrives as a `static` row in `V2_PROFILES`
+ * with its own declaration, and `assertV2World` reads the row's derivation
+ * tag to choose between this function and `v2WorldOfStaticProfile`.
  */
 export function v2WorldAsV1(artifact) {
   const g = new W.WrlGraph();
@@ -567,6 +731,160 @@ export function v2WorldAsV1(artifact) {
   return W.graphToIr(W.canonicalizeGraph(g));
 }
 
+/* ------------------------------------------------- the static derivation
+ *
+ * WRL-P0. The world a `static` row describes, derived from the row's data and
+ * nothing else. It answers the same questions `graphToIr` answers for the
+ * lowered row -- which roles exist, which ports each has, whether a terminal
+ * names an object, whether two objects share an id, which kinds exist and what
+ * they may join -- and it answers them by READING THE ROW. It contains no name
+ * of any profile, and it returns exactly the keys a static profile derives:
+ * `semantic_policies` as `{ rulepack_id }`, and the canonical `objects`.
+ */
+
+/* The kernel's terminal grammar (`relation-identity.js` keeps its `IDENT_RE`
+ * private). Restated here for OBJECTS rather than borrowed through
+ * `validateTerminal`, because an object that no relation reaches still has to
+ * be one a terminal could name -- otherwise a world could hold an object that
+ * becomes unaddressable the moment someone relates to it. */
+const OBJECT_ID_RE = /^\w+$/;
+
+/* A static_config value the canonical serializer writes EXACTLY, or a typed
+ * refusal. The serializer refuses a finite non-integer itself
+ * (`WRL_NUMERIC_RANGE`) and is silent on three things it cannot write:
+ * `undefined` (emits invalid bytes), a non-finite number (emits `null`), and
+ * a function or symbol (emits nothing). Deeper value policing is the
+ * serializer's own. */
+function assertStaticConfigValue(v, where) {
+  if (v === undefined || typeof v === "function" || typeof v === "symbol" ||
+      (typeof v === "number" && !Number.isFinite(v)))
+    fail("WRL_BAD_V2_ARTIFACT",
+         `${where} is ${typeof v === "number" ? String(v) : typeof v}, which ` +
+         `has no canonical bytes; a value the serializer cannot write exactly ` +
+         `cannot be sealed`, { fieldPath: where });
+  if (Array.isArray(v)) v.forEach((x, i) => assertStaticConfigValue(x, `${where}[${i}]`));
+  else if (v && typeof v === "object")
+    for (const k of Object.keys(v)) assertStaticConfigValue(v[k], `${where}.${k}`);
+  W.serializeArtifact(v);   /* WRL_NUMERIC_RANGE, the serializer's own */
+}
+
+export function v2WorldOfStaticProfile(artifact, profile) {
+  if (!profile || profile.derivation !== "static")
+    fail("WRL_UNSUPPORTED_PROFILE",
+         `v2WorldOfStaticProfile reads a static profile row`,
+         { fieldPath: "profile_id" });
+
+  const roles = profile.roles;
+  const byId = new Map();
+
+  const objects = artifact.objects.map((o, i) => {
+    const where = `objects[${i}]`;
+    if (!o || typeof o !== "object" || Array.isArray(o))
+      fail("WRL_BAD_V2_ARTIFACT", "an object record is an object",
+           { fieldPath: where });
+    if (typeof o.object_id !== "string" || typeof o.role !== "string")
+      fail("WRL_BAD_V2_ARTIFACT",
+           "an object record carries a string object_id and role",
+           { fieldPath: where });
+    if (!OBJECT_ID_RE.test(o.object_id))
+      fail("WRL_BAD_V2_ARTIFACT",
+           `object id ${JSON.stringify(o.object_id)} is not an identifier ` +
+           `(${OBJECT_ID_RE}); a terminal could never name it`,
+           { fieldPath: `${where}.object_id` });
+    if (!Object.prototype.hasOwnProperty.call(roles, o.role))
+      fail("WRL_UNDECLARED_ROLE",
+           `object '${o.object_id}' has role '${o.role}', and profile ` +
+           `'${artifact.profile_id}' declares ` +
+           `${Object.keys(roles).join(", ")}`,
+           { fieldPath: `${where}.role`, locator: o.object_id });
+    if (!o.static_config || typeof o.static_config !== "object" ||
+        Array.isArray(o.static_config))
+      fail("WRL_BAD_V2_ARTIFACT",
+           `object '${o.object_id}' carries no static_config record`,
+           { fieldPath: `${where}.static_config` });
+    assertStaticConfigValue(o.static_config, `${where}.static_config`);
+    if (byId.has(o.object_id))
+      fail("WRL_DUPLICATE_ID",
+           `object id '${o.object_id}' is declared twice`,
+           { fieldPath: `${where}.object_id`, locator: o.object_id });
+
+    /* `ports` is DERIVED from the role, exactly as the lowered row's is:
+     * the bag comparison in `assertV2World` is what holds a stated list to
+     * this one */
+    const out = { object_id: o.object_id, role: o.role,
+                  static_config: o.static_config,
+                  ports: roles[o.role].slice() };
+    byId.set(o.object_id, out);
+    return out;
+  }).sort((a, b) => cmp(a.object_id, b.object_id) || cmp(a.role, b.role));
+
+  const sig = profile.signature;
+  const sigRoles = W.serializeArtifact([...sig.endpoint_roles].sort());
+  const sigTexture = sig.texture ?? null;
+
+  artifact.relations.forEach((rel, i) => {
+    const where = `relations[${i}]`;
+    validateV2Relation(rel, where);
+    const r = R.canonicalizeRelationRevision(rel.revision);
+    const at = (f) => ({ fieldPath: `${where}.revision.${f}` });
+    const mismatch = (f, have, want) =>
+      fail("WRL_PROFILE_SIGNATURE_MISMATCH",
+           `${where} has ${f} ${JSON.stringify(have)}; every relation under ` +
+           `profile '${artifact.profile_id}' has ${f} ${JSON.stringify(want)}`,
+           at(f));
+
+    if (r.domain !== profile.domain) mismatch("domain", r.domain, profile.domain);
+    if (r.orientation !== sig.orientation)
+      mismatch("orientation", r.orientation, sig.orientation);
+    if (("texture" in r ? r.texture : null) !== sigTexture)
+      mismatch("texture", "texture" in r ? r.texture : null, sigTexture);
+    if (r.endpoints.length !== sig.arity)
+      mismatch("arity", r.endpoints.length, sig.arity);
+    const have = W.serializeArtifact(r.endpoints.map((e) => e.role).sort());
+    if (have !== sigRoles)
+      mismatch("endpoint roles", r.endpoints.map((e) => e.role), sig.endpoint_roles);
+
+    if (!Object.prototype.hasOwnProperty.call(profile.endpoints, r.kind))
+      fail("WRL_UNDECLARED_KIND",
+           `${where} has kind '${r.kind}', and profile ` +
+           `'${artifact.profile_id}' declares ` +
+           `${Object.keys(profile.endpoints).join(", ")}`, at("kind"));
+
+    const roleAt = {};
+    r.endpoints.forEach((e, j) => {
+      const obj = byId.get(e.terminal.object_id);
+      if (!obj)
+        fail("WRL_UNKNOWN_ENDPOINT",
+             `${where} reaches object '${e.terminal.object_id}', which this ` +
+             `world does not declare`,
+             { fieldPath: `${where}.revision.endpoints[${j}].terminal.object_id`,
+               locator: e.terminal.object_id });
+      if (!roles[obj.role].includes(e.terminal.port))
+        fail("WRL_UNDECLARED_PORT",
+             `${where} reaches port '${e.terminal.port}' of ` +
+             `'${e.terminal.object_id}', and role '${obj.role}' declares ` +
+             `${roles[obj.role].join(", ")}`,
+             { fieldPath: `${where}.revision.endpoints[${j}].terminal.port`,
+               locator: `${e.terminal.object_id}.${e.terminal.port}` });
+      roleAt[e.role] = obj.role;
+    });
+
+    const tuple = sig.endpoint_roles.map((role) => roleAt[role]);
+    const pairs = profile.endpoints[r.kind];
+    if (!pairs.some((p) => p.every((want, k) => want === "*" || want === tuple[k])))
+      fail("WRL_UNDECLARED_ENDPOINT_PAIR",
+           `${where} joins (${tuple.join(" -> ")}) under kind '${r.kind}', ` +
+           `which profile '${artifact.profile_id}' admits only as ` +
+           `${pairs.map((p) => `(${p.join(" -> ")})`).join(", ")}`,
+           at("endpoints"));
+  });
+
+  return {
+    semantic_policies: { rulepack_id: profile.rulepack_id },
+    objects,
+  };
+}
+
 /* The keys a V2 artifact states that its own world also derives.
  *
  * `ir_version` is excluded and its exclusion is the one asymmetry: it is the
@@ -575,7 +893,13 @@ export function v2WorldAsV1(artifact) {
  * other derived field is the same function of the same roles in both
  * encodings, so a disagreement is a claim about a world that is not this one.
  *
- * `objects` is compared separately, as a bag -- see below. */
+ * `objects` is compared separately, as a bag -- see below.
+ *
+ * WRL-P0: this is the set of keys a V2 artifact MAY state that are derived,
+ * across every profile. Which of them a given profile actually derives is the
+ * derivation's answer -- a lowered world derives both, a static world derives
+ * `semantic_policies` alone -- and a stated key the profile does not derive is
+ * compared against absence, so it is a mismatch rather than a pass-through. */
 const V2_DERIVED_KEYS = deepFreeze(["semantic_policies", "schemas"]);
 
 /**
@@ -587,18 +911,44 @@ const V2_DERIVED_KEYS = deepFreeze(["semantic_policies", "schemas"]);
  * stops this module from keeping a private copy of a sort key.
  */
 export function assertV2World(artifact) {
-  const derived = v2WorldAsV1(artifact);
+  const profile = v2ProfileOf(artifact);
+  const derived = profile.derivation === "lowered"
+    ? v2WorldAsV1(artifact)
+    : v2WorldOfStaticProfile(artifact, profile);
+
+  /* GAP-W9. `revision.policy` is in every `rev-`, and the kernel checks only
+   * that it is a non-empty string -- so under the rulepack gate above an
+   * artifact could still carry a relation whose policy nobody declared, and
+   * seal it into identity. The world gate holds every relation to the
+   * profile's declared vocabulary. Validation only: no accepted revision's
+   * bytes move. It runs AFTER the derivation so that a malformed revision
+   * keeps the code the kernel gives it. */
+  artifact.relations.forEach((rel, i) => {
+    const policy = rel?.revision?.policy;
+    if (!profile.policies.includes(policy))
+      fail("WRL_UNDECLARED_POLICY",
+           `relations[${i}] carries policy ${JSON.stringify(policy)}, and ` +
+           `profile '${artifact.profile_id}' declares ` +
+           `${profile.policies.map((p) => `'${p}'`).join(", ")}. The policy ` +
+           `is sealed into this relation's revision identity, so one the ` +
+           `profile never declared would be an undeclared rulepack minted ` +
+           `into a rev- under a profile that admits it nowhere else`,
+           { fieldPath: `relations[${i}].revision.policy` });
+  });
 
   for (const k of V2_DERIVED_KEYS) {
-    const want = W.serializeArtifact(derived[k]);
+    const want = Object.prototype.hasOwnProperty.call(derived, k)
+      ? W.serializeArtifact(derived[k]) : "<absent>";
     const have = Object.prototype.hasOwnProperty.call(artifact, k)
       ? W.serializeArtifact(artifact[k]) : "<absent>";
     if (want !== have)
       fail("WRL_V2_WORLD_MISMATCH",
            `this artifact states ${k} = ${have}, and the world it encodes ` +
-           `derives ${want}. These fields are functions of the objects -- a ` +
-           `stated copy that disagrees is a second source of truth, and the ` +
-           `stated one is the one a reader believes`,
+           `derives ${want}. These fields are functions of the profile and ` +
+           `the objects -- a stated copy that disagrees is a second source ` +
+           `of truth, and the stated one is the one a reader believes; a ` +
+           `key the profile does not derive at all is a claim about a ` +
+           `runtime the profile never made`,
            { fieldPath: k });
   }
 
@@ -923,8 +1273,28 @@ function v1CanonicalEdgeOrder(edges) {
  * is invisible from outside and a V1 -> V2 -> V1 round trip is byte-exact and
  * identity-preserving.
  */
+/**
+ * A static world has no V1 form. One refusal, at the door, rather than a
+ * per-relation "kind has no V1 edge form" from the projection -- the latter
+ * is true and misleading: it reads as one bad relation, and the fact is that
+ * nothing about the profile says how its world runs. Spine code, because the
+ * construct really is outside frozen Semantic IR v1.
+ */
+function assertLowersToV1(v2artifact, what) {
+  const profile = v2ProfileOf(v2artifact);
+  if (profile.derivation !== "lowered")
+    fail("WRL_UNSUPPORTED_FEATURE",
+         `profile '${v2artifact.profile_id}' is static: it declares roles, ` +
+         `kinds and endpoint pairs and no lowering to Semantic IR v1, so its ` +
+         `world has no V1 form, no runtime projection and no text surface. ` +
+         `${what} is not defined for it`,
+         { fieldPath: "profile_id" });
+  return profile;
+}
+
 export function downgradeV2ToV1(v2artifact, irVersion) {
   assertV2Artifact(v2artifact);
+  assertLowersToV1(v2artifact, "a downgrade");
 
   if (!R.V1_IR_VERSIONS.includes(irVersion))
     fail("WRL_UNSUPPORTED_IR_VERSION",
@@ -1667,6 +2037,7 @@ export async function parseNamedWorld(source) {
  */
 export function formatNamedWorld(v2artifact) {
   assertV2Artifact(v2artifact);
+  assertLowersToV1(v2artifact, "the minimal surface");
   const canonical = canonicalizeV2Artifact(v2artifact);
 
   const nameOf = new Map();

@@ -5863,6 +5863,352 @@ function fmt(v) {
   return typeof v === "bigint" ? v.toString() : v ?? null;
 }
 
+/* ======================================= 21j. static profiles, WRL-P0
+ *
+ * The first application-driven repair. Graphonomous holds a deterministic
+ * V2-shaped world -- `profile_id: graphonomous.semantic.v0`, twenty-one
+ * roles, one port, a `semantic` domain with thirty-one directed solid kinds --
+ * and until this slice WRL could not seal it: the profile gate read one row
+ * keyed by `ir_version`, and even past that gate `assertV2World` lowered every
+ * relation through the frozen V1 projection, which refuses any kind outside
+ * `EDGE_PORTS`. So the application minted its own `gsem-` and its own
+ * relation preimages, and the kernel's `validateAllocation` -- correctly --
+ * refused to scope a `rel-` to anything but a `sem-`.
+ *
+ * The repair is a GENERIC STATIC PROFILE: a frozen data row a world can name,
+ * declaring roles, ports, domain, kinds, signature and endpoint pairs, read by
+ * one code path that never asks which profile it is reading. A static profile
+ * implies no runtime, no admission policy and no film: its derived
+ * `semantic_policies` is exactly `{ rulepack_id }`, and it derives no
+ * `schemas`. `forge.world.core.v1` stays the lowered compatibility row, and
+ * every one of its bytes and ids is pinned elsewhere in this suite.
+ *
+ * GAP-W9 closes here too: `revision.policy` is in every `rev-` and was checked
+ * only for being a non-empty string, so an undeclared policy sealed into
+ * identity under a profile that never declared it. The world gate now holds it
+ * to the profile's declared vocabulary -- validation only, so no already-valid
+ * revision moves. */
+{
+  const s = await import("../relation-identity.js");
+  const v2 = await import("../relation-v2.js");
+
+  const refuse = (fn) => {
+    try { fn(); return null; } catch (e) { return e.code || String(e); }
+  };
+  const refuseAsync = async (fn) => {
+    try { await fn(); return null; } catch (e) { return e.code || String(e); }
+  };
+  /* a seal attempt reported as either the id or the refusal, so a detail line
+   * can say which -- the pre-fix run has to show WHY the world did not seal */
+  const mint = async (w) => {
+    try { return await v2.v2WorldIdOfArtifact(w); }
+    catch (e) { return e.code || String(e); }
+  };
+  const isSem = (x) => typeof x === "string" && /^sem-[0-9a-f]{64}$/.test(x);
+  const clone = (x) => JSON.parse(JSON.stringify(x));
+
+  const G_PROFILE = "graphonomous.semantic.v0";
+  const G_RULES = "graphonomous.semantic.rules.v0";
+  const term = (object_id) => ({ object_id, port: "node" });
+  const gRelation = (name, kind, src, dst, attributes = {}) => ({
+    identity_seed: { variant: "named-initial", relation_name: name },
+    revision: {
+      domain: "semantic", kind, orientation: "directed", texture: "solid",
+      endpoints: [{ role: "source", terminal: term(src) },
+                  { role: "target", terminal: term(dst) }],
+      attributes, policy: G_RULES,
+    },
+  });
+  /* the minimized world: two objects, one WITNESSES relation, ids in the
+   * application's reversible `\w+` encoding of its lids, names as the
+   * application writes them (a statement lid -- the kernel's allocation admits
+   * any non-empty name; only the TEXT surface narrows it to an identifier) */
+  const RECEIPT = "receipt_3Asha256_3Aabc";
+  const CLAIM = "claim_3Acrosswalk_3AE_2D48";
+  const NAME = "rel:WITNESSES:receipt:sha256:abc:claim:crosswalk:E-48";
+  const gWorld = () => ({
+    ir_version: "2.0",
+    profile_id: G_PROFILE,
+    semantic_policies: { rulepack_id: G_RULES },
+    objects: [
+      { object_id: RECEIPT, role: "RECEIPT",
+        static_config: { lid: "receipt:sha256:abc", attrs: {} },
+        ports: ["node"] },
+      { object_id: CLAIM, role: "CLAIM",
+        static_config: { lid: "claim:crosswalk:E-48", attrs: {} },
+        ports: ["node"] },
+    ],
+    relations: [gRelation(NAME, "WITNESSES", RECEIPT, CLAIM)],
+  });
+  const withRel = (w, patch) => {
+    const r = clone(w.relations[0]);
+    patch(r);
+    w.relations = [r];
+    return w;
+  };
+
+  /* the forge V2 specimen, assembled exactly as 21c assembles it */
+  const demo = await s.sealWithRelations(W.DEMO_WORLD);
+  const forgeWorld = () => ({
+    ir_version: v2.V2_IR_VERSION,
+    profile_id: demo.artifact.profile_id,
+    semantic_policies: { ...demo.artifact.semantic_policies },
+    schemas: demo.artifact.schemas,
+    objects: demo.artifact.objects,
+    relations: demo.artifact.edges.map((e, i) => ({
+      identity_seed: { variant: "named-initial", relation_name: `r${i}` },
+      revision: s.edgeToRelationRevision(demo.artifact, e),
+    })),
+  });
+
+  /* -- (a) a declared static profile seals to a real `sem-`, and the
+   *    canonical artifact carries exactly what the profile derives */
+  {
+    const id = await mint(gWorld());
+    let canon = null, canonCode = null;
+    try { canon = v2.canonicalizeV2Artifact(gWorld()); }
+    catch (e) { canonCode = e.code || String(e); }
+    const policies = canon && W.serializeArtifact(canon.semantic_policies);
+    const ports = canon && canon.objects.map((o) => W.serializeArtifact(o.ports));
+    ok("relation/v2/profile/static/a-declared-static-profile-seals",
+       isSem(id) && canon !== null &&
+       policies === W.serializeArtifact({ rulepack_id: G_RULES }) &&
+       !Object.prototype.hasOwnProperty.call(canon, "schemas") &&
+       ports.every((p) => p === '["node"]') &&
+       canon.objects.every((o) =>
+         !Object.prototype.hasOwnProperty.call(o, "state_schema_ref")),
+       `the minimized ${G_PROFILE} world -> ${id}` +
+       (canon ? `; semantic_policies = ${policies}, schemas present: ` +
+                `${Object.prototype.hasOwnProperty.call(canon, "schemas")}, ` +
+                `ports = ${ports.join(" ")}`
+              : `; canonicalizeV2Artifact -> ${canonCode}`) +
+       `. A static profile derives { rulepack_id } and nothing else: no ` +
+       `runtime policy, no film schema, no state schema is implied by it`);
+  }
+
+  /* -- (b) the KERNEL mints the ids: `rel-` is the kernel's allocation over
+   *    the sealed `sem-`, `rev-` is the kernel's revision id */
+  {
+    let view = null, code = null;
+    try { view = await v2.deriveV2Relations(gWorld()); }
+    catch (e) { code = e.code || String(e); }
+    let agree = false, detail = `deriveV2Relations -> ${code}`;
+    if (view) {
+      const r = view.relations[0];
+      const kernelRel = await s.relationIdFromAllocation(
+        s.namedInitialAllocation(view.world_id, NAME));
+      const kernelRev = await s.relationRevisionId(gWorld().relations[0].revision);
+      agree = isSem(view.world_id) && view.relations.length === 1 &&
+        r.relation_id === kernelRel && r.revision_id === kernelRev &&
+        r.allocation.world_id === view.world_id &&
+        r.allocation.variant === "named-initial";
+      detail = `world ${view.world_id}; rel ${r.relation_id} vs kernel ` +
+               `${kernelRel}; rev ${r.revision_id} vs kernel ${kernelRev}`;
+    }
+    ok("relation/v2/profile/static/the-kernel-mints-rel-and-rev", agree,
+       detail + `. The application must not have to compute its own ` +
+       `preimage: the seed expands to an allocation the kernel validates ` +
+       `and hashes, under a world id the kernel accepts`);
+  }
+
+  /* -- (c) written order is not in the bytes, for a static profile too */
+  {
+    const two = () => {
+      const w = gWorld();
+      w.objects.push({ object_id: "round_3A7", role: "ROUND",
+                       static_config: { lid: "round:7", attrs: {} },
+                       ports: ["node"] });
+      w.relations.push(gRelation("rel:MEMBER_OF:claim:crosswalk:E-48:round:7",
+                                 "MEMBER_OF", CLAIM, "round_3A7"));
+      return w;
+    };
+    const a = await mint(two());
+    const shuffled = two();
+    shuffled.objects.reverse();
+    shuffled.relations.reverse();
+    const b = await mint(shuffled);
+    ok("relation/v2/profile/static/order-is-not-in-the-bytes",
+       isSem(a) && a === b,
+       `declared order -> ${a}, reversed objects and relations -> ${b}`);
+  }
+
+  /* -- (d) what the profile's data refuses, each with a typed code, and each
+   *    code registered somewhere a reader can look it up */
+  {
+    const cases = {
+      "an undeclared kind": [
+        () => withRel(gWorld(), (r) => { r.revision.kind = "WarpTunnel"; }),
+        "WRL_UNDECLARED_KIND"],
+      "an endpoint pair outside the kind's constraints": [
+        () => withRel(gWorld(), (r) => {
+          r.revision.endpoints = [{ role: "source", terminal: term(CLAIM) },
+                                  { role: "target", terminal: term(RECEIPT) }];
+        }),
+        "WRL_UNDECLARED_ENDPOINT_PAIR"],
+      "a terminal naming no object": [
+        () => withRel(gWorld(), (r) => {
+          r.revision.endpoints[0].terminal.object_id = "ghost";
+        }),
+        "WRL_UNKNOWN_ENDPOINT"],
+      "an undeclared port": [
+        () => withRel(gWorld(), (r) => {
+          r.revision.endpoints[0].terminal.port = "made_up";
+        }),
+        "WRL_UNDECLARED_PORT"],
+      "a domain the profile does not declare": [
+        () => withRel(gWorld(), (r) => { r.revision.domain = "banana"; }),
+        "WRL_PROFILE_SIGNATURE_MISMATCH"],
+      "an orientation outside the signature": [
+        () => withRel(gWorld(), (r) => {
+          r.revision.orientation = "symmetric";
+          delete r.revision.texture;
+          r.revision.endpoints = r.revision.endpoints.map(
+            (e) => ({ ...e, role: "peer" }));
+        }),
+        "WRL_PROFILE_SIGNATURE_MISMATCH"],
+      "an undeclared role": [
+        () => { const w = gWorld(); w.objects[0].role = "Alien"; return w; },
+        "WRL_UNDECLARED_ROLE"],
+      "a duplicate object id": [
+        () => { const w = gWorld(); w.objects.push(clone(w.objects[0])); return w; },
+        "WRL_DUPLICATE_ID"],
+      "a stated port list the role does not declare": [
+        () => { const w = gWorld(); w.objects[0].ports = ["node", "extra"]; return w; },
+        "WRL_V2_WORLD_MISMATCH"],
+      "a static_config value the serializer cannot write exactly": [
+        () => { const w = gWorld(); w.objects[0].static_config.weight = 0.5; return w; },
+        "WRL_NUMERIC_RANGE"],
+      "a static_config value that is undefined": [
+        () => { const w = gWorld(); w.objects[0].static_config.gone = undefined; return w; },
+        "WRL_BAD_V2_ARTIFACT"],
+    };
+    const got = {};
+    for (const [what, [build]] of Object.entries(cases)) got[what] = await mint(build());
+    const wrong = Object.entries(cases)
+      .filter(([what, [, want]]) => got[what] !== want);
+    const registered = Object.keys(v2.RELATION_V2_CODES).concat(Object.keys(W.CODES));
+    const unregistered = [...new Set(Object.values(cases).map(([, c]) => c))]
+      .filter((c) => !registered.includes(c));
+    ok("relation/v2/profile/static/the-profile-data-refuses-with-typed-codes",
+       wrong.length === 0 && unregistered.length === 0,
+       Object.entries(cases).map(([what, [, want]]) =>
+         `${what} -> ${got[what]} (want ${want})`).join("\n      ") +
+       (unregistered.length
+         ? `\n      UNREGISTERED: ${unregistered.join(", ")}` : ""));
+  }
+
+  /* -- (e) a profile nobody declared is still refused at the profile gate */
+  {
+    const w = gWorld();
+    w.profile_id = "nobody.declared.this.v0";
+    const code = await mint(w);
+    const forge9 = await mint({ ...forgeWorld(), profile_id: "forge.world.core.v9" });
+    ok("relation/v2/profile/an-undeclared-profile-is-still-refused",
+       code === "WRL_UNSUPPORTED_PROFILE" && forge9 === "WRL_UNSUPPORTED_PROFILE",
+       `nobody.declared.this.v0 -> ${code}, forge.world.core.v9 -> ${forge9}; ` +
+       `want WRL_UNSUPPORTED_PROFILE for both. Widening the gate to a table ` +
+       `must not turn it into a gate that admits anything with a rulepack`);
+  }
+
+  /* -- (f) a static-profile artifact that STATES a runtime claim is refused:
+   *    `schemas`, or the full forge policy tuple, describe a runtime the
+   *    profile does not have, and a canonicaliser that dropped them would let
+   *    them be believed everywhere the artifact is read */
+  {
+    const withSchemas = gWorld();
+    withSchemas.schemas = clone(demo.artifact.schemas);
+    const withTuple = gWorld();
+    withTuple.semantic_policies = { ...demo.artifact.semantic_policies,
+                                    rulepack_id: G_RULES };
+    const a = await mint(withSchemas);
+    const b = await mint(withTuple);
+    ok("relation/v2/profile/static/a-stated-runtime-claim-is-a-mismatch",
+       a === "WRL_V2_WORLD_MISMATCH" && b === "WRL_V2_WORLD_MISMATCH",
+       `stated schemas -> ${a}, stated runtime policy tuple -> ${b}; want ` +
+       `WRL_V2_WORLD_MISMATCH for both. A static profile derives ` +
+       `{ rulepack_id } and no schemas; anything more is a claim about a ` +
+       `runtime that does not exist`);
+  }
+
+  /* -- (g) GAP-W9. `policy` is in every `rev-`; the world gate holds it to
+   *    the profile's declared vocabulary. Before this slice both of these
+   *    SEALED, and the detail line below says so when they do. */
+  {
+    const forgeBad = forgeWorld();
+    forgeBad.relations[0] = clone(forgeBad.relations[0]);
+    forgeBad.relations[0].revision.policy = "anything.at.all";
+    const gBad = withRel(gWorld(), (r) => { r.revision.policy = "anything.at.all"; });
+    const a = await mint(forgeBad);
+    const b = await mint(gBad);
+    const legalForge = await mint(forgeWorld());
+    ok("relation/v2/profile/an-undeclared-policy-does-not-seal",
+       a === "WRL_UNDECLARED_POLICY" && b === "WRL_UNDECLARED_POLICY" &&
+       isSem(legalForge) &&
+       typeof v2.RELATION_V2_CODES.WRL_UNDECLARED_POLICY === "string",
+       `forge relation with policy "anything.at.all" -> ${a}; ` +
+       `${G_PROFILE} relation with the same -> ${b}; want ` +
+       `WRL_UNDECLARED_POLICY for both (registered: ` +
+       `${typeof v2.RELATION_V2_CODES.WRL_UNDECLARED_POLICY === "string"}). ` +
+       `The unmutated forge world seals: ${isSem(legalForge)}. ` +
+       `A policy that sealed into rev- identity without the profile ever ` +
+       `declaring it is GAP-W9`);
+  }
+
+  /* -- (h) the forge row is the ir_version family's default and derives what
+   *    it always derived: the two tables cannot disagree about the rulepack,
+   *    and a forge artifact without `schemas` is still a mismatch */
+  {
+    const fam = v2.V2_RELATION_SOURCE_FAMILIES[v2.V2_IR_VERSION];
+    const row = v2.V2_PROFILES?.[fam.profile_id];
+    const noSchemas = forgeWorld();
+    delete noSchemas.schemas;
+    const a = await mint(noSchemas);
+    ok("relation/v2/profile/forge-stays-the-lowered-family-default",
+       !!row && row.rulepack_id === fam.rulepack_id &&
+       W.serializeArtifact(row.policies) ===
+         W.serializeArtifact([fam.rulepack_id]) &&
+       Object.isFrozen(row) && a === "WRL_V2_WORLD_MISMATCH",
+       `V2_PROFILES[${fam.profile_id}] = ${JSON.stringify(row)}; family ` +
+       `rulepack ${fam.rulepack_id}; a forge world without schemas -> ${a} ` +
+       `(want WRL_V2_WORLD_MISMATCH)`);
+  }
+
+  /* -- (i) a static profile declares no runtime, and says so as one refusal
+   *    rather than as a per-relation projection failure */
+  {
+    const a = await refuseAsync(() => v2.deriveRuntimeProjection(gWorld()));
+    const b = refuse(() => v2.downgradeV2ToV1(gWorld(), s.V1_IR_VERSIONS[0]));
+    ok("relation/v2/profile/static/a-static-profile-has-no-runtime",
+       a === "WRL_UNSUPPORTED_FEATURE" && b === "WRL_UNSUPPORTED_FEATURE",
+       `deriveRuntimeProjection -> ${a}, downgradeV2ToV1 -> ${b}; want ` +
+       `WRL_UNSUPPORTED_FEATURE for both. A seal is not a run: nothing ` +
+       `about a static profile says how its world executes`);
+  }
+
+  /* -- (j) the row is DATA the generic path reads, not a branch. Frozen, and
+   *    the module's source never compares a profile id to a literal. */
+  {
+    const src = readFileSync(join(ROOT, "relation-v2.js"), "utf8");
+    const row = v2.V2_PROFILES?.[G_PROFILE];
+    const deepFrozen = (v) => !v || typeof v !== "object" ||
+      (Object.isFrozen(v) && Object.values(v).every(deepFrozen));
+    const branches = src.split("\n")
+      .map((l, i) => [i + 1, l])
+      .filter(([, l]) => /profile_id\s*[!=]==?\s*["']/.test(l) ||
+                         (/\bif\b/.test(l) && /graphonomous/.test(l)));
+    ok("relation/v2/profile/static/the-row-is-frozen-data-not-a-branch",
+       !!row && deepFrozen(row) && branches.length === 0 &&
+       Object.isFrozen(v2.V2_PROFILES) &&
+       Object.keys(row.roles).length === 21 &&
+       Object.keys(row.endpoints).length === 31 &&
+       row.domain === "semantic" && row.rulepack_id === G_RULES,
+       `row present: ${!!row}, deep-frozen: ${!!row && deepFrozen(row)}, ` +
+       `roles: ${row && Object.keys(row.roles).length}, kinds: ` +
+       `${row && Object.keys(row.endpoints).length}, source lines comparing ` +
+       `a profile id to a literal: ${branches.map(([n]) => n).join(", ") || "none"}`);
+  }
+}
+
 /* ======================================= 21b. the part boundary wears a badge
  *
  * Part I is normative and Part II is draft, and the page says so in two
