@@ -364,6 +364,25 @@ const GRAPHONOMOUS_V1_ROW = {
   ]),
 };
 
+/* v2 = v1 spread + ONE endpoint pair. Graphonomous measured that its third source family (TRVM governance) states 25
+ * law -> law supersession propositions that v1 could only carry as deferred attributes, because SUPERSEDES is frozen
+ * same-kind and LAW was not among the admitted pairs. D-037 already gives SUPERSEDES the meaning of replacement
+ * between comparable entity kinds, so LAW -> LAW is NOT a new relation meaning -- it is a missing admitted endpoint
+ * pair. Hence: no new role, no new relation kind, no new rulepack, and no edit to the v0 or v1 rows. */
+const GRAPHONOMOUS_V2_ENDPOINTS = {
+  SUPERSEDES: [["LAW", "LAW"]],
+};
+
+const GRAPHONOMOUS_V2_ROW = {
+  ...GRAPHONOMOUS_V1_ROW,
+  endpoints: Object.fromEntries([
+    ...Object.entries(GRAPHONOMOUS_V1_ROW.endpoints).map(
+      ([k, v]) => [k, [...v, ...(GRAPHONOMOUS_V2_ENDPOINTS[k] ?? [])]]),
+    ...Object.entries(GRAPHONOMOUS_V2_ENDPOINTS).filter(
+      ([k]) => !(k in GRAPHONOMOUS_V1_ROW.endpoints)),
+  ]),
+};
+
 export const V2_PROFILES = deepFreeze({
   "forge.world.core.v1": {
     derivation: "lowered",
@@ -373,6 +392,7 @@ export const V2_PROFILES = deepFreeze({
   },
   "graphonomous.semantic.v0": GRAPHONOMOUS_V0_ROW,
   "graphonomous.semantic.v1": GRAPHONOMOUS_V1_ROW,
+  "graphonomous.semantic.v2": GRAPHONOMOUS_V2_ROW,
 });
 
 /* graphonomous.semantic.v1 -- v0 spread, then the measured delta merged in.
