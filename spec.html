@@ -124,6 +124,7 @@
   <a href="#d8-admission">D8.17 · Admitting a world source</a>
   <a href="#d8-runtime-projection">D8.18 · The runtime projection</a>
   <a href="#d8-wire">D8.19 · The projection on the wire</a>
+  <a href="#d8-profiles">D8.20 · The profile table</a>
   <a href="#d9">D9 · Dynamic topology</a>
   <a href="#d9-classify">D9 · Conflict classification</a>
   <a href="#d9-closure">D9.1 · Replay closure</a>
@@ -3500,6 +3501,8 @@ a named source seals to the pinned demo
 
 <h4 id="d8-v2-world">The world gate: an invalid world mints no id</h4>
 
+<p class="note"><b>Since WRL-P0 the gate reads a profile <i>row</i></b> — the lowered row delegates to the frozen spine exactly as described below; a static row is checked against its own declaration. <a href="#d8-profiles">§D8.20</a> is the rule; this section is the lowered half of it.</p>
+
 <p>For one slice the V2 encoder validated the <i>encoding</i> and never the
 <i>world</i>. It checked the version tuple, the container shapes, the relation
 record fields and the generic revision vocabulary — all of them questions about
@@ -3934,6 +3937,111 @@ implementation which cannot run JavaScript can be held to. Notably, <b>no vector
 states its encoding</b> — <a href="#d8-admission">§D8.17</a> already says the
 source decides, so a reader that needed to be told the family here would be
 failing that rule before it got to this one.</p>
+
+<h4 id="d8-profiles">The profile table: a wider vocabulary without a wider encoding</h4>
+
+<p>The header of <code class="inline">relation-v2.js</code> argues at length
+that <code class="inline">ir_version</code> and <code class="inline">profile_id</code>
+answer different questions — <i>how</i> is topology written, and <i>in what
+vocabulary</i> — and that bumping both together would make every new domain a
+new encoding. Through C.5 that argument had no consequence, because the encoder
+admitted one profile per encoding and <a href="#d8-v2-world">§D8.14</a> lowered
+every relation through the frozen V1 projection. So a world that no V1 world
+corresponds to could not be sealed at all. The first such world arrived from an
+application: Graphonomous holds a deterministic V2 world with twenty-one roles,
+one port, a <code class="inline">semantic</code> domain and thirty-one directed
+solid kinds, and nothing in it is a Pulser. It was minting its own world id
+under its own prefix, and the kernel's <code class="inline">validateAllocation</code>
+was refusing — correctly — to scope a <code class="inline">rel-</code> to a
+world nobody had sealed.</p>
+
+<p>The repair (WRL-P0, 2026-09-03) is a <b>table</b>, not a branch:
+<code class="inline">V2_PROFILES</code>, frozen data keyed by
+<code class="inline">profile_id</code>. What was considered and not done says
+what the table is. Keying it by <code class="inline">ir_version</code> would
+force every new profile to be a new encoding. Giving each row a
+<code class="inline">deriveWorld</code> function would be code per profile — a
+branch in a costume, and not freezable or inspectable as data. Deriving
+<code class="inline">schemas</code> and <code class="inline">state_schema_ref</code>
+for a static row from some default would seal a runtime claim into identity
+for a runtime that does not exist. And widening
+<code class="inline">validateAllocation</code> to a second world-id prefix
+would let a world nobody sealed scope a <code class="inline">rel-</code>; the
+fix is to seal the world.</p>
+
+<div class="note stop"><b>Draft rule D8.20 — the profile table.</b>
+<ol>
+<li>A world's <code class="inline">profile_id</code> selects a row of a frozen
+table keyed by profile id. An id with no row is refused as
+<code class="inline">WRL_UNSUPPORTED_PROFILE</code> before any byte is hashed;
+the refusal names the rows that exist and is the only place the list of them
+is read.</li>
+<li>A row's derivation is one of two, told apart by one data tag.
+<b><code class="inline">lowered</code></b>: the profile's worlds are V1 worlds
+spelled in V2; the row declares nothing of its own, and the frozen spine's
+registries are its declaration, reached by deriving the V1 artifact and handing
+it to <code class="inline">graphToIr</code>. <b><code class="inline">static</code></b>:
+the declaration is data in the row — roles and the ports each has, the relation
+domain, the kinds, one orientation/texture/arity signature, and the (source
+role, target role) pairs each kind admits — and the derivation reads the row
+without asking which row it is reading.</li>
+<li>A static profile implies no runtime. It derives
+<code class="inline">semantic_policies = { rulepack_id }</code> and nothing
+else — no admit policy, no film schema, no numeric policy list, no
+<code class="inline">schemas</code>, no <code class="inline">state_schema_ref</code>.
+Those fields are claims about how a world <i>runs</i>, and a profile that
+declares roles and kinds has said nothing about that; a static world that
+states one is refused as <code class="inline">WRL_V2_WORLD_MISMATCH</code>. The
+downgrade (<a href="#d8-v2-write">§D8.13</a>), the runtime projection
+(<a href="#d8-runtime-projection">§D8.18</a>) and the text surface
+(<a href="#d8-v2-surface">§D8.12</a>) refuse a static world. A seal is not a
+run.</li>
+<li>The world gate (<a href="#d8-v2-world">§D8.14</a>) holds every relation to
+its profile. Under any row, <code class="inline">revision.policy</code> must be
+in the row's declared vocabulary (<code class="inline">WRL_UNDECLARED_POLICY</code>).
+Under a static row, an object's role, a terminal's port, a relation's kind, its
+(source role, target role) pair and its domain/orientation/texture/arity
+signature are each refused by name —
+<code class="inline">WRL_UNDECLARED_ROLE</code>,
+<code class="inline">WRL_UNDECLARED_PORT</code>,
+<code class="inline">WRL_UNDECLARED_KIND</code>,
+<code class="inline">WRL_UNDECLARED_ENDPOINT_PAIR</code>,
+<code class="inline">WRL_PROFILE_SIGNATURE_MISMATCH</code>. Validation runs
+before canonicalisation, so an invalid world mints no id.</li>
+<li>A row is frozen data and is never edited. A successor profile is a new id
+whose row <i>spreads</i> its predecessor and widens by declaration — never by
+becoming permissive. Nothing iterates the table to decide bytes, so adding a
+row moves no existing identity: every world sealed under an earlier row seals
+to the same id after the successor exists.</li>
+<li>The kernel mints. A static world's <code class="inline">sem-</code> is the
+hash of its canonical bytes under <a href="#d8-v2-derive">§D8.10</a>, and every
+<code class="inline">rel-</code> and <code class="inline">rev-</code> is the
+kernel's allocation and revision id over that <code class="inline">sem-</code>.
+An application submits an artifact; it does not mint, and it does not sort or
+de-duplicate on the way in — object order and seed order are decided by the
+encoder and are not in the bytes.</li>
+<li><code class="inline">forge.world.core.v1</code> remains the encoding's
+default profile: the one the text surface writes, since that surface is the V1
+spine with names, and the one whose rulepack the lowered row reads so that the
+two tables cannot disagree. The text surface writes no other row.</li>
+</ol></div>
+
+<p>The consequence worth stating plainly: <b>a profile now lands as data, and a
+new domain is a new row.</b> The table has four rows at the time of writing —
+the lowered <code class="inline">forge.world.core.v1</code> and three static
+Graphonomous rows, <code class="inline">graphonomous.semantic.v0</code>,
+<code class="inline">v1</code> and <code class="inline">v2</code>, one
+lineage where each successor is its predecessor spread plus a measured delta
+(<code class="inline">v2</code> is <code class="inline">v1</code> plus exactly
+one endpoint pair, <code class="inline">SUPERSEDES [LAW, LAW]</code>). The
+<a href="reference.html#profiles">reference</a> prints the rows and their
+counts, read out of the module by the suite. None of this is
+<code class="inline">ProfileSchemaV1</code> (<a href="#d6-bootstrap">§D6.1</a>):
+a static row has no attribute types, no units, no bounded resources and no
+resolution tables. It is the smallest thing that lets an application's world
+be sealed by the encoder rather than by the application, which is the property
+<a href="#d8-identity-scope">§D8.5</a> needs and the one the spike was
+violating.</p>
 
 <h3 id="d8-owes">What D8 owes before it can ship</h3>
 
@@ -4778,6 +4886,18 @@ substitution is the entire failure this register exists to catch.</p>
 <tr data-pending-law="a-noncanonical-record-is-not-the-record" data-pending-for="D8.19" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/projection/a-noncanonical-record-is-not-the-record"><td>duplicate keys, a fraction, leading whitespace, trailing bytes, <code class="inline">-0</code></td><td><b>each refused.</b> A general parser keeps the last duplicate key silently, which lets two records with different bytes and different meanings arrive as one object — on a wire whose premise is that bytes are checkable, last-writer-wins is a way to walk a field past a reader. Clause 3 and clause 7 are one claim: bytes cannot be called canonical by a reader that accepts variants of them</td><td><a href="#d8-wire">D8.19</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="canonical-form-is-checked-not-assumed" data-pending-for="D8.19" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/projection/canonical-form-is-checked-not-assumed"><td>a record whose keys are re-ordered — same value, different bytes</td><td><b>refused</b>, by re-rendering what the bytes denote and comparing. This is the gate that does not have to enumerate: it covers key order, escape spelling, leading zeros and every lexical variant nobody thought to name, so the reader's strictness does not depend on the completeness of a list</td><td><a href="#d8-wire">D8.19</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="exact-reading-moves-no-pinned-id" data-pending-for="D8.19" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/projection/exact-reading-moves-no-pinned-id"><td>the pinned world round-tripped through the exact reader</td><td><b>both ids unmoved, still coincident.</b> The obvious wrong fix for the 64-bit case is to change how <i>every</i> integer is read, which would move every id in the repository at once. Exactness had to arrive as a reader that is stricter about bytes and identical about values</td><td><a href="#d8-wire">D8.19</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="a-declared-static-profile-seals" data-pending-for="D8.20" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/profile/static/a-declared-static-profile-seals"><td>a two-object world under <code class="inline">graphonomous.semantic.v0</code>: RECEIPT → WITNESSES → CLAIM, in the application's own shape</td><td><b>a real <code class="inline">sem-</code></b>, and the canonical artifact carries exactly what the row derives — <code class="inline">semantic_policies</code> is <code class="inline">{ rulepack_id }</code>, every object's ports are the row's, and no <code class="inline">schemas</code> or <code class="inline">state_schema_ref</code> appears. Before WRL-P0 this world drew <code class="inline">WRL_UNSUPPORTED_PROFILE</code> and the application was minting a <code class="inline">gsem-</code> of its own</td><td><a href="#d8-profiles">D8.20</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="a-static-profile-implies-no-runtime" data-pending-for="D8.20" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/profile/static/a-static-profile-has-no-runtime"><td>the same static world offered to the downgrade, the runtime projection and the text surface</td><td><b>each refused.</b> A static row has said nothing about how a world runs, so a value that says it does would be a runtime claim sealed into identity for a runtime that does not exist. Clause 3</td><td><a href="#d8-profiles">D8.20</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="a-stated-runtime-claim-under-a-static-profile-is-a-mismatch" data-pending-for="D8.20" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/profile/static/a-stated-runtime-claim-is-a-mismatch"><td>a static world that writes an admit policy, a film schema or a <code class="inline">state_schema_ref</code> into its own bytes</td><td><b><code class="inline">WRL_V2_WORLD_MISMATCH</code></b> — the artifact states a derived field its own profile does not derive. The row is the authority on what a static world may claim, not the submitter</td><td><a href="#d8-profiles">D8.20</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="a-profile-row-is-frozen-data" data-pending-for="D8.20" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/profile/static/the-row-is-frozen-data-not-a-branch"><td>the table and every row in it, probed for mutability, and the static derivation, probed for any name of a profile</td><td><b>deep-frozen, and the derivation names no row.</b> Clause 2: a row that could be assigned to is a row that decides bytes for whoever assigns last, and a derivation that knew which row it was reading would be a branch in a costume</td><td><a href="#d8-profiles">D8.20</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="profile-data-refuses-by-name" data-pending-for="D8.20" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/profile/static/the-profile-data-refuses-with-typed-codes"><td>a static world with, in turn, an undeclared role, an undeclared kind, an undeclared port, an inadmissible (source role, target role) pair, and a signature the row does not declare</td><td><b>five distinct codes</b> — <code class="inline">WRL_UNDECLARED_ROLE</code>, <code class="inline">WRL_UNDECLARED_KIND</code>, <code class="inline">WRL_UNDECLARED_PORT</code>, <code class="inline">WRL_UNDECLARED_ENDPOINT_PAIR</code>, <code class="inline">WRL_PROFILE_SIGNATURE_MISMATCH</code> — and no id minted for any of them. Clause 4</td><td><a href="#d8-profiles">D8.20</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="a-second-row-moves-no-existing-identity" data-pending-for="D8.20" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/profile/static/a-second-row-costs-one-entry-and-v0-does-not-move"><td><code class="inline">graphonomous.semantic.v1</code> added beside <code class="inline">v0</code>; every v0 golden world re-sealed; a DEFEATER attacking a RECEIPT offered under each row, and the same relation reversed</td><td><b>v0 still 21 roles / 31 kinds / 92 pairs and every v0 id unmoved; v1 exactly 24 / 32 / 102 and a checked superset, pair by pair.</b> The attack seals under v1, draws <code class="inline">WRL_UNDECLARED_ROLE</code> under v0, and reversed still draws <code class="inline">WRL_UNDECLARED_ENDPOINT_PAIR</code> under v1 — a successor widens by declaration and never by becoming permissive. Clause 5</td><td><a href="#d8-profiles">D8.20</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="an-undeclared-policy-does-not-seal" data-pending-for="D8.20" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/profile/an-undeclared-policy-does-not-seal"><td>a <code class="inline">forge.world.core.v1</code> world whose relation carries <code class="inline">policy: "anything.at.all"</code></td><td><b><code class="inline">WRL_UNDECLARED_POLICY</code>.</b> Before WRL-P0 this world sealed to <code class="inline">sem-b9b0c089…</code>: the policy field was hashed and never checked against anything. The gate closes GAP-W9 by validation only — no accepted bytes move</td><td><a href="#d8-profiles">D8.20</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="an-undeclared-profile-mints-no-id" data-pending-for="D8.20" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/profile/an-undeclared-profile-is-still-refused"><td>a world declaring a <code class="inline">profile_id</code> the table has no row for</td><td><b><code class="inline">WRL_UNSUPPORTED_PROFILE</code></b>, naming the rows that do exist, and no hash computed. Clause 1: the table made a second profile possible without making an unknown one acceptable</td><td><a href="#d8-profiles">D8.20</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="the-text-surface-writes-the-lowered-default" data-pending-for="D8.20" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/profile/forge-stays-the-lowered-family-default"><td>the encoding's default profile and its rulepack, read from both tables</td><td><b>one answer.</b> <code class="inline">forge.world.core.v1</code> is the lowered row and the family default, and its rulepack is read from <code class="inline">V2_RELATION_SOURCE_FAMILIES</code> rather than restated beside it, so the two tables cannot disagree about it. Clause 7</td><td><a href="#d8-profiles">D8.20</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="the-kernel-mints-under-a-static-profile" data-pending-for="D8.20" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/profile/static/the-kernel-mints-rel-and-rev"><td>the static world's derived relation view, held against the kernel called directly on the same seed and revision</td><td><b>the same <code class="inline">rel-</code> and the same <code class="inline">rev-</code></b>, scoped to the sealed <code class="inline">sem-</code>. The application submitted; the kernel minted. Clause 6, and the whole reason the spike's <code class="inline">gsem-</code>/<code class="inline">grelpre-</code> ids had to go</td><td><a href="#d8-profiles">D8.20</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="object-and-seed-order-are-not-in-a-static-worlds-bytes" data-pending-for="D8.20" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/profile/static/order-is-not-in-the-bytes"><td>the static world submitted with its objects and relations in a different order</td><td><b>the same bytes and the same id.</b> Order is decided by the encoder and is the one part of an encoding no field rule checks — the trap <a href="#d8-runtime-projection">§D8.18</a> found is refused here at the seal rather than discovered downstream</td><td><a href="#d8-profiles">D8.20</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
+<tr data-pending-law="the-world-gate-reads-the-row" data-pending-for="D8.20" data-pending-status="executable" data-pending-stage="model" data-pending-check="relation/v2/world/the-world-gate-delegates-to-the-profile"><td>the world gate's dispatch, under a lowered row and under a static row</td><td><b>delegates, and does not restate.</b> The lowered row is checked by the frozen spine's own <code class="inline">graphToIr</code>; the static row by a derivation that reads the row. Neither path lists a registry of its own, which is what keeps the gate one rule with two readers rather than two rules</td><td><a href="#d8-profiles">D8.20</a></td><td class="stage">model · <span class="st-executable">executable</span></td></tr>
 <tr data-pending-law="unpinned-reference-is-refused" data-pending-for="D9.1" data-pending-status="awaiting" data-pending-stage="film"><td>a package whose reference resolves only through a service it does not pin</td><td><b>refused</b> — replay must not depend on a contract the package never stated</td><td><a href="#d9-closure">D9.1</a></td><td class="stage">film · awaiting</td></tr>
 <tr data-pending-law="birth-key-survives-rescheduling" data-pending-for="D9.2" data-pending-status="awaiting" data-pending-stage="runtime"><td>same birth proposed at period 20 and at period 21</td><td>same <code class="inline">RelationBirthKey</code>, different <code class="inline">ScheduledTransition</code></td><td><a href="#d9-transition">D9.2</a></td><td class="stage">runtime · awaiting</td></tr>
 <tr data-pending-law="evidence-does-not-fork-structure" data-pending-for="D9.2" data-pending-status="awaiting" data-pending-stage="runtime"><td>same schedule, different <code class="inline">offered_evidence</code></td><td>one structural candidate, two proposal envelopes</td><td><a href="#d9-transition">D9.2</a></td><td class="stage">runtime · awaiting</td></tr>
@@ -5049,6 +5169,7 @@ with — see <a href="direction.html">Direction</a> for the case in prose.</p>
       <strong>Status</strong>
       Core 0.1.2 — frozen<br>
       Semantic IR v1 — frozen<br>
+      Semantic IR 2.0 — draft<br>
       Sugar — sugar.v2
     </div>
     <div style="max-width:32ch">

@@ -244,6 +244,21 @@ in one exhaustive act; nothing derives a name from the endpoints.
 §D8 and Semantic IR 2.0 are both **drafts**, and an implementation that runs
 does not settle the design it implements.
 
+### The profile table — WRL-P0, and a vocabulary that arrives as data
+
+`relation-v2.js` holds `V2_PROFILES`, frozen data keyed by `profile_id`. One
+row is *lowered* (`forge.world.core.v1`: its worlds are V1 worlds spelled in
+V2, and the frozen spine's registries are its declaration); three are *static*
+(`graphonomous.semantic.v0`, `v1`, `v2`: roles, ports, domain, kinds and
+admissible endpoint pairs declared as data, sealed as an artifact, refused by
+the text surface). A static profile implies no runtime and derives exactly
+`{ rulepack_id }`. The first static row arrived from Graphonomous, whose world
+the encoder could not seal and which was therefore minting ids of its own; the
+repair is a table, not a branch, and adding a row moves no existing identity.
+[`reference.html#profiles`](reference.html#profiles) prints the rows with
+counts the suite reads out of the module; the rule is
+[`spec.html#d8-profiles`](spec.html#d8-profiles) (§D8.20).
+
 ## Viewing locally
 
 Static files, no build step. `wrl.js` is an ES module, so open it over HTTP

@@ -567,11 +567,22 @@ start with <code class="inline">;</code> and run to end of line.</p>
 [<span class="id">r0</span>] <span class="rt">--sig--&gt;</span> [<span class="id">sp</span>]
 [<span class="id">sp</span>] <span class="rt">--socket--&gt;</span> [<span class="id">ob</span>]</code></pre>
 
-<p>That is the entire grammar of the current core surface. There is one profile,
+<p>That is the entire grammar of the current core surface. There is one profile
+the text surface writes,
 five roles, two edge kinds, one configuration group per role, and one port group
 per declaration. The restraint is deliberate: every construct in that list is
 surface-grounded, meaning it round-trips through the canonical bytes and its
 identity behaviour is covered by a battery.</p>
+
+<div class="note"><b>One profile in the text; four in the encoder.</b> Since
+WRL-P0 (September 2026) the Semantic IR 2.0 encoder holds a
+<a href="reference.html#profiles">table of profiles</a>, and three of its rows
+— the <code class="inline">graphonomous.semantic</code> lineage — are
+<i>static</i>: a vocabulary of roles, kinds and admissible endpoint pairs
+declared as data, sealed as an artifact, and refused by the text surface. You
+cannot type them here, and this guide does not pretend otherwise; what they
+change is that a domain can now bring its own vocabulary without a new
+encoding. <a href="spec.html#d8-profiles">Core Part II §D8.20</a>.</div>
 
 <div class="note"><b><code class="inline">#</code> is not a comment.</b> In the
 core surface the comment marker is <code class="inline">;</code> only.
@@ -912,6 +923,7 @@ decision nobody ruled on.</p>
       <strong>Status</strong>
       Core 0.1.2 — frozen<br>
       Semantic IR v1 — frozen<br>
+      Semantic IR 2.0 — draft<br>
       Sugar — sugar.v2
     </div>
     <div style="max-width:32ch">

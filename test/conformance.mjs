@@ -1581,6 +1581,19 @@ for (const [id, entries] of futurePairs) {
          `an outcome is stated for '${name}' but the page no longer offers it`);
     }
 
+    /* Each button says on its face whether it seals or refuses (data-expect),
+       because six of the thirteen examples refuse BY DESIGN and a reader who
+       sees a red bar with no warning reads it as a broken page. The marker is
+       held to the expectation table above: a button that promises a seal and
+       refuses, or the reverse, is a page saying two things. */
+    for (const [name, want] of Object.entries(expected)) {
+      const m = new RegExp(`<button\\b([^>]*data-ex="${name}"[^>]*)>`).exec(text);
+      const mark = m ? ATTR(m[1], "data-expect") : null;
+      const should = want.seal ? "seal" : "refuse";
+      ok(`playground/${name}-marker`, mark === should,
+         `the button carries data-expect="${mark}" but the expectation table says ${should}`);
+    }
+
     /* the page must not grow a control that decides the encoding. A selector
        may put starter TEXT in the editor; one that reinterprets text already
        there makes a world's id a function of the interface. */
@@ -6477,6 +6490,18 @@ function fmt(v) {
         .replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim(),
     }));
 
+  /* direction.html quotes the register's size as evidence. A quoted count is
+     the one kind of figure this site has learned to distrust, so it is read
+     back and held to the register it describes. */
+  {
+    const dir = readFileSync(join(ROOT, "direction.html"), "utf8");
+    const quoted = /<span data-register-rows>(\d+)<\/span>/.exec(dir);
+    ok("docs/direction-quotes-current-register-size",
+       !!quoted && Number(quoted[1]) === rows.length,
+       `direction.html says ${quoted ? quoted[1] : "(no data-register-rows span)"} ` +
+       `register rows; the register has ${rows.length}`);
+  }
+
   ok("pending/register-is-not-vacuous", rows.length > 0,
      `no rows carry data-pending-law. Either the register was deleted or this ` +
      `reader stopped matching it; both leave every unexecutable draft rule ` +
@@ -6583,6 +6608,77 @@ function fmt(v) {
 }
 
 /* ==================================================================== report */
+
+/* ------------------------------------------------ reference.html, read from the modules
+ *
+ * WRL-P0 put a profile TABLE in relation-v2.js and the reference prints it.
+ * Every count in that table, and every gloss in the relation-code table
+ * beneath the frozen codes, is compared here against the module that owns it
+ * -- the same discipline as the capability registry: a page that can drift
+ * from the code it documents is not documentation. */
+{
+  const ref = readFileSync(join(ROOT, "reference.html"), "utf8");
+  const v2r = await import("../relation-v2.js");
+  const Rr = await import("../relation-identity.js");
+
+  const table = /<table id="profile-table">([\s\S]*?)<\/table>/.exec(ref);
+  ok("reference/profile-table-found", !!table,
+     "reference.html#profile-table did not parse -- the profile rows cannot be checked");
+  if (table) {
+    const rows = new Map();
+    for (const m of table[1].matchAll(/<tr ([^>]*data-profile=[^>]*)>/g))
+      rows.set(ATTR(m[1], "data-profile"), m[1]);
+    const ids = Object.keys(v2r.V2_PROFILES);
+    const missing = ids.filter((id) => !rows.has(id));
+    const invented = [...rows.keys()].filter((id) => !ids.includes(id));
+    ok("reference/profile-table-lists-exactly-the-rows",
+       missing.length === 0 && invented.length === 0,
+       `missing [${missing.join(", ")}], not in V2_PROFILES [${invented.join(", ")}]`);
+    for (const id of ids) {
+      const a = rows.get(id);
+      if (!a) continue;
+      const r = v2r.V2_PROFILES[id];
+      const st = r.derivation === "static";
+      const want = {
+        derivation: r.derivation, domain: r.domain, rulepack: r.rulepack_id,
+        roles: st ? String(Object.keys(r.roles).length) : null,
+        kinds: st ? String(Object.keys(r.endpoints).length) : null,
+        pairs: st ? String(Object.values(r.endpoints).reduce((n, p) => n + p.length, 0)) : null,
+      };
+      const got = {
+        derivation: ATTR(a, "data-derivation"), domain: ATTR(a, "data-domain"),
+        rulepack: ATTR(a, "data-rulepack"), roles: ATTR(a, "data-roles"),
+        kinds: ATTR(a, "data-kinds"), pairs: ATTR(a, "data-pairs"),
+      };
+      ok(`reference/profile-row/${id}`, JSON.stringify(got) === JSON.stringify(want),
+         `page ${JSON.stringify(got)} vs module ${JSON.stringify(want)}`);
+    }
+  }
+
+  const ct = /<table id="relation-code-table">([\s\S]*?)<\/table>/.exec(ref);
+  ok("reference/relation-code-table-found", !!ct,
+     "reference.html#relation-code-table did not parse");
+  if (ct) {
+    const ent = (x) => x.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+    const rows = new Map();
+    for (const m of ct[1].matchAll(/<tr ([^>]*data-code=[^>]*)>([\s\S]*?)<\/tr>/g)) {
+      const tds = [...m[2].matchAll(/<td>([\s\S]*?)<\/td>/g)].map((x) => x[1]);
+      rows.set(ATTR(m[1], "data-code"), { layer: ATTR(m[1], "data-layer"), gloss: ent(tds[1] || "") });
+    }
+    const all = new Map([
+      ...Object.entries(Rr.RELATION_CODES).map(([c, g]) => [c, { layer: "relation-identity.js", gloss: g }]),
+      ...Object.entries(v2r.RELATION_V2_CODES).map(([c, g]) => [c, { layer: "relation-v2.js", gloss: g }]),
+    ]);
+    const missing = [...all.keys()].filter((c) => !rows.has(c));
+    const extra = [...rows.keys()].filter((c) => !all.has(c));
+    ok("reference/every-relation-code-has-a-row", missing.length === 0 && extra.length === 0,
+       `no row for [${missing.join(", ")}]; rows for codes no module raises [${extra.join(", ")}]`);
+    const drift = [...all].filter(([c, w]) => rows.has(c) &&
+      (rows.get(c).gloss !== w.gloss || rows.get(c).layer !== w.layer)).map(([c]) => c);
+    ok("reference/relation-code-glosses-are-the-modules-own", drift.length === 0,
+       `gloss or layer drifted from the module for [${drift.join(", ")}]`);
+  }
+}
 
 console.log(`\n  ${pass} passed, ${fail} failed ` +
             `(${annotated} annotated doc blocks of ${blocks} swept, ` +

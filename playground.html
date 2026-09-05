@@ -123,24 +123,29 @@
 
   <p id="selfcheck">self-check: running…</p>
 
+  <p class="derivednote">Buttons marked <span class="expect-refuse">✗</span>
+  load a world the toolchain <b>refuses</b> — the red bar and its typed code
+  are the demonstration, not a fault in the page. Unmarked buttons seal.
+  Which is which is asserted by the conformance suite, button by button.</p>
+
   <div class="exrow">
-    <button class="minibtn" data-ex="starter">The starter world</button>
-    <button class="minibtn" data-ex="demo">The pinned fixture</button>
-    <button class="minibtn" data-ex="twin">Its explicit numeric twin</button>
-    <button class="minibtn" data-ex="shuffled">The same world, shuffled</button>
-    <button class="minibtn" data-ex="repl">Replication &amp; fan-out sugar</button>
-    <button class="minibtn" data-ex="conflict">An illegal rewire</button>
-    <button class="minibtn" data-ex="scenario">Run inputs in world source</button>
-    <button class="minibtn" data-ex="typo">A silently-ignored typo</button>
-    <button class="minibtn" data-ex="remap">A fault inside an expansion</button>
-    <button class="minibtn" data-ex="empty">Empty world</button>
+    <button class="minibtn" data-ex="starter" data-expect="seal">The starter world</button>
+    <button class="minibtn" data-ex="demo" data-expect="seal">The pinned fixture</button>
+    <button class="minibtn" data-ex="twin" data-expect="seal">Its explicit numeric twin</button>
+    <button class="minibtn" data-ex="shuffled" data-expect="seal">The same world, shuffled</button>
+    <button class="minibtn" data-ex="repl" data-expect="seal">Replication &amp; fan-out sugar</button>
+    <button class="minibtn" data-ex="conflict" data-expect="refuse">An illegal rewire</button>
+    <button class="minibtn" data-ex="scenario" data-expect="refuse">Run inputs in world source</button>
+    <button class="minibtn" data-ex="typo" data-expect="refuse">A silently-ignored typo</button>
+    <button class="minibtn" data-ex="remap" data-expect="refuse">A fault inside an expansion</button>
+    <button class="minibtn" data-ex="empty" data-expect="seal">Empty world</button>
   </div>
 
   <div class="exrow">
     <span class="derivednote" style="align-self:center">IR 2.0 · draft ·</span>
-    <button class="minibtn" data-ex="named">A world with named relations</button>
-    <button class="minibtn" data-ex="unnamed">An unnamed route</button>
-    <button class="minibtn" data-ex="badir">A declaration that does not parse</button>
+    <button class="minibtn" data-ex="named" data-expect="seal">A world with named relations</button>
+    <button class="minibtn" data-ex="unnamed" data-expect="refuse">An unnamed route</button>
+    <button class="minibtn" data-ex="badir" data-expect="refuse">A declaration that does not parse</button>
   </div>
 
   <div class="pgrid">
@@ -403,6 +408,10 @@
   </div>
 </footer>
 
+<style>
+  .minibtn[data-expect="refuse"]::before { content: "✗ "; color: var(--bad, #b3261e); }
+  .expect-refuse { color: var(--bad, #b3261e); font-weight: 600; }
+</style>
 <script type="module">
 import * as W from "./wrl.js";
 /* The derived relation view of §D8. It imports `wrl.js`; nothing in the spine

@@ -53,6 +53,7 @@
   <a href="#sugar">Sugar forms &amp; bounds</a>
   <a href="#artifact">Canonical artifact</a>
   <a href="#policies">Pinned policy ids</a>
+  <a href="#profiles">Profile table</a>
   <a href="#ladder">Identity ladder</a>
   <a href="#codes">Diagnostic codes</a>
   <a href="#parsers">Parser entry points</a>
@@ -405,8 +406,8 @@ inert</b>: shuffling declaration lines cannot move the
 <div class="tbl"><table>
 <thead><tr><th>Constant</th><th>Value</th></tr></thead>
 <tbody>
-<tr><td>IR version</td><td><code class="inline">1.0</code> &nbsp;(mailbox profile: <code class="inline">1.1</code>)</td></tr>
-<tr><td>Profile</td><td><code class="inline">forge.world.core.v1</code></td></tr>
+<tr><td>IR version</td><td><code class="inline">1.0</code> &nbsp;(mailbox profile: <code class="inline">1.1</code>) &nbsp;·&nbsp; <code class="inline">2.0</code> for a source that declares <code class="inline">ir 2.0</code> — <a href="spec.html#d8-v2-header">Semantic IR 2.0, draft</a></td></tr>
+<tr><td>Profile</td><td><code class="inline">forge.world.core.v1</code> — the one profile the text surface writes. Three more rows exist as sealed artifacts only: <a href="#profiles">the profile table</a></td></tr>
 <tr><td>Rulepack</td><td><code class="inline">forge.world.core.rules.v1</code></td></tr>
 <tr><td>Admit policy</td><td><code class="inline">admit_candidate_min_firstreceipt_v1</code></td></tr>
 <tr><td>Admit policy (mailbox)</td><td><code class="inline">admit_mailbox_deliver_all_v1</code></td></tr>
@@ -470,6 +471,61 @@ disagrees with either is a failing build:</p>
 <tr><td>the profile or any pinned policy id</td><td><b>moves</b></td></tr>
 </tbody></table></div>
 
+<h2 id="profiles">The profile table</h2>
+
+<p>Until September 2026 there was exactly one profile, and the sentence "there
+is one profile" appeared on four pages of this site. It is now true of the
+<b>text surface</b> and false of the encoder. The first profile that is not
+<code class="inline">forge.world.core.v1</code> arrived from an application —
+Graphonomous holds a deterministic Semantic IR 2.0 world with twenty-one
+roles, one port, a <code class="inline">semantic</code> domain and thirty-one
+directed solid kinds, and nothing in it is a Pulser — and the encoder could not
+seal it, so the application was minting its own world id under its own prefix,
+which the relation kernel correctly refused to scope a
+<code class="inline">rel-</code> to. The repair, WRL-P0, is a <b>table of
+profiles</b> in <code class="inline">relation-v2.js</code>, frozen data keyed by
+<code class="inline">profile_id</code>. It is specified as
+<a href="spec.html#d8-profiles">Core Part II §D8.20</a>.</p>
+
+<p>Two kinds of row, told apart by one data tag. A <b>lowered</b> row declares
+nothing of its own: its worlds are V1 worlds spelled in V2, and the frozen
+spine's registries are its declaration. A <b>static</b> row carries its
+declaration as data — roles and the ports each has, the relation domain, the
+kinds, one orientation/texture/arity signature, and the (source role, target
+role) pairs each kind admits — and <b>implies no runtime</b>: it derives
+<code class="inline">semantic_policies = { rulepack_id }</code> and nothing
+else, and the downgrade, the runtime projection and the text surface all
+refuse a static world. A seal is not a run.</p>
+
+<div class="tbl"><table id="profile-table">
+<thead><tr><th>Profile</th><th>Derivation</th><th>Domain</th><th>Rulepack</th><th>Roles</th><th>Kinds</th><th>Endpoint pairs</th><th>Writable as text</th></tr></thead>
+<tbody>
+<tr data-profile="forge.world.core.v1" data-derivation="lowered" data-domain="signal" data-rulepack="forge.world.core.rules.v1"><td><code class="inline">forge.world.core.v1</code></td><td>lowered</td><td><code class="inline">signal</code></td><td><code class="inline">forge.world.core.rules.v1</code></td><td><span class="dim">the spine's five</span></td><td><span class="dim">the spine's two</span></td><td><span class="dim">—</span></td><td>yes</td></tr>
+<tr data-profile="graphonomous.semantic.v0" data-derivation="static" data-domain="semantic" data-rulepack="graphonomous.semantic.rules.v0" data-roles="21" data-kinds="31" data-pairs="92"><td><code class="inline">graphonomous.semantic.v0</code></td><td>static</td><td><code class="inline">semantic</code></td><td><code class="inline">graphonomous.semantic.rules.v0</code></td><td>21</td><td>31</td><td>92</td><td><span class="dim">no — sealed artifact only</span></td></tr>
+<tr data-profile="graphonomous.semantic.v1" data-derivation="static" data-domain="semantic" data-rulepack="graphonomous.semantic.rules.v0" data-roles="24" data-kinds="32" data-pairs="102"><td><code class="inline">graphonomous.semantic.v1</code></td><td>static</td><td><code class="inline">semantic</code></td><td><code class="inline">graphonomous.semantic.rules.v0</code></td><td>24</td><td>32</td><td>102</td><td><span class="dim">no — sealed artifact only</span></td></tr>
+<tr data-profile="graphonomous.semantic.v2" data-derivation="static" data-domain="semantic" data-rulepack="graphonomous.semantic.rules.v0" data-roles="24" data-kinds="32" data-pairs="103"><td><code class="inline">graphonomous.semantic.v2</code></td><td>static</td><td><code class="inline">semantic</code></td><td><code class="inline">graphonomous.semantic.rules.v0</code></td><td>24</td><td>32</td><td>103</td><td><span class="dim">no — sealed artifact only</span></td></tr>
+</tbody></table></div>
+
+<p>The three Graphonomous rows are one lineage: <code class="inline">v1</code>
+is <code class="inline">v0</code> spread plus a measured delta (three roles,
+one kind, ten pairs), and <code class="inline">v2</code> is
+<code class="inline">v1</code> plus exactly one endpoint pair,
+<code class="inline">SUPERSEDES [LAW, LAW]</code>. A frozen row is never
+edited; a successor is a new id that spreads its predecessor and widens by
+declaration, so a world that seals under <code class="inline">v0</code> seals
+to the same id after <code class="inline">v1</code> and
+<code class="inline">v2</code> exist. Every count in this table is read out of
+<code class="inline">V2_PROFILES</code> by <code class="inline">test/conformance.mjs</code>
+and the build fails if the page and the module disagree — the same rule the
+capability registry below lives under.</p>
+
+<div class="note"><b>What this is not.</b> It is not
+<code class="inline">ProfileSchemaV1</code> (<a href="spec.html#d6-bootstrap">§D6.1</a>,
+capability <code class="inline">profile-mechanism</code>): no attribute types,
+no units, no bounded resources, no resolution tables. A static row is a profile
+<i>as data</i>, admitted by the encoder; the mechanism a profile is
+<i>written in</i> is still unshipped, and the registry says so.</div>
+
 <h2 id="codes">Diagnostic codes</h2>
 
 <p>Every rejection is one of these typed codes. Downstream tools branch on the
@@ -510,6 +566,66 @@ has a description and that the two lists have not drifted apart.</p>
 <tr><td><code class="inline">WRL_BAD_LOWERING_PROFILE</code></td><td>a backend lowering profile is half-specified</td><td><span class="dim">no — backend lowering</span></td></tr>
 <tr><td><code class="inline">WRL_SEALED_IMMUTABLE</code></td><td>something tried to write to a sealed object</td><td><span class="dim">no — sealed records</span></td></tr>
 <tr><td><code class="inline">WRL_UNKNOWN_ARTIFACT_FIELD</code></td><td>a sealed record carries an unknown field</td><td><span class="dim">no — sealed records</span></td></tr>
+</tbody></table></div>
+
+<h3 id="relation-codes">Relation-layer and Semantic IR 2.0 codes</h3>
+
+<p>The frozen spine's codes above are the whole surface a V1 world can meet.
+Two derived modules above the spine carry their own, kept out of
+<code class="inline">W.CODES</code> because the frozen spine's error surface is
+the frozen spine's: the relation identity kernel
+(<code class="inline">relation-identity.js</code>, <a href="spec.html#d8-kernel">§D8</a>)
+and the Semantic IR 2.0 encoder
+(<code class="inline">relation-v2.js</code>, <a href="spec.html#d8-v2">§D8.9–§D8.20</a>).
+The playground raises the IR 2.0 codes on any source that declares
+<code class="inline">ir 2.0</code>. Each gloss below is the module's own string,
+and the suite refuses a row that drifts from it or a code that has no row.</p>
+
+<div class="tbl"><table id="relation-code-table">
+<thead><tr><th>Code</th><th>Means</th><th>Layer</th></tr></thead>
+<tbody>
+<tr data-code="WRL_DUPLICATE_RELATION_KEY" data-layer="relation-identity.js"><td><code class="inline">WRL_DUPLICATE_RELATION_KEY</code></td><td>two relations in one world share the edge key that names them</td><td>kernel</td></tr>
+<tr data-code="WRL_UNWRITABLE_ALLOCATION" data-layer="relation-identity.js"><td><code class="inline">WRL_UNWRITABLE_ALLOCATION</code></td><td>an allocation variant was constructed by an authority that may not</td><td>kernel</td></tr>
+<tr data-code="WRL_BAD_ALLOCATION" data-layer="relation-identity.js"><td><code class="inline">WRL_BAD_ALLOCATION</code></td><td>an allocation does not have the shape its variant declares</td><td>kernel</td></tr>
+<tr data-code="WRL_BAD_RELATION_REVISION" data-layer="relation-identity.js"><td><code class="inline">WRL_BAD_RELATION_REVISION</code></td><td>a relation revision has the wrong shape</td><td>kernel</td></tr>
+<tr data-code="WRL_REVISION_BACKPOINTER" data-layer="relation-identity.js"><td><code class="inline">WRL_REVISION_BACKPOINTER</code></td><td>a relation revision points at another revision</td><td>kernel</td></tr>
+<tr data-code="WRL_ENDPOINT_ROLE_ILLEGAL" data-layer="relation-identity.js"><td><code class="inline">WRL_ENDPOINT_ROLE_ILLEGAL</code></td><td>an endpoint holds a role its relation's orientation does not admit</td><td>kernel</td></tr>
+<tr data-code="WRL_DUPLICATE_TERMINAL" data-layer="relation-identity.js"><td><code class="inline">WRL_DUPLICATE_TERMINAL</code></td><td>one terminal appears twice in a single relation</td><td>kernel</td></tr>
+<tr data-code="WRL_INCOMPLETE_ORIENTATION" data-layer="relation-identity.js"><td><code class="inline">WRL_INCOMPLETE_ORIENTATION</code></td><td>an orientation's required roles are not all present</td><td>kernel</td></tr>
+<tr data-code="WRL_ACAUSAL_TEXTURE" data-layer="relation-identity.js"><td><code class="inline">WRL_ACAUSAL_TEXTURE</code></td><td>an acausal relation carries a texture, which a solver wall governs instead</td><td>kernel</td></tr>
+<tr data-code="WRL_MISSING_TEXTURE" data-layer="relation-identity.js"><td><code class="inline">WRL_MISSING_TEXTURE</code></td><td>a directed relation states no texture, and §D8 requires one</td><td>kernel</td></tr>
+<tr data-code="WRL_BAD_TERMINAL" data-layer="relation-identity.js"><td><code class="inline">WRL_BAD_TERMINAL</code></td><td>a terminal is not the { object_id, port } record §D8 endpoints are made of</td><td>kernel</td></tr>
+<tr data-code="WRL_SEMANTIC_ID_MISMATCH" data-layer="relation-identity.js"><td><code class="inline">WRL_SEMANTIC_ID_MISMATCH</code></td><td>a claimed world id is not the id the supplied artifact hashes to</td><td>kernel</td></tr>
+<tr data-code="WRL_UNSUPPORTED_IR_VERSION" data-layer="relation-identity.js"><td><code class="inline">WRL_UNSUPPORTED_IR_VERSION</code></td><td>an ir_version is outside the family the reader that met it accepts</td><td>kernel</td></tr>
+<tr data-code="WRL_UNSUPPORTED_PROFILE" data-layer="relation-identity.js"><td><code class="inline">WRL_UNSUPPORTED_PROFILE</code></td><td>an artifact's profile is not the one its ir_version's source family names</td><td>kernel</td></tr>
+<tr data-code="WRL_UNSUPPORTED_RULEPACK" data-layer="relation-identity.js"><td><code class="inline">WRL_UNSUPPORTED_RULEPACK</code></td><td>an artifact's rulepack is not the one its source family declares</td><td>kernel</td></tr>
+<tr data-code="WRL_UNKNOWN_PROFILE_DOMAIN" data-layer="relation-identity.js"><td><code class="inline">WRL_UNKNOWN_PROFILE_DOMAIN</code></td><td>a profile declares no default relation domain for this adapter to resolve</td><td>kernel</td></tr>
+<tr data-code="WRL_RELATIONS_IN_V1" data-layer="relation-identity.js"><td><code class="inline">WRL_RELATIONS_IN_V1</code></td><td>a V1 artifact carries a relations key, which only a V2 artifact encodes</td><td>kernel</td></tr>
+<tr data-code="WRL_UNVERIFIED_IMPORT" data-layer="relation-identity.js"><td><code class="inline">WRL_UNVERIFIED_IMPORT</code></td><td>a RelationImported fact is not backed by the derived correspondence</td><td>kernel</td></tr>
+<tr data-code="WRL_LEGACY_EDGES_IN_V2" data-layer="relation-v2.js"><td><code class="inline">WRL_LEGACY_EDGES_IN_V2</code></td><td>a V2 artifact carries an edges key, which the relations key replaces</td><td>IR 2.0</td></tr>
+<tr data-code="WRL_BAD_IDENTITY_SEED" data-layer="relation-v2.js"><td><code class="inline">WRL_BAD_IDENTITY_SEED</code></td><td>an identity seed does not have the shape its variant declares</td><td>IR 2.0</td></tr>
+<tr data-code="WRL_UNWRITABLE_SEED" data-layer="relation-v2.js"><td><code class="inline">WRL_UNWRITABLE_SEED</code></td><td>a seed variant appears in initial bytes that may not be minted there</td><td>IR 2.0</td></tr>
+<tr data-code="WRL_MISSING_RELATION_NAME" data-layer="relation-v2.js"><td><code class="inline">WRL_MISSING_RELATION_NAME</code></td><td>a relation is written with no name, and a name is never derived</td><td>IR 2.0</td></tr>
+<tr data-code="WRL_DUPLICATE_RELATION_SEED" data-layer="relation-v2.js"><td><code class="inline">WRL_DUPLICATE_RELATION_SEED</code></td><td>two relations in one world carry the same identity seed</td><td>IR 2.0</td></tr>
+<tr data-code="WRL_BAD_V2_ARTIFACT" data-layer="relation-v2.js"><td><code class="inline">WRL_BAD_V2_ARTIFACT</code></td><td>a V2 artifact or one of its relation records has the wrong shape</td><td>IR 2.0</td></tr>
+<tr data-code="WRL_BAD_RELATION_NAME" data-layer="relation-v2.js"><td><code class="inline">WRL_BAD_RELATION_NAME</code></td><td>a relation name is not an identifier</td><td>IR 2.0</td></tr>
+<tr data-code="WRL_AMBIGUOUS_RELATION_NAME" data-layer="relation-v2.js"><td><code class="inline">WRL_AMBIGUOUS_RELATION_NAME</code></td><td>a relation name does not name exactly one relation</td><td>IR 2.0</td></tr>
+<tr data-code="WRL_UNWRITABLE_RELATION" data-layer="relation-v2.js"><td><code class="inline">WRL_UNWRITABLE_RELATION</code></td><td>a well-formed V2 relation has no form in the minimal surface</td><td>IR 2.0</td></tr>
+<tr data-code="WRL_V2_WORLD_MISMATCH" data-layer="relation-v2.js"><td><code class="inline">WRL_V2_WORLD_MISMATCH</code></td><td>a V2 artifact states a derived field that its own world does not derive</td><td>IR 2.0</td></tr>
+<tr data-code="WRL_MISSING_IR_HEADER" data-layer="relation-v2.js"><td><code class="inline">WRL_MISSING_IR_HEADER</code></td><td>a V2 source does not declare which encoding it is written in</td><td>IR 2.0</td></tr>
+<tr data-code="WRL_DUPLICATE_IR_HEADER" data-layer="relation-v2.js"><td><code class="inline">WRL_DUPLICATE_IR_HEADER</code></td><td>a V2 source declares its encoding more than once</td><td>IR 2.0</td></tr>
+<tr data-code="WRL_MALFORMED_IR_HEADER" data-layer="relation-v2.js"><td><code class="inline">WRL_MALFORMED_IR_HEADER</code></td><td>a V2 source's encoding declaration is not one version token</td><td>IR 2.0</td></tr>
+<tr data-code="WRL_UNKNOWN_RELATION" data-layer="relation-v2.js"><td><code class="inline">WRL_UNKNOWN_RELATION</code></td><td>an adoption names a relation the world does not have</td><td>IR 2.0</td></tr>
+<tr data-code="WRL_DUPLICATE_ADOPTION" data-layer="relation-v2.js"><td><code class="inline">WRL_DUPLICATE_ADOPTION</code></td><td>one relation is adopted twice, under two names</td><td>IR 2.0</td></tr>
+<tr data-code="WRL_INCOMPLETE_ADOPTION" data-layer="relation-v2.js"><td><code class="inline">WRL_INCOMPLETE_ADOPTION</code></td><td>an adoption leaves a legacy relation unnamed, and would seal it that way</td><td>IR 2.0</td></tr>
+<tr data-code="WRL_BAD_PROJECTION" data-layer="relation-v2.js"><td><code class="inline">WRL_BAD_PROJECTION</code></td><td>a transmitted runtime projection does not have the shape of one</td><td>IR 2.0</td></tr>
+<tr data-code="WRL_PROJECTION_MISMATCH" data-layer="relation-v2.js"><td><code class="inline">WRL_PROJECTION_MISMATCH</code></td><td>a transmitted runtime projection claims a value its own world does not derive</td><td>IR 2.0</td></tr>
+<tr data-code="WRL_UNDECLARED_POLICY" data-layer="relation-v2.js"><td><code class="inline">WRL_UNDECLARED_POLICY</code></td><td>a relation's policy is not in the vocabulary its world's profile declares</td><td>IR 2.0</td></tr>
+<tr data-code="WRL_UNDECLARED_ROLE" data-layer="relation-v2.js"><td><code class="inline">WRL_UNDECLARED_ROLE</code></td><td>an object's role is not one its static profile declares</td><td>IR 2.0</td></tr>
+<tr data-code="WRL_UNDECLARED_KIND" data-layer="relation-v2.js"><td><code class="inline">WRL_UNDECLARED_KIND</code></td><td>a relation's kind is not one its static profile declares</td><td>IR 2.0</td></tr>
+<tr data-code="WRL_UNDECLARED_PORT" data-layer="relation-v2.js"><td><code class="inline">WRL_UNDECLARED_PORT</code></td><td>a terminal names a port its object's role does not declare</td><td>IR 2.0</td></tr>
+<tr data-code="WRL_UNDECLARED_ENDPOINT_PAIR" data-layer="relation-v2.js"><td><code class="inline">WRL_UNDECLARED_ENDPOINT_PAIR</code></td><td>a relation joins two roles its kind does not admit as (source, target)</td><td>IR 2.0</td></tr>
+<tr data-code="WRL_PROFILE_SIGNATURE_MISMATCH" data-layer="relation-v2.js"><td><code class="inline">WRL_PROFILE_SIGNATURE_MISMATCH</code></td><td>a relation's domain, orientation, texture, arity or endpoint roles are not its profile's signature</td><td>IR 2.0</td></tr>
 </tbody></table></div>
 
 <p>A diagnostic carries a code, a human detail, and — where the failure is
@@ -834,6 +950,7 @@ the ids it shows are real.</p>
       <strong>Status</strong>
       Core 0.1.2 — frozen<br>
       Semantic IR v1 — frozen<br>
+      Semantic IR 2.0 — draft<br>
       Sugar — sugar.v2
     </div>
     <div style="max-width:32ch">

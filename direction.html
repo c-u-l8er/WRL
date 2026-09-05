@@ -320,8 +320,8 @@ meaning is decided and weak exactly where operations happen.</p>
 <tr><td>Programmable behaviour</td><td>None. Five fixed roles with fixed reactions.</td></tr>
 <tr><td>Dynamic topology</td><td>None. The world is static for the length of a run.</td></tr>
 <tr><td>Supervision</td><td>Fault <i>state</i> exists. Supervision does not.</td></tr>
-<tr><td>Domain profiles</td><td>One profile, <code class="inline">forge.world.core.v1</code>. V2 Semantic IR adds a second encoding family, not a second profile.</td></tr>
-<tr><td>Content-addressed worlds and replayable films</td><td><b>Real, cross-implementation, and two-encoding.</b> Verified across JS and Python/Forge with byte-exact <code class="inline">sem-</code> agreement. 1254 conformance checks, 128 register rows, model debt 0.</td></tr>
+<tr><td>Domain profiles</td><td>One profile the text surface writes, <code class="inline">forge.world.core.v1</code>. Since WRL-P0 the V2 encoder holds a <a href="reference.html#profiles">table</a> with three further <i>static</i> rows (the <code class="inline">graphonomous.semantic</code> lineage) — a vocabulary as data, sealed as an artifact, not typed. That is a profile <i>row</i>, not the profile <i>mechanism</i> (<code class="inline">ProfileSchemaV1</code>), which is still unshipped.</td></tr>
+<tr><td>Content-addressed worlds and replayable films</td><td><b>Real, cross-implementation, and two-encoding.</b> Verified across JS and Python/Forge with byte-exact <code class="inline">sem-</code> agreement. <span data-register-rows>140</span> register rows, model debt 0; the check count is printed by <code class="inline">node test/conformance.mjs</code> and not quoted here, because a number typed on a page is a number that drifts.</td></tr>
 </tbody></table></div>
 
 <p>So the honest summary is: the <b>mechanism</b> is built and the
@@ -1239,6 +1239,7 @@ properties.</li>
       <strong>Status</strong>
       Core 0.1.2 — frozen<br>
       Semantic IR v1 — frozen<br>
+      Semantic IR 2.0 — draft<br>
       This page — non-normative
     </div>
     <div style="max-width:32ch">
