@@ -39,6 +39,19 @@ builds. A second, larger world — the **pinned conformance fixture**,
 batteries assert against. Both are example buttons in the playground, and both
 are checked on every change by [`test/conformance.mjs`](test/conformance.mjs).
 
+## Where it sits
+
+The ComputeDriven stack has three verbs, and WRL owns the first. **WRL
+describes understanding** — expression, description, semantics. **TRVM
+reduces and derives it** — execution, derivation; Forge is its runtime and
+agrees with this repository's spine byte for byte. **Graphonomous stores,
+connects, explores, tests and evolves it** — an autonomous semantic/evidence
+graph whose world is a WRL Semantic IR 2.0 world under a profile it declared
+as data (the `graphonomous.semantic` rows of the profile table). Above the
+three is ComputeDriven, the operating system; around them is Super (CD), the
+operating environment. Nothing in this repository runs, reduces, stores or
+explains a world; it says exactly what one is.
+
 ## The pages
 
 | Page | What it is |
